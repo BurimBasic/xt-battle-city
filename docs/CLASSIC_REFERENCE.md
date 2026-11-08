@@ -52,7 +52,7 @@ All claims about equivalence to the original need reproduction tests (reference 
 
 Classic Namco Battle City shows 20 enemy tank marks on the right, 1P/2P extra lives and a flag with the current stage. The action view does **not** have a bottom help strip or a running score label. After the stage the score is shown on a results screen.
 
-CGA v0.5 retains **original project-made** 8×8 monochrome HUD glyphs on the white right sidebar (20 enemies, `1P`, spare lives, stage flag). Game Over displays a compact center overlay; Stage Clear now displays a separate tally of kills by four enemy classes and the cumulative score. It is still not a pixel-identical NES port: wall hitboxes and grid-step movement differ significantly. The CGA layout is adapted to 320×200 with four colors and 16×12 cells.
+CGA v0.5 retains **original project-made** 8×8 monochrome HUD glyphs on the white right sidebar (20 enemies, `1P`, spare lives, stage flag). Game Over displays a compact center overlay; Stage Clear now displays a separate tally of kills by four enemy classes and the cumulative score. It is still not a pixel-identical NES port: overall speed and game balancing still differ and require hardware tests. The CGA layout is adapted to 320×200 with four colors and 16×12 cells.
 
 Reference manuals/reports:
 - https://usermanual.wiki/Document/UserManual.2090753506.pdf

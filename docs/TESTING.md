@@ -79,3 +79,8 @@ The game still starts as an IBM PC/XT DOS .COM in CGA graphics mode 04h. It inst
 - Use manual gameplay to verify holding arrows for smooth motion; turning into brick/steel must stop without clipping; shoot each 8x6 brick section; verify that a moving tank does not erase the tile below it; enemies should not appear inside one another; no abrupt early GAME OVER.
 - Confirm BIOS/PC Speaker/IRQ behavior with the exact emulator, not just CI; save screenshots and all changed configuration/PC speed settings.
 - Performance target: 8088 4.77MHz via 86Box; current DOSBox-X at 1000 cycles/ms is not an authoritative 8088 speed measurement.
+
+
+### Repeatable DOSBox-X /TEST on Windows SLOW1
+
+Run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\dosbox_smoke.ps1` in the checkout (or pass `-Root`, `-GamePath`, `-DosboxPath` to target different directories). It copies the COM into a temporary DOSBox-mounted directory, runs `/TEST`, preserves the exact failing numbered phase using DOS `IF ERRORLEVEL` and only then considers `GAME_TEST=PASS` a success. **The DOSBox-X process return code is not the game return code.**
