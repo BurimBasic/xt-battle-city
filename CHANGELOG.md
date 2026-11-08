@@ -41,3 +41,12 @@
 - New emulator `/TEST` phases and Python asset/map invariants. Still needs real XT 4.77MHz / Poisk native benchmarks.
 - Separate stage-results tally (four enemy classes, counts, global score); nonintrusive `P` pause and resume without resetting simulation.
 - Ice-slide stops retrying when the next cell is blocked; documentation updated after v0.5 acceptance.
+
+## 2026-11-09 — v0.6 smooth pixel gameplay (candidate)
+
+- Replace grid-step runtime movement with exact integer pixel coordinates for player and enemies; keyboard IRQ1 captures key make/break (held arrows/WASD, fire, pause, mute, restart and exit) on an XT PC with restoration at exit.
+- Add a 4-phase masked sprite atlas for transparent 1-pixel horizontal shifts, dirty background restoration without a full-screen backbuffer, and integer-pixel CGA draw coordinates.
+- Add hull-based collision checks against solid quadrants of bricks, HQ, water, steel and other tanks; stable movement near walls, less frantic enemy movement and shooting.
+- Projectiles advance in 1-pixel substeps with exact 8x6-brick quadrant damage, tank hits, shot-vs-shot collisions and improved damage rules; nine stages and all six bonuses retained.
+- Extend /TEST with smooth movement, steel boundary, precise brick damage and bullet advance; add structural regression suite and increase DOS COM size cap to 48KiB.
+- **Note:** keyboard hook and 4.77MHz performance need specific emulator and manual user checks, and this binary remains a DOS/CGA build rather than a base Poisk-1 native build.

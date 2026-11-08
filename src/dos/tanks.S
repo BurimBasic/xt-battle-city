@@ -1,4 +1,4 @@
-/* XT Battle City v0.4: original CGA tile arcade for DOS, 8086/8088.
+/* XT Battle City v0.6: original CGA tile arcade for DOS, 8086/8088.
  * Gameplay: 20-enemy waves, 4 tank classes, segmented bricks, 6 pickups,
  * destructible bricks, lives, headquarters, score and stage transitions.
  * 16x12 CGA cells, 13x13 battlefield. Original artwork and stage layouts.
@@ -23,6 +23,7 @@ _start:
     call draw_map
     call draw_sidebar_background
     call draw_hud
+    call render_frame
     /* Invocation: TANKS.COM /TEST (six command-line chars). */
     cmp byte ptr [0x80], 6
     jne normal_start
@@ -32,11 +33,12 @@ _start:
     jne normal_start
     jmp smoke_test
 normal_start:
+    call install_keyboard
     mov ah, 0
     int 0x1a
     mov word ptr [last_tick], dx
 main_loop:
-    call poll_keyboard
+    call poll_controls
     mov ah, 0
     int 0x1a
     cmp dx, [last_tick]
@@ -45,6 +47,15 @@ main_loop:
     cmp byte ptr [game_state], 0
     jne main_loop
     call game_tick_step
+    call render_frame
+    cmp byte ptr [game_state], 2
+    jne no_end_overlay
+    call game_over_hud
+no_end_overlay:
+    cmp byte ptr [game_state], 1
+    jne no_stage_overlay
+    call stage_clear_hud
+no_stage_overlay:
     jmp main_loop
 
 /* State: 0 playing, 1 won stage, 2 lost. */
@@ -100,6 +111,23 @@ marker_next:
     mov byte ptr [hq_shield], 0
     mov byte ptr [slide_ticks], 0
     mov byte ptr [sound_ticks], 0
+    mov byte ptr [held_keys], 0
+    mov byte ptr [pending_commands], 0
+    mov byte ptr [player_px], 96
+    mov byte ptr [player_py], 132
+    mov byte ptr [paint_player_valid], 0
+    mov byte ptr [paint_bullet_valid], 0
+    mov byte ptr [paint_bonus_valid], 0
+    mov di, offset paint_enemy_valid
+    mov cx, 4
+    xor al, al
+    rep stosb
+    mov di, offset paint_shot_valid
+    mov cx, 4
+    rep stosb
+    mov di, offset dirty_tiles
+    mov cx, 169
+    rep stosb
     mov si, offset level_data
     mov di, offset brick_masks
     mov cx, 169
@@ -245,8 +273,10 @@ refresh_screen:
     call draw_map
     call draw_sidebar_background
     call draw_hud
+    call render_frame
     ret
 exit_game:
+    call restore_keyboard
     call sound_stop
     mov ax, 0x0003
     int 0x10
@@ -387,9 +417,10 @@ slide_done:
 /* 18.2 Hz game tick, no busy-wait dependent on CPU MHz. */
 game_tick_step:
     inc byte ptr [game_tick]
+    call move_player_smooth
     call sound_tick
     call tick_powerups
-    call slide_player
+    call slide_player_smooth
     cmp byte ptr [player_shield], 0
     je tick_no_shield
     dec byte ptr [player_shield]
@@ -398,24 +429,16 @@ game_tick_step:
     mov dh, [player_row]
     call draw_cell
 tick_no_shield:
-    call advance_bullet
+    call advance_bullet_smooth
     cmp byte ptr [freeze_ticks], 0
     jne tick_frozen
-    call update_enemy_bullets
-    test byte ptr [game_tick], 3
+    call update_enemy_shots_smooth
+    call move_enemies_smooth
+    test byte ptr [game_tick], 15
     jnz tick_no_ai
-    mov byte ptr [only_fast], 0
-    call move_enemies
     call enemy_fire_cycle
 tick_no_ai:
-    mov al, [game_tick]
-    and al, 3
-    cmp al, 2
-    jne tick_no_fast
-    mov byte ptr [only_fast], 1
-    call move_enemies
-tick_no_fast:
-    test byte ptr [game_tick], 7
+    test byte ptr [game_tick], 15
     jnz tick_no_spawn
     call spawn_enemy
 tick_no_spawn:
@@ -796,6 +819,18 @@ spawn_ready:
     mov [enemy_col+bx], dl
     mov [enemy_row+bx], dh
     mov byte ptr [enemy_dir+bx], 2
+    mov al, dl
+    shl al, 1
+    shl al, 1
+    shl al, 1
+    shl al, 1
+    mov [enemy_px+bx], al
+    mov al, dh
+    push bx
+    mov bl, 12
+    mul bl
+    pop bx
+    mov [enemy_py+bx], al
     mov al, [enemy_spawned]
     and al, 3
     mov [enemy_type+bx], al
@@ -949,7 +984,15 @@ enemy_fire_now:
     mov [shot_dir+bx], al
     mov byte ptr [shot_active+bx], 1
     mov byte ptr [shot_delay+bx], 1
+    cmp byte ptr [test_mode], 0
+    je enemy_fire_smooth_init
     call advance_enemy_shot
+    jmp enemy_fire_next
+enemy_fire_smooth_init:
+    mov al, [enemy_px+bx]
+    mov [shot_px+bx], al
+    mov al, [enemy_py+bx]
+    mov [shot_py+bx], al
 enemy_fire_next:
     inc bx
     cmp bx, 4
@@ -970,7 +1013,15 @@ do_fire:
     mov byte ptr [bullet_delay], 1
     mov ax, 1250
     call sound_play
+    cmp byte ptr [test_mode], 0
+    je fire_smooth_init
     call advance_bullet
+    jmp fire_done
+fire_smooth_init:
+    mov al, [player_px]
+    mov [bullet_px], al
+    mov al, [player_py]
+    mov [bullet_py], al
 fire_done:
     ret
 advance_bullet:
@@ -1476,6 +1527,1210 @@ format_score_digit:
     pop ax
     ret
 
+
+
+/* Enemy movement: 1 pixel every frame, fast tanks move 2 pixels per frame,
+ * armored tanks only every other frame. A turn takes place after a wall,
+ * another tank, or an occasional deterministic decision.
+ */
+move_enemies_smooth:
+    xor bx, bx
+move_smooth_enemy_loop:
+    cmp byte ptr [enemy_active+bx], 0
+    je move_smooth_enemy_next
+    cmp byte ptr [enemy_type+bx], 3
+    jne move_smooth_enemy_ready
+    test byte ptr [game_tick], 1
+    jnz move_smooth_enemy_next
+move_smooth_enemy_ready:
+    mov al, [game_tick]
+    and al, 31
+    cmp al, 0
+    jne move_smooth_no_turn
+    call choose_enemy_turn
+move_smooth_no_turn:
+    call advance_enemy_one_pixel
+    cmp byte ptr [enemy_type+bx], 1
+    jne move_smooth_enemy_next
+    call advance_enemy_one_pixel
+move_smooth_enemy_next:
+    inc bx
+    cmp bx, 4
+    jb move_smooth_enemy_loop
+    ret
+choose_enemy_turn:
+    push ax
+    call random_byte
+    and al, 7
+    cmp al, 5
+    jb choose_enemy_down
+    and al, 3
+    jmp choose_enemy_done
+choose_enemy_down:
+    mov al, 2
+choose_enemy_done:
+    mov [enemy_dir+bx], al
+    pop ax
+    ret
+advance_enemy_one_pixel:
+    mov dl, [enemy_px+bx]
+    mov dh, [enemy_py+bx]
+    mov al, [enemy_dir+bx]
+    call step_pixel
+    jnc 1f
+    jmp enemy_pixel_collision
+1:
+    mov [candidate_x], dl
+    mov [candidate_y], dh
+    call rect_passable
+    jnc 1f
+    jmp enemy_pixel_collision
+1:
+    /* Collision with the player. */
+    mov al, [candidate_x]
+    sub al, [player_px]
+    cmp al, 16
+    jb enemy_pixel_collision
+    cmp al, 241
+    ja enemy_pixel_collision
+    mov al, [candidate_y]
+    sub al, [player_py]
+    cmp al, 12
+    jb enemy_pixel_collision
+    cmp al, 245
+    jae enemy_pixel_collision
+    /* Enemy-enemy AABB; BX is our actor index. */
+    xor si, si
+enemy_pixel_check_others:
+    cmp si, bx
+    je enemy_pixel_next_other
+    cmp byte ptr [enemy_active+si], 0
+    je enemy_pixel_next_other
+    mov al, [candidate_x]
+    sub al, [enemy_px+si]
+    cmp al, 16
+    jb enemy_pixel_check_y
+    cmp al, 241
+    jbe enemy_pixel_next_other
+    jmp enemy_pixel_check_y
+enemy_pixel_check_y:
+    mov al, [candidate_y]
+    sub al, [enemy_py+si]
+    cmp al, 12
+    jb enemy_pixel_collision
+    cmp al, 245
+    jae enemy_pixel_collision
+enemy_pixel_next_other:
+    inc si
+    cmp si, 4
+    jb enemy_pixel_check_others
+    mov al, [candidate_x]
+    mov [enemy_px+bx], al
+    shr al, 1
+    shr al, 1
+    shr al, 1
+    shr al, 1
+    mov [enemy_col+bx], al
+    mov al, [candidate_y]
+    mov [enemy_py+bx], al
+    xor ah, ah
+    mov cl, 12
+    div cl
+    mov [enemy_row+bx], al
+    ret
+enemy_pixel_collision:
+    call choose_enemy_turn
+    ret
+
+/* Probe a shell's center at DL/DH world pixels.
+ * AL 0=empty/forest/water/ice/absent brick fragment, 1=brick,
+ * 2=steel, 3=HQ, 4=outside. SI points to the map entry for 1..3.
+ * projectile_bit is one of 1,2,4,8 for a specific 8x6 brick quadrant.
+ */
+projectile_probe:
+    push bx
+    push cx
+    cmp dl, 208
+    jae projectile_outside
+    cmp dh, 156
+    jae projectile_outside
+    mov [probe_x_original], dl
+    mov al, dl
+    shr al, 1
+    shr al, 1
+    shr al, 1
+    shr al, 1
+    mov [probe_col], al
+    mov al, dh
+    xor ah, ah
+    mov bl, 12
+    div bl
+    mov [probe_row], al
+    mov [probe_yrem], ah
+    mov dl, [probe_col]
+    mov dh, [probe_row]
+    call get_tile
+    cmp al, '#'
+    jne projectile_not_brick
+    mov bl, 1
+    test byte ptr [probe_x_original], 8
+    jz projectile_probe_left
+    shl bl, 1
+projectile_probe_left:
+    cmp byte ptr [probe_yrem], 6
+    jb projectile_probe_top
+    shl bl, 1
+    shl bl, 1
+projectile_probe_top:
+    mov [projectile_bit], bl
+    push si
+    sub si, offset level_data
+    test [brick_masks+si], bl
+    pop si
+    jz projectile_empty
+    mov al, 1
+    jmp projectile_done
+projectile_not_brick:
+    cmp al, 'T'
+    je projectile_steel
+    cmp al, 'B'
+    je projectile_hq
+projectile_empty:
+    xor al, al
+    jmp projectile_done
+projectile_steel:
+    mov al, 2
+    jmp projectile_done
+projectile_hq:
+    mov al, 3
+    jmp projectile_done
+projectile_outside:
+    mov al, 4
+projectile_done:
+    pop cx
+    pop bx
+    ret
+
+/* Hit precisely one 8x6 brick quadrant, allowing passage after removal. */
+chip_brick_pixel:
+    push ax
+    push bx
+    push dx
+    push si
+    sub si, offset level_data
+    mov al, [brick_masks+si]
+    mov bl, [projectile_bit]
+    not bl
+    and al, bl
+    mov [brick_masks+si], al
+    test al, al
+    jnz chip_brick_dirty
+    mov byte ptr [level_data+si], '.'
+chip_brick_dirty:
+    mov dl, [probe_col]
+    mov dh, [probe_row]
+    call draw_cell
+    pop si
+    pop dx
+    pop bx
+    pop ax
+    ret
+
+/* Bullet center is at sprite top-left + (8,6); 3px x or 3px y per tick.
+ * The step is applied one pixel at a time so a thin brick fragment cannot
+ * be jumped over. Moves 3 pixels per game tick; no floating point.
+ */
+advance_bullet_smooth:
+    cmp byte ptr [bullet_active], 0
+    jne 1f
+    jmp smooth_bullet_done
+1:
+    mov byte ptr [bullet_substeps], 3
+smooth_bullet_substep:
+    mov dl, [bullet_px]
+    mov dh, [bullet_py]
+    mov al, [bullet_dir]
+    call step_pixel
+    jnc 1f
+    jmp smooth_bullet_out
+1:
+    mov [bullet_px], dl
+    mov [bullet_py], dh
+    add dl, 8
+    add dh, 6
+    call projectile_probe
+    cmp al, 0
+    je 1f
+    jmp smooth_bullet_terrain
+1:
+    /* Hit enemy shell within 3 pixels of both axes. */
+    xor bx, bx
+smooth_bullet_vs_shot:
+    cmp byte ptr [shot_active+bx], 0
+    je smooth_bullet_next_shot
+    mov al, [bullet_px]
+    sub al, [shot_px+bx]
+    add al, 3
+    cmp al, 6
+    ja smooth_bullet_next_shot
+    mov al, [bullet_py]
+    sub al, [shot_py+bx]
+    add al, 3
+    cmp al, 6
+    ja smooth_bullet_next_shot
+    mov byte ptr [shot_active+bx], 0
+    jmp smooth_bullet_out
+smooth_bullet_next_shot:
+    inc bx
+    cmp bx, 4
+    jb smooth_bullet_vs_shot
+    /* Hit an enemy tank, center point inside rectangle. */
+    xor bx, bx
+smooth_bullet_enemy_check:
+    cmp byte ptr [enemy_active+bx], 0
+    je smooth_bullet_enemy_next
+    mov al, [bullet_px]
+    add al, 8
+    sub al, [enemy_px+bx]
+    cmp al, 16
+    jae smooth_bullet_enemy_next
+    mov al, [bullet_py]
+    add al, 6
+    sub al, [enemy_py+bx]
+    cmp al, 12
+    jae smooth_bullet_enemy_next
+    cmp byte ptr [enemy_hp+bx], 1
+    jbe smooth_enemy_destroyed
+    dec byte ptr [enemy_hp+bx]
+    jmp smooth_bullet_impact
+smooth_enemy_destroyed:
+    mov byte ptr [enemy_active+bx], 0
+    mov byte ptr [shot_active+bx], 0
+    inc byte ptr [enemy_killed]
+    push bx
+    call maybe_drop_bonus
+    pop bx
+    xor ax, ax
+    mov al, [enemy_type+bx]
+    push bx
+    xor ah, ah
+    mov bl, al
+    inc byte ptr [kills_by_type+bx]
+    pop bx
+    inc al
+    mov cl, 100
+    mul cl
+    add [score], ax
+    call draw_hud
+    jmp smooth_bullet_impact
+smooth_bullet_enemy_next:
+    inc bx
+    cmp bx, 4
+    jb smooth_bullet_enemy_check
+    dec byte ptr [bullet_substeps]
+    jz 1f
+    jmp smooth_bullet_substep
+1:
+smooth_bullet_done:
+    ret
+smooth_bullet_terrain:
+    cmp al, 1
+    jne smooth_bullet_not_brick
+    call chip_brick_pixel
+    jmp smooth_bullet_impact
+smooth_bullet_not_brick:
+    cmp al, 2
+    jne smooth_bullet_not_steel
+    cmp byte ptr [player_upgrade], 3
+    jb smooth_bullet_impact
+    mov byte ptr [si], '.'
+    mov dl, [probe_col]
+    mov dh, [probe_row]
+    call draw_cell
+    jmp smooth_bullet_impact
+smooth_bullet_not_steel:
+    cmp al, 3
+    jne smooth_bullet_out
+    cmp byte ptr [hq_shield], 0
+    jne smooth_bullet_impact
+    mov byte ptr [game_state], 2
+smooth_bullet_impact:
+    mov ax, 2100
+    call sound_play
+smooth_bullet_out:
+    mov byte ptr [bullet_active], 0
+    ret
+
+update_enemy_shots_smooth:
+    xor bx, bx
+smooth_shot_loop:
+    cmp byte ptr [shot_active+bx], 0
+    je smooth_shot_next
+    push bx
+    call advance_enemy_shot_smooth
+    pop bx
+smooth_shot_next:
+    inc bx
+    cmp bx, 4
+    jb smooth_shot_loop
+    ret
+advance_enemy_shot_smooth:
+    mov byte ptr [shot_substeps], 2
+smooth_shot_substep:
+    mov dl, [shot_px+bx]
+    mov dh, [shot_py+bx]
+    mov al, [shot_dir+bx]
+    call step_pixel
+    jnc 1f
+    jmp smooth_shot_out
+1:
+    mov [shot_px+bx], dl
+    mov [shot_py+bx], dh
+    add dl, 8
+    add dh, 6
+    call projectile_probe
+    cmp al, 0
+    je 1f
+    jmp smooth_shot_terrain
+1:
+    /* Bullet-vs-bullet suppression */
+    cmp byte ptr [bullet_active], 0
+    je smooth_shot_no_bullet
+    mov al, [bullet_px]
+    sub al, [shot_px+bx]
+    add al, 3
+    cmp al, 6
+    ja smooth_shot_no_bullet
+    mov al, [bullet_py]
+    sub al, [shot_py+bx]
+    add al, 3
+    cmp al, 6
+    ja smooth_shot_no_bullet
+    mov byte ptr [bullet_active], 0
+    jmp smooth_shot_out
+smooth_shot_no_bullet:
+    mov al, [shot_px+bx]
+    add al, 8
+    sub al, [player_px]
+    cmp al, 16
+    jae smooth_shot_no_player
+    mov al, [shot_py+bx]
+    add al, 6
+    sub al, [player_py]
+    cmp al, 12
+    jae smooth_shot_no_player
+    cmp byte ptr [player_shield], 0
+    jne smooth_shot_out
+    dec byte ptr [lives]
+    cmp byte ptr [lives], 0
+    je smooth_player_dead
+    mov byte ptr [player_px], 96
+    mov byte ptr [player_py], 132
+    mov byte ptr [player_col], 6
+    mov byte ptr [player_row], 11
+    mov byte ptr [player_dir], 0
+    mov byte ptr [player_shield], 60
+    call draw_hud
+    jmp smooth_shot_out
+smooth_player_dead:
+    mov byte ptr [game_state], 2
+    jmp smooth_shot_out
+smooth_shot_no_player:
+    dec byte ptr [shot_substeps]
+    jz 1f
+    jmp smooth_shot_substep
+1:
+    ret
+smooth_shot_terrain:
+    cmp al, 1
+    jne smooth_shot_not_brick
+    call chip_brick_pixel
+    jmp smooth_shot_impact
+smooth_shot_not_brick:
+    cmp al, 2
+    je smooth_shot_impact
+    cmp al, 3
+    jne smooth_shot_out
+    cmp byte ptr [hq_shield], 0
+    jne smooth_shot_impact
+    mov byte ptr [game_state], 2
+smooth_shot_impact:
+    mov ax, 2400
+    call sound_play
+smooth_shot_out:
+    mov byte ptr [shot_active+bx], 0
+    ret
+
+/* ========= CGA smooth engine (8086-compatible, no offscreen buffer) =========
+ * Sprite x,y are world pixels relative to the 208x156 field at x32,y16.
+ * The masked 5-byte-wide CGA sprites allow every horizontal pixel phase.
+ * A dirty-cell pass restores the old actors before compositing new ones.
+ */
+
+/* Keyboard IRQ1: track make/break scancodes, including held movement keys.
+ * Uses XT 8259 EOI and keyboard port-61 ACK; restores old INT09 on exit.
+ * No DOS/BIOS calls or non-reentrant game logic inside the ISR.
+ */
+install_keyboard:
+    push ax
+    push bx
+    push dx
+    push es
+    mov ax, 0x3509
+    int 0x21
+    mov [old_int9_off], bx
+    mov [old_int9_seg], es
+    mov dx, offset keyboard_irq
+    mov ax, 0x2509
+    int 0x21
+    mov byte ptr [keyboard_installed], 1
+    pop es
+    pop dx
+    pop bx
+    pop ax
+    ret
+restore_keyboard:
+    cmp byte ptr [keyboard_installed], 0
+    je keyboard_restored
+    push ax
+    push dx
+    push ds
+    mov dx, [old_int9_off]
+    mov ax, [old_int9_seg]
+    mov ds, ax
+    mov ax, 0x2509
+    int 0x21
+    pop ds
+    mov byte ptr [keyboard_installed], 0
+    pop dx
+    pop ax
+keyboard_restored:
+    ret
+
+keyboard_irq:
+    push ax
+    push bx
+    push dx
+    push ds
+    push cs
+    pop ds
+    in al, 0x60
+    mov bl, al
+    cmp bl, 0xe0
+    jne 1f
+    jmp irq_ack
+1:
+    and al, 0x7f
+    xor ah, ah
+    cmp al, 0x48
+    je irq_up
+    cmp al, 0x11
+    je irq_up
+    cmp al, 0x4d
+    je irq_right
+    cmp al, 0x20
+    je irq_right
+    cmp al, 0x50
+    je irq_down
+    cmp al, 0x1f
+    je irq_down
+    cmp al, 0x4b
+    je irq_left
+    cmp al, 0x1e
+    je irq_left
+    cmp al, 0x39
+    je irq_fire
+    test bl, 0x80
+    jnz irq_ack
+    cmp al, 0x01
+    jne irq_not_esc
+    or byte ptr [pending_commands], 1
+irq_not_esc:
+    cmp al, 0x13
+    jne irq_not_restart
+    or byte ptr [pending_commands], 2
+irq_not_restart:
+    cmp al, 0x19
+    jne irq_not_pause
+    or byte ptr [pending_commands], 4
+irq_not_pause:
+    cmp al, 0x32
+    jne irq_ack
+    or byte ptr [pending_commands], 8
+    jmp irq_ack
+irq_up:
+    mov ah, 1
+    jmp irq_set_held
+irq_right:
+    mov ah, 2
+    jmp irq_set_held
+irq_down:
+    mov ah, 4
+    jmp irq_set_held
+irq_left:
+    mov ah, 8
+    jmp irq_set_held
+irq_fire:
+    mov ah, 16
+    test bl, 0x80
+    jnz irq_set_held
+    or byte ptr [pending_commands], 16
+irq_set_held:
+    test bl, 0x80
+    jnz irq_released
+    or [held_keys], ah
+    jmp irq_ack
+irq_released:
+    not ah
+    and [held_keys], ah
+irq_ack:
+    in al, 0x61
+    mov dl, al
+    or al, 0x80
+    out 0x61, al
+    mov al, dl
+    out 0x61, al
+    mov al, 0x20
+    out 0x20, al
+    pop ds
+    pop dx
+    pop bx
+    pop ax
+    iret
+
+poll_controls:
+    pushf
+    cli
+    mov al, [pending_commands]
+    mov byte ptr [pending_commands], 0
+    popf
+    test al, 1
+    jz controls_not_exit
+    jmp exit_game
+controls_not_exit:
+    test al, 2
+    jz controls_not_restart
+    call do_restart
+    ret
+controls_not_restart:
+    mov bl, al
+    test bl, 8
+    jz controls_not_mute
+    xor byte ptr [sound_muted], 1
+    call sound_stop
+controls_not_mute:
+    test bl, 4
+    jz controls_not_pause
+    cmp byte ptr [game_state], 3
+    jne controls_pause_now
+    mov byte ptr [game_state], 0
+    call refresh_screen
+    ret
+controls_pause_now:
+    cmp byte ptr [game_state], 0
+    jne controls_not_pause
+    mov byte ptr [game_state], 3
+    call pause_hud
+controls_not_pause:
+    test bl, 16
+    jz controls_done
+    cmp byte ptr [game_state], 1
+    jne controls_fire
+    inc byte ptr [stage]
+    cmp byte ptr [stage], 9
+    jbe controls_next_stage
+    mov byte ptr [stage], 1
+controls_next_stage:
+    call load_stage
+    call refresh_screen
+    ret
+controls_fire:
+    cmp byte ptr [game_state], 0
+    jne controls_done
+    call do_fire
+controls_done:
+    ret
+
+/* One movement pixel; input AL=direction. Caller loops twice per game tick.
+ * AABB movement is checked against four world corners and other tanks.
+ */
+move_player_smooth:
+    cmp byte ptr [game_state], 0
+    jne player_smooth_done
+    mov al, [held_keys]
+    test al, 1
+    jnz player_smooth_up
+    test al, 2
+    jnz player_smooth_right
+    test al, 4
+    jnz player_smooth_down
+    test al, 8
+    jnz player_smooth_left
+    ret
+player_smooth_up:
+    xor al, al
+    jmp player_smooth_selected
+player_smooth_right:
+    mov al, 1
+    jmp player_smooth_selected
+player_smooth_down:
+    mov al, 2
+    jmp player_smooth_selected
+player_smooth_left:
+    mov al, 3
+player_smooth_selected:
+    mov [player_dir], al
+    push ax
+    call player_move_pixel
+    pop ax
+    call player_move_pixel
+player_smooth_done:
+    ret
+
+slide_player_smooth:
+    cmp byte ptr [slide_ticks], 0
+    je slide_smooth_done
+    test byte ptr [held_keys], 15
+    jnz slide_smooth_done
+    test byte ptr [game_tick], 1
+    jnz slide_smooth_done
+    mov al, [player_dir]
+    call player_move_pixel
+slide_smooth_done:
+    ret
+
+player_move_pixel:
+    mov dl, [player_px]
+    mov dh, [player_py]
+    call step_pixel
+    jc player_pixel_done
+    mov [candidate_x], dl
+    mov [candidate_y], dh
+    call rect_passable
+    jc player_pixel_done
+    /* AABB vs enemies, 16x12; touching edges is allowed. */
+    xor bx, bx
+player_pixel_check_enemies:
+    cmp byte ptr [enemy_active+bx], 0
+    je player_pixel_next_enemy
+    mov al, [candidate_x]
+    sub al, [enemy_px+bx]
+    cmp al, 16
+    jb player_pixel_done
+    cmp al, 241
+    ja player_pixel_done
+    mov al, [candidate_y]
+    sub al, [enemy_py+bx]
+    cmp al, 12
+    jb player_pixel_done
+    cmp al, 245
+    jae player_pixel_done
+player_pixel_next_enemy:
+    inc bx
+    cmp bx, 4
+    jb player_pixel_check_enemies
+    mov al, [candidate_x]
+    mov [player_px], al
+    mov al, [candidate_y]
+    mov [player_py], al
+    /* Keep coarse grid coordinates for terrain, bonus and legacy tests. */
+    call sync_player_tile
+player_pixel_done:
+    ret
+sync_player_tile:
+    push ax
+    push bx
+    push dx
+    mov al, [player_px]
+    shr al, 1
+    shr al, 1
+    shr al, 1
+    shr al, 1
+    mov [player_col], al
+    mov dl, al
+    xor ax, ax
+    mov al, [player_py]
+    mov bl, 12
+    div bl
+    mov [player_row], al
+    mov dh, al
+    call player_enter_tile
+    pop dx
+    pop bx
+    pop ax
+    ret
+
+/* AL direction, DL/DH pixel. CF=1 when leaving the battlefield. */
+step_pixel:
+    cmp al, 0
+    jne step_pixel_not_up
+    test dh, dh
+    jz step_pixel_off
+    dec dh
+    clc
+    ret
+step_pixel_not_up:
+    cmp al, 1
+    jne step_pixel_not_right
+    cmp dl, 192
+    jae step_pixel_off
+    inc dl
+    clc
+    ret
+step_pixel_not_right:
+    cmp al, 2
+    jne step_pixel_not_down
+    cmp dh, 144
+    jae step_pixel_off
+    inc dh
+    clc
+    ret
+step_pixel_not_down:
+    test dl, dl
+    jz step_pixel_off
+    dec dl
+    clc
+    ret
+step_pixel_off:
+    stc
+    ret
+
+/* DL/DH are pixel coordinates; determine collision at a single point.
+ * CF=1 for nonpassable parts of brick/steel/water/HQ, or outside world.
+ */
+pixel_is_blocked:
+    push ax
+    push bx
+    push cx
+    push si
+    cmp dl, 208
+    jae pixel_blocked
+    cmp dh, 156
+    jae pixel_blocked
+    mov al, dl
+    shr al, 1
+    shr al, 1
+    shr al, 1
+    shr al, 1
+    mov [probe_col], al
+    mov al, dh
+    xor ah, ah
+    mov bl, 12
+    div bl
+    mov [probe_row], al
+    mov [probe_yrem], ah
+    mov dl, [probe_col]
+    mov dh, [probe_row]
+    call get_tile
+    cmp al, '.'
+    je pixel_open
+    cmp al, 'F'
+    je pixel_open
+    cmp al, 'I'
+    je pixel_open
+    cmp al, '#'
+    jne pixel_blocked
+    sub si, offset level_data
+    mov al, [brick_masks+si]
+    mov bl, 1
+    mov cl, [probe_x_original]
+    test cl, 8
+    jz pixel_brick_left
+    shl bl, 1
+pixel_brick_left:
+    cmp byte ptr [probe_yrem], 6
+    jb pixel_brick_top
+    shl bl, 1
+    shl bl, 1
+pixel_brick_top:
+    test al, bl
+    jnz pixel_blocked
+pixel_open:
+    clc
+    jmp pixel_probe_done
+pixel_blocked:
+    stc
+pixel_probe_done:
+    pop si
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+/* The sprite's collision hull is 12x10, with small side clearance.
+ * Input DL/DH = future pixel top-left. Four tests across both edges.
+ */
+rect_passable:
+    push dx
+    add dl, 2
+    inc dh
+    mov [probe_x_original], dl
+    call pixel_is_blocked
+    jc rect_failed
+    pop dx
+    push dx
+    add dl, 13
+    inc dh
+    mov [probe_x_original], dl
+    call pixel_is_blocked
+    jc rect_failed
+    pop dx
+    push dx
+    add dl, 2
+    add dh, 10
+    mov [probe_x_original], dl
+    call pixel_is_blocked
+    jc rect_failed
+    pop dx
+    push dx
+    add dl, 13
+    add dh, 10
+    mov [probe_x_original], dl
+    call pixel_is_blocked
+    jc rect_failed
+    pop dx
+    clc
+    ret
+rect_failed:
+    pop dx
+    stc
+    ret
+
+/* Return the current list of pixel-coordinates to dirty after the last frame.
+ * Dirty tiles preserve background and allow sprites to move at any pixel x,y.
+ */
+mark_dirty_rect:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    mov al, dl
+    shr al, 1
+    shr al, 1
+    shr al, 1
+    shr al, 1
+    mov [rect_x0], al
+    mov al, dl
+    add al, 15
+    shr al, 1
+    shr al, 1
+    shr al, 1
+    shr al, 1
+    mov [rect_x1], al
+    mov al, dh
+    xor ah, ah
+    mov bl, 12
+    div bl
+    mov [rect_y0], al
+    mov al, dh
+    add al, 11
+    xor ah, ah
+    div bl
+    mov [rect_y1], al
+    mov dh, [rect_y0]
+mark_rect_row:
+    mov dl, [rect_x0]
+mark_rect_col:
+    cmp dl, 13
+    jae mark_rect_next_col
+    cmp dh, 13
+    jae mark_rect_next_col
+    call get_tile
+    sub si, offset level_data
+    mov byte ptr [dirty_tiles+si], 1
+mark_rect_next_col:
+    inc dl
+    cmp dl, [rect_x1]
+    jbe mark_rect_col
+    inc dh
+    cmp dh, [rect_y1]
+    jbe mark_rect_row
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+mark_old_sprites:
+    cmp byte ptr [paint_player_valid], 0
+    je old_player_done
+    mov dl, [paint_player_x]
+    mov dh, [paint_player_y]
+    call mark_dirty_rect
+old_player_done:
+    mov byte ptr [paint_player_valid], 0
+    cmp byte ptr [paint_bullet_valid], 0
+    je old_bullet_done
+    mov dl, [paint_bullet_x]
+    mov dh, [paint_bullet_y]
+    call mark_dirty_rect
+old_bullet_done:
+    mov byte ptr [paint_bullet_valid], 0
+    cmp byte ptr [paint_bonus_valid], 0
+    je old_bonus_done
+    mov dl, [paint_bonus_x]
+    mov dh, [paint_bonus_y]
+    call mark_dirty_rect
+old_bonus_done:
+    mov byte ptr [paint_bonus_valid], 0
+    xor bx, bx
+old_entities_loop:
+    cmp byte ptr [paint_enemy_valid+bx], 0
+    je old_enemy_done
+    mov dl, [paint_enemy_x+bx]
+    mov dh, [paint_enemy_y+bx]
+    call mark_dirty_rect
+old_enemy_done:
+    mov byte ptr [paint_enemy_valid+bx], 0
+    cmp byte ptr [paint_shot_valid+bx], 0
+    je old_shot_done
+    mov dl, [paint_shot_x+bx]
+    mov dh, [paint_shot_y+bx]
+    call mark_dirty_rect
+old_shot_done:
+    mov byte ptr [paint_shot_valid+bx], 0
+    inc bx
+    cmp bx, 4
+    jb old_entities_loop
+    ret
+
+flush_dirty:
+    xor dx, dx
+flush_row:
+    xor dl, dl
+flush_col:
+    push dx
+    call get_tile
+    sub si, offset level_data
+    cmp byte ptr [dirty_tiles+si], 0
+    je flush_skip
+    mov byte ptr [dirty_tiles+si], 0
+    call draw_static_cell
+flush_skip:
+    pop dx
+    inc dl
+    cmp dl, 13
+    jb flush_col
+    inc dh
+    cmp dh, 13
+    jb flush_row
+    ret
+
+/* SI=smooth sprite asset, DL/DH=world pixel x/y; preserves every register. */
+draw_smooth_sprite:
+    push bp
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    push es
+    mov al, dl
+    and al, 3
+    mov bl, 120
+    mul bl
+    add si, ax
+    mov [scan_x], dl
+    mov al, dh
+    add al, 16
+    mov [scan_y], al
+    mov ax, 0xb800
+    mov es, ax
+    mov bp, 12
+smooth_scanline:
+    xor ax, ax
+    mov al, [scan_y]
+    test al, 1
+    jz smooth_even
+    mov word ptr [scan_bank], 0x2000
+    jmp smooth_bank_ready
+smooth_even:
+    mov word ptr [scan_bank], 0
+smooth_bank_ready:
+    shr ax, 1
+    mov bx, ax
+    shl ax, 1
+    shl ax, 1
+    shl ax, 1
+    shl ax, 1
+    shl bx, 1
+    shl bx, 1
+    shl bx, 1
+    shl bx, 1
+    shl bx, 1
+    shl bx, 1
+    add ax, bx                    /* 16*halfY + 64*halfY */
+    add ax, [scan_bank]
+    mov di, ax
+    xor ax, ax
+    mov al, [scan_x]
+    shr ax, 1
+    shr ax, 1
+    add di, ax
+    add di, 8                     /* world starts at screen x32 */
+    mov cx, 5
+smooth_byte:
+    mov al, es:[di]
+    mov ah, [si]
+    not ah
+    and al, ah
+    or al, [si+5]
+    mov es:[di], al
+    inc si
+    inc di
+    loop smooth_byte
+    add si, 5
+    inc byte ptr [scan_y]
+    dec bp
+    jnz smooth_scanline
+    pop es
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    pop bp
+    ret
+
+/* Called after each simulated tick, and once after switching a stage. */
+render_frame:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    push bp
+    call mark_old_sprites
+    call flush_dirty
+    /* Bonus underneath tanks. */
+    cmp byte ptr [bonus_active], 0
+    je paint_bonus_done
+    xor bx, bx
+    mov bl, [bonus_type]
+    shl bx, 1
+    mov si, [smooth_bonus_ptrs+bx]
+    mov al, [bonus_col]
+    shl al, 1
+    shl al, 1
+    shl al, 1
+    shl al, 1
+    mov dl, al
+    mov al, [bonus_row]
+    mov cl, 12
+    mul cl
+    mov dh, al
+    mov [paint_bonus_x], dl
+    mov [paint_bonus_y], dh
+    mov byte ptr [paint_bonus_valid], 1
+    call draw_smooth_sprite
+paint_bonus_done:
+    /* Four enemy tanks. */
+    xor bx, bx
+paint_enemy_loop:
+    cmp byte ptr [enemy_active+bx], 0
+    je paint_enemy_next
+    mov dl, [enemy_px+bx]
+    mov dh, [enemy_py+bx]
+    mov [paint_enemy_x+bx], dl
+    mov [paint_enemy_y+bx], dh
+    mov byte ptr [paint_enemy_valid+bx], 1
+    push bx
+    xor cx, cx
+    mov cl, [enemy_dir+bx]
+    shl cx, 1
+    mov si, cx
+    cmp byte ptr [enemy_type+bx], 1
+    jne paint_enemy_not_fast
+    mov si, [smooth_fast_ptrs+si]
+    jmp paint_enemy_selected
+paint_enemy_not_fast:
+    cmp byte ptr [enemy_type+bx], 2
+    jne paint_enemy_not_power
+    mov si, [smooth_power_ptrs+si]
+    jmp paint_enemy_selected
+paint_enemy_not_power:
+    cmp byte ptr [enemy_type+bx], 3
+    jne paint_enemy_standard
+    mov si, [smooth_armor_ptrs+si]
+    jmp paint_enemy_selected
+paint_enemy_standard:
+    mov si, [smooth_enemy_ptrs+si]
+paint_enemy_selected:
+    call draw_smooth_sprite
+    pop bx
+paint_enemy_next:
+    inc bx
+    cmp bx, 4
+    jb paint_enemy_loop
+    /* Player's tank. */
+    mov dl, [player_px]
+    mov dh, [player_py]
+    mov [paint_player_x], dl
+    mov [paint_player_y], dh
+    mov byte ptr [paint_player_valid], 1
+    xor bx, bx
+    mov bl, [player_dir]
+    shl bx, 1
+    cmp byte ptr [player_shield], 0
+    je paint_player_normal
+    mov si, [smooth_shield_ptrs+bx]
+    jmp paint_player_smooth
+paint_player_normal:
+    mov si, [smooth_player_ptrs+bx]
+paint_player_smooth:
+    call draw_smooth_sprite
+    /* Player projectile and up to four enemy projectiles. */
+    cmp byte ptr [bullet_active], 0
+    je paint_no_bullet
+    mov dl, [bullet_px]
+    mov dh, [bullet_py]
+    mov [paint_bullet_x], dl
+    mov [paint_bullet_y], dh
+    mov byte ptr [paint_bullet_valid], 1
+    mov si, offset smooth_bullet
+    call draw_smooth_sprite
+paint_no_bullet:
+    xor bx, bx
+paint_shot_loop:
+    cmp byte ptr [shot_active+bx], 0
+    je paint_next_shot
+    mov dl, [shot_px+bx]
+    mov dh, [shot_py+bx]
+    mov [paint_shot_x+bx], dl
+    mov [paint_shot_y+bx], dh
+    mov byte ptr [paint_shot_valid+bx], 1
+    mov si, offset smooth_enemy_bullet
+    call draw_smooth_sprite
+paint_next_shot:
+    inc bx
+    cmp bx, 4
+    jb paint_shot_loop
+    pop bp
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+/* Pointer tables keep all smooth-sprite variants in the generated assets. */
+.section .data
+.p2align 1
+smooth_player_ptrs: .word smooth_player_up, smooth_player_right, smooth_player_down, smooth_player_left
+smooth_shield_ptrs: .word smooth_player_shield_up, smooth_player_shield_right, smooth_player_shield_down, smooth_player_shield_left
+smooth_enemy_ptrs: .word smooth_enemy_up, smooth_enemy_right, smooth_enemy, smooth_enemy_left
+smooth_fast_ptrs: .word smooth_fast_up, smooth_fast_right, smooth_fast_down, smooth_fast_left
+smooth_power_ptrs: .word smooth_power_up, smooth_power_right, smooth_power_down, smooth_power_left
+smooth_armor_ptrs: .word smooth_armor_up, smooth_armor_right, smooth_armor_down, smooth_armor_left
+smooth_bonus_ptrs: .word smooth_bonus_star, smooth_bonus_helmet, smooth_bonus_grenade, smooth_bonus_shovel, smooth_bonus_clock, smooth_bonus_life
+.section .text
+
 /* Return AL tile and SI writable address, DL/DH grid 0..12. */
 get_tile:
     push bx
@@ -1497,7 +2752,7 @@ map_row:
     xor dl, dl
 map_col:
     push dx
-    call draw_cell
+    call draw_static_cell
     pop dx
     inc dl
     cmp dl, 13
@@ -1507,8 +2762,23 @@ map_col:
     jb map_row
     ret
 
-/* DL/DH cell; preserve all regs used by callers. */
+/* Mark tile for redraw at the end of the simulation tick. */
 draw_cell:
+    push ax
+    push si
+    push dx
+    call get_tile
+    sub si, offset level_data
+    mov byte ptr [dirty_tiles+si], 1
+    pop dx
+    pop si
+    pop ax
+    ret
+
+/* Actual tile bitmap is always background-only. Dynamic entities are drawn
+ * separately with a masked pixel blitter to prevent ghosting/overwrites.
+ */
+draw_static_cell:
     push ax
     push bx
     push cx
@@ -1554,90 +2824,6 @@ draw_not_ice:
     jne draw_entities
     mov si, offset sprite_base
 draw_entities:
-    push si
-    call enemy_at
-    cmp al, 0xff
-    je draw_no_enemy
-    xor bx, bx
-    mov bl, al
-    xor cx, cx
-    mov cl, [enemy_dir+bx]
-    shl cx, 1
-    mov si, cx
-    cmp byte ptr [enemy_type+bx], 1
-    jne draw_enemy_not_fast
-    mov si, [fast_sprite_ptrs+si]
-    jmp draw_enemy_selected
-draw_enemy_not_fast:
-    cmp byte ptr [enemy_type+bx], 2
-    jne draw_enemy_not_power
-    mov si, [power_sprite_ptrs+si]
-    jmp draw_enemy_selected
-draw_enemy_not_power:
-    cmp byte ptr [enemy_type+bx], 3
-    jne draw_enemy_normal
-    mov si, [armor_sprite_ptrs+si]
-    jmp draw_enemy_selected
-draw_enemy_normal:
-    mov si, [enemy_sprite_ptrs+si]
-draw_enemy_selected:
-draw_no_enemy:
-    mov [draw_sprite_ptr], si
-    pop si
-    cmp byte ptr [bonus_active], 0
-    je draw_no_bonus
-    cmp dl, [bonus_col]
-    jne draw_no_bonus
-    cmp dh, [bonus_row]
-    jne draw_no_bonus
-    push bx
-    xor bx, bx
-    mov bl, [bonus_type]
-    shl bx, 1
-    mov si, [bonus_sprite_ptrs+bx]
-    mov [draw_sprite_ptr], si
-    pop bx
-draw_no_bonus:
-    cmp dl, [player_col]
-    jne draw_not_player
-    cmp dh, [player_row]
-    jne draw_not_player
-    xor bx, bx
-    mov bl, [player_dir]
-    shl bx, 1
-    cmp byte ptr [player_shield], 0
-    jne draw_player_shielded
-    mov si, [player_sprite_ptrs+bx]
-    jmp draw_player_sprite
-draw_player_shielded:
-    mov si, [player_shield_sprite_ptrs+bx]
-draw_player_sprite:
-    mov [draw_sprite_ptr], si
-draw_not_player:
-    cmp byte ptr [bullet_active], 0
-    je draw_no_player_bullet
-    cmp dl, [bullet_col]
-    jne draw_no_player_bullet
-    cmp dh, [bullet_row]
-    jne draw_no_player_bullet
-    mov word ptr [draw_sprite_ptr], offset sprite_bullet
-draw_no_player_bullet:
-    xor bx, bx
-draw_enemy_bullet_loop:
-    cmp byte ptr [shot_active+bx], 0
-    je draw_enemy_bullet_next
-    cmp dl, [shot_col+bx]
-    jne draw_enemy_bullet_next
-    cmp dh, [shot_row+bx]
-    jne draw_enemy_bullet_next
-    mov word ptr [draw_sprite_ptr], offset sprite_enemy_bullet
-    jmp draw_final
-draw_enemy_bullet_next:
-    inc bx
-    cmp bx, 4
-    jb draw_enemy_bullet_loop
-draw_final:
-    mov si, [draw_sprite_ptr]
     call draw_sprite
     pop di
     pop si
@@ -1888,6 +3074,7 @@ printed:
 
 /* Repeatable built-in headless emulator logic regression. */
 smoke_test:
+    mov byte ptr [test_mode], 1
     /* Verify real B800: CGA sidebar data, not just generated source assets. */
     mov byte ptr [test_phase], 10
     push es
@@ -2218,6 +3405,78 @@ test_wave_complete:
     je 1f
     jmp test_failed_jump
 1:
+    /* Smooth pixel and quadrant tests supplement legacy cell tests. */
+    mov byte ptr [test_phase], 21
+    call reset_campaign
+    mov al, 0
+    call player_move_pixel
+    cmp byte ptr [player_py], 131
+    je 1f
+    jmp smoke_fail
+1:
+    cmp byte ptr [player_row], 10
+    je 1f
+    jmp smoke_fail
+1:
+    mov byte ptr [test_phase], 22
+    mov byte ptr [player_px], 96
+    mov byte ptr [player_py], 107
+    xor al, al
+    call player_move_pixel
+    cmp byte ptr [player_py], 107
+    je 1f
+    jmp smoke_fail
+1:
+    mov byte ptr [test_phase], 23
+    mov dl, 34
+    mov dh, 25
+    call projectile_probe
+    cmp al, 1
+    je 1f
+    jmp smoke_fail
+1:
+    call chip_brick_pixel
+    cmp byte ptr [brick_masks+28], 14   /* row2 col2: 2*13+2 */
+    je 1f
+    jmp smoke_fail
+1:
+    mov dl, 34
+    mov dh, 25
+    call projectile_probe
+    cmp al, 0
+    je 1f
+    jmp smoke_fail
+1:
+    mov dl, 42
+    mov dh, 25
+    call projectile_probe
+    cmp al, 1
+    je 1f
+    jmp smoke_fail
+1:
+    mov byte ptr [test_phase], 24
+    call reset_campaign
+    cmp byte ptr [enemy_px+1], 96
+    je 1f
+    jmp smoke_fail
+1:
+    mov byte ptr [bullet_px], 48
+    mov byte ptr [bullet_py], 132
+    mov byte ptr [bullet_dir], 1
+    mov byte ptr [bullet_active], 1
+    call advance_bullet_smooth
+    cmp byte ptr [bullet_px], 51
+    je 1f
+    jmp smoke_fail
+1:
+    mov byte ptr [test_phase], 25
+    /* Verify shifted 2-bit mask/colour atlas: 4 phases x 12 x 10 bytes. */
+    mov al, byte ptr [smooth_player_up+0]
+    or al, byte ptr [smooth_player_up+120]
+    cmp al, 0
+    jne 1f
+    jmp smoke_fail
+1:
     jmp smoke_pass
 test_failed_jump:
     jmp smoke_fail
@@ -2322,5 +3581,52 @@ victory_string: .asciz "STAGE CLEAR"
 game_over_string: .asciz "GAME OVER"
 next_string: .asciz "SPACE - NEXT"
 restart_string: .asciz "R - RESTART"
+/* Pixel world coordinates, retained alongside coarse tile positions. */
+bullet_substeps: .byte 0
+shot_substeps: .byte 0
+projectile_bit: .byte 0
+keyboard_installed: .byte 0
+old_int9_off: .word 0
+old_int9_seg: .word 0
+held_keys: .byte 0
+pending_commands: .byte 0
+test_mode: .byte 0
+player_px: .byte 96
+player_py: .byte 132
+enemy_px: .space 4
+enemy_py: .space 4
+bullet_px: .byte 0
+bullet_py: .byte 0
+shot_px: .space 4
+shot_py: .space 4
+candidate_x: .byte 0
+candidate_y: .byte 0
+probe_x_original: .byte 0
+probe_col: .byte 0
+probe_row: .byte 0
+probe_yrem: .byte 0
+rect_x0: .byte 0
+rect_x1: .byte 0
+rect_y0: .byte 0
+rect_y1: .byte 0
+scan_x: .byte 0
+scan_y: .byte 0
+scan_bank: .word 0
+dirty_tiles: .space 169
+paint_player_valid: .byte 0
+paint_player_x: .byte 0
+paint_player_y: .byte 0
+paint_bullet_valid: .byte 0
+paint_bullet_x: .byte 0
+paint_bullet_y: .byte 0
+paint_bonus_valid: .byte 0
+paint_bonus_x: .byte 0
+paint_bonus_y: .byte 0
+paint_enemy_valid: .space 4
+paint_enemy_x: .space 4
+paint_enemy_y: .space 4
+paint_shot_valid: .space 4
+paint_shot_x: .space 4
+paint_shot_y: .space 4
 level_data: .space 169
 .include "src/dos/cga_assets.inc"

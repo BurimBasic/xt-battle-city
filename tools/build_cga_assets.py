@@ -195,6 +195,41 @@ def pack(rows):
     return output
 
 
+# Each moving sprite has four one-pixel horizontal variants. Each row packs
+# five mask bytes followed by five color bytes; zero pixels are transparent.
+# This makes arbitrary-pixel CGA compositing fast enough to test on an 8088
+# without allocating a 16 KB off-screen framebuffer. 4*12*10=480 bytes.
+SMOOTH_SPRITES = [
+    'player_up','player_right','player_down','player_left',
+    'player_shield_up','player_shield_right','player_shield_down','player_shield_left',
+    'enemy_up','enemy_right','enemy','enemy_left',
+    'fast_up','fast_right','fast_down','fast_left',
+    'power_up','power_right','power_down','power_left',
+    'armor_up','armor_right','armor_down','armor_left',
+    'bullet','enemy_bullet',
+    'bonus_star','bonus_helmet','bonus_grenade','bonus_shovel','bonus_clock','bonus_life',
+]
+
+def pack_smooth(rows):
+    result=[]
+    for phase in range(4):
+        for row in rows:
+            pixels=['.']*phase+list(row)+['.']*(4-phase)
+            assert len(pixels)==20
+            color=[]
+            mask=[]
+            for i in range(0,20,4):
+                value=0
+                cover=0
+                for ch in pixels[i:i+4]:
+                    value=(value<<2)|(0 if ch=='.' else int(ch))
+                    cover=(cover<<2)|(0 if ch=='.' else 3)
+                color.append(value)
+                mask.append(cover)
+            result.extend(mask+color)
+    assert len(result)==480
+    return result
+
 def get_map(map_path):
     rows = [line.strip() for line in map_path.read_text(encoding='ascii').splitlines() if line.strip()]
     assert len(rows) == 13 and all(len(x) == 13 for x in rows)
@@ -311,7 +346,14 @@ def generate(map_path):
         for i in range(0, len(data), 12):
             lines.append('    .byte ' + ', '.join(f'0x{x:02x}' for x in data[i:i+12]))
     lines.extend(generate_hud())
-    return '\n'.join(lines) + '\n'
+    # Append the separate masked-blit atlas after the opaque tiled graphics.
+    lines.append('    .p2align 1')
+    for name in SMOOTH_SPRITES:
+        lines.append('smooth_' + name + ':')
+        data=pack_smooth(SPRITES[name])
+        for i in range(0,len(data),20):
+            lines.append('    .byte ' + ', '.join(f'0x{x:02x}' for x in data[i:i+20]))
+    return '\n'.join(lines) + '\n' 
 
 
 def main():

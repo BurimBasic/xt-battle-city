@@ -28,7 +28,7 @@ test: all
 	@for f in assets/maps/level*.map; do $(PYTHON) tools/validate_map.py "$$f" || exit 1; done
 	$(PYTHON) tools/build_cga_assets.py --check
 	$(PYTHON) tools/check_8086.py build/tanks.o
-	@test "$$(wc -c < build/TANKS.COM)" -lt 16384
+	@test "$$(wc -c < build/TANKS.COM)" -lt 49152
 
 clean:
 	rm -rf build

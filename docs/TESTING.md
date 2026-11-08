@@ -69,3 +69,13 @@ Build `make clean all && make test` with GNU binutils and run `TANKS.COM /TEST` 
 This checks gameplay branches and memory access in emulation, **not** correct 4.77MHz timing or actual Poisk-1 hardware. Mouse-free input and visual fidelity still require manual gameplay. PC Speaker may not be audible over headless sessions, and AdLib has not been implemented.
 
 New regressions also verify that the dedicated four-type tally displays two-digit counts correctly. `P` pauses the tick loop without discarding player/enemy state; `M` toggles PC Speaker. Manual RDP checks should include both hotkeys, stage completion and restore from pause. Avoid declaring a successful visual test from a headless `/TEST` alone.
+
+## v0.6 smooth pixel pipeline
+
+The game still starts as an IBM PC/XT DOS .COM in CGA graphics mode 04h. It installs an IRQ1 (INT 09h) keyboard handler to process both *make* and *break* scan codes (held arrows/WASD) and restores the interrupt vector before DOS exit. The 8042/XT port 61h acknowledgment requires verification in DOSBox-X, 86Box, and on physical compatible hardware. Do not claim Poisk native input compatibility from this test.
+
+- `TANKS.COM /TEST` now includes phases 21–25: 1px movement, steel blocking, quadrant destruction, enemies' initial pixel positions, and shell motion.
+- `make test` verifies every shift and alpha mask in all 32 animated sprites; 8086 opcode-prefix audit must pass.
+- Use manual gameplay to verify holding arrows for smooth motion; turning into brick/steel must stop without clipping; shoot each 8x6 brick section; verify that a moving tank does not erase the tile below it; enemies should not appear inside one another; no abrupt early GAME OVER.
+- Confirm BIOS/PC Speaker/IRQ behavior with the exact emulator, not just CI; save screenshots and all changed configuration/PC speed settings.
+- Performance target: 8088 4.77MHz via 86Box; current DOSBox-X at 1000 cycles/ms is not an authoritative 8088 speed measurement.

@@ -25,9 +25,9 @@ References (independent descriptions):
 | Concurrent enemies | Up to 4 | v0.3 CGA: up to 4; performance not yet profiled on 8088 |
 | Enemy AI and enemy fire | Yes | v0.3 basic path selection and single projectiles |
 | Stage layouts | 35 original | 9 **original** layouts; no source-map copying |
-| Brick / steel / water | Yes | v0.5: separate 4-bit wall mask with directional half-cell removal; pixel collision is pending |
+| Brick / steel / water | Yes | v0.6: individual 8x6 brick quadrants and projectile pixel-point collision (timing calibration pending) |
 | Two-player cooperative | Yes | Not implemented |
-| Player movement / collision | Continuous pixel motion | v0.2 tile-step; **major gap** |
+| Player movement / collision | Continuous pixel motion | v0.6 pixel coordinates, held-key input, 12x10 hull; feel/balance/FPS pending |
 | Enemy types and 4-hit armor | Four classes | v0.3: basic / faster / high-fire-rate / armored (4 HP), distinct art and 100–400 points; tuning pending |
 | Power-ups | Six classic | v0.5: all six item effects; drops and durations are provisional, not NES timing-accurate |
 | Forest and ice | Yes | v0.5: original sprites, passable forest and short ice auto-slide; true ice physics pending |

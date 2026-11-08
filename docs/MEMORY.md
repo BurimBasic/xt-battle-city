@@ -25,3 +25,7 @@
 - Не перерисовывать всё поле без необходимости; dirty tiles/rects, предварительные битмаски, проверка цены CGA VRAM accesses.
 - Спрайты и уровни распаковывать малыми блоками; не использовать framebuffer «про запас».
 - Тестировать тяжёлые сцены (враги, выстрелы, одновременно разрушенные тайлы), чтобы не ориентироваться только на заставку.
+
+## v0.6 CGA pixel sprite footprint
+
+The DOS `.COM` grows to approximately 29KiB because 32 moving sprite patterns include four shifted 12x10-byte alpha/color variants each (~15KiB). This is deliberate to reduce runtime pixel-shift work on 8088. There is no full-screen offscreen buffer. The current original Poisk-1 96KiB budget is still **an unverified design goal**, not a verified compatibility claim. Its native backend may need tighter sprite compression/decompression and must be measured separately.
