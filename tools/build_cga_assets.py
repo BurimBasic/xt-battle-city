@@ -62,6 +62,14 @@ TANK_DOWN = padded(rotate_grid(rotate_grid(G_UP)))
 TANK_LEFT = padded(rotate_grid(rotate_grid(rotate_grid(G_UP))))
 # Enemy is same geometry but visibly magenta instead of cyan.
 ENEMY = sprite(*(row.replace('1', '2').replace('3','1') for row in TANK_DOWN))
+EG_DOWN = [list(row[2:14]) for row in ENEMY]
+ENEMY_LEFT = padded(rotate_grid(EG_DOWN))
+ENEMY_UP = padded(rotate_grid(rotate_grid(EG_DOWN)))
+ENEMY_RIGHT = padded(rotate_grid(rotate_grid(rotate_grid(EG_DOWN))))
+ENEMY_BULLET = sprite(
+ *(['.'*16] * 4),
+ '.......22.......', '......2222......', '......2222......',
+ '.......22.......', *(['.'*16] * 4))
 BULLET = sprite(
  *(['.'*16] * 4),
  '.......33.......', '......3333......', '......3333......',
@@ -78,7 +86,11 @@ SPRITES = {
     'player_down': TANK_DOWN,
     'player_left': TANK_LEFT,
     'enemy': ENEMY,
+    'enemy_up': ENEMY_UP,
+    'enemy_right': ENEMY_RIGHT,
+    'enemy_left': ENEMY_LEFT,
     'bullet': BULLET,
+    'enemy_bullet': ENEMY_BULLET,
 }
 
 
@@ -123,6 +135,11 @@ def generate(map_path):
     lines.append('    .if (level_end - level_template) != 169')
     lines.append('    .error "Level must have exactly 169 cells"')
     lines.append('    .endif')
+    for stage in (2, 3):
+        staged = get_map(ROOT / 'assets' / 'maps' / f'level{stage:02}.map')
+        lines.append(f'level{stage}_template:')
+        for row in staged:
+            lines.append('    .ascii "' + row + '"')
     for name, rows in SPRITES.items():
         lines.append('sprite_' + name + ':')
         data = pack(rows)

@@ -47,3 +47,9 @@ Input/audio/render issues:
 Status: PASS / FAIL / NOT RUN
 Evidence: logs/screenshots/repro:
 ```
+
+## v0.2 game logic smoke test (DOSBox-X)
+
+`TANKS.COM /TEST` executes a deterministic test of initial enemy spawn slots, player movement and steel collision, destruction of a brick, an enemy projectile reducing lives, destruction of headquarters, and wave completion. It returns DOS `ERRORLEVEL 0` for PASS or `1` for FAIL. Run this under `machine=cga` in DOSBox-X. Save an emulator log and ensure a conditional `IF ERRORLEVEL 1` detects failures. This test **does not** validate timing or natural AI behavior under gameplay input.
+
+For visual play, start `TANKS.COM` without arguments. While playing, send arrow keys/WASD and Space, verify enemy movement and shots, score, remaining enemies/lives, lose on HQ impact, and stage advance after 20 kills. Three game maps are authored locally. Do not call this a full Battle City replica: reference gaps tracked in [CLASSIC_REFERENCE.md](CLASSIC_REFERENCE.md).
