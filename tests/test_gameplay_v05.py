@@ -56,6 +56,14 @@ class GameplayWave5(unittest.TestCase):
         self.assertIn('cmp byte ptr [stage], 9', src)
         self.assertIn('mov byte ptr [test_phase], 19', src)
 
+    def test_stage_results_are_separate_and_count_types(self):
+        src=(ROOT / 'src' / 'dos' / 'tanks.S').read_text()
+        for symbol in ('stage_clear_hud:', 'draw_stage_result_box:', 'format_tally:',
+                       'kills_by_type:', 'tally1:', 'tally2:', 'tally3:', 'tally4:',
+                       'pause_hud:'):
+            self.assertIn(symbol, src)
+        self.assertIn('mov byte ptr [test_phase], 20', src)
+
     def test_cga_memory_layout_with_many_sprites(self):
         self.assertEqual(len(a.SPRITES), 55)
         self.assertLessEqual(len(a.SPRITES) * 48, 4096)

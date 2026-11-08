@@ -32,7 +32,7 @@ References (independent descriptions):
 | Power-ups | Six classic | v0.5: all six item effects; drops and durations are provisional, not NES timing-accurate |
 | Forest and ice | Yes | v0.5: original sprites, passable forest and short ice auto-slide; true ice physics pending |
 | Sound | NES effects/music | v0.5: original PC Speaker short beeps + mute; AdLib OPL2 pending |
-| Classic score screen | Per-tank tally on separate results screen | v0.4 black result overlay with score; per-tank tally still missing |
+| Classic score screen | Per-tank tally on separate results screen | v0.5: per-type kill tally on stage victory, game-over score remains compact |
 | Poisk-1 base configuration | Outside NES target | Separate native loader / video / keyboard not yet implemented |
 
 ## Work order toward gameplay fidelity

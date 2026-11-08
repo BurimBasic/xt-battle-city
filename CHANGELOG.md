@@ -39,3 +39,4 @@
 - PC Speaker non-blocking sound effects and `M` mute; no AdLib implementation yet.
 - Visible shield silhouette and star-level indicator on the classic CGA sidebar.
 - New emulator `/TEST` phases and Python asset/map invariants. Still needs real XT 4.77MHz / Poisk native benchmarks.
+- Separate stage-results tally (four enemy classes, counts, global score); nonintrusive `P` pause and resume without resetting simulation.

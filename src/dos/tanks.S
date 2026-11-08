@@ -120,6 +120,9 @@ init_brick_store:
     mov di, offset shot_active
     mov cx, 4
     rep stosb
+    mov di, offset kills_by_type
+    mov cx, 4
+    rep stosb
     mov cx, 3
 spawn_initial:
     push cx
@@ -157,6 +160,23 @@ toggle_sound:
     call sound_stop
     ret
 kb_after_sound:
+    cmp al, 'p'
+    je kb_pause
+    cmp al, 'P'
+    jne kb_after_pause
+kb_pause:
+    cmp byte ptr [game_state], 0
+    je kb_pause_begin
+    cmp byte ptr [game_state], 3
+    jne kb_return
+    mov byte ptr [game_state], 0
+    call refresh_screen
+    ret
+kb_pause_begin:
+    mov byte ptr [game_state], 3
+    call pause_hud
+    ret
+kb_after_pause:
     cmp byte ptr [game_state], 1
     jne kb_not_won
     cmp al, ' '
@@ -513,6 +533,11 @@ grenade_next:
     inc byte ptr [enemy_killed]
     xor ax, ax
     mov al, [enemy_type+bx]
+    push bx
+    xor ah, ah
+    mov bl, al
+    inc byte ptr [kills_by_type+bx]
+    pop bx
     inc al
     mov dl, 100
     mul dl
@@ -1038,6 +1063,11 @@ bullet_enemy_destroyed:
     pop bx
     xor ax, ax
     mov al, [enemy_type+bx]
+    push bx
+    xor ah, ah
+    mov bl, al
+    inc byte ptr [kills_by_type+bx]
+    pop bx
     inc al
     mov cl, 100
     mul cl
@@ -1239,24 +1269,122 @@ stage_not_done:
 /* Classic-style black-on-blackfield overlay for stage completion/game over.
  * Score is displayed here, not across the action screen (as on NES).
  */
+/* The dedicated score tally is only shown once a stage finishes;
+ * the gameplay action screen stays clean like the classic NES title.
+ */
 stage_clear_hud:
-    call draw_result_box
+    call draw_stage_result_box
     call format_score
-    mov dl, 11
-    mov dh, 10
+    call format_tally
+    mov dl, 10
+    mov dh, 4
     call cursor_at
     mov si, offset victory_string
     call bios_string
+    mov dl, 9
+    mov dh, 7
+    call cursor_at
+    mov si, offset tally1
+    call bios_string
+    mov dl, 9
+    mov dh, 9
+    call cursor_at
+    mov si, offset tally2
+    call bios_string
+    mov dl, 9
+    mov dh, 11
+    call cursor_at
+    mov si, offset tally3
+    call bios_string
+    mov dl, 9
+    mov dh, 13
+    call cursor_at
+    mov si, offset tally4
+    call bios_string
     mov dl, 11
-    mov dh, 12
+    mov dh, 16
     call cursor_at
     mov si, offset score_string
     call bios_string
     mov dl, 10
-    mov dh, 14
+    mov dh, 18
     call cursor_at
     mov si, offset next_string
     call bios_string
+    ret
+
+pause_hud:
+    call draw_result_box
+    mov dl, 13
+    mov dh, 12
+    call cursor_at
+    mov si, offset pause_string
+    call bios_string
+    ret
+
+/* Only columns x32..239, y28..155 are cleared; the right-side HUD remains. */
+draw_stage_result_box:
+    push ax
+    push bx
+    push cx
+    push di
+    push es
+    mov ax, 0xb800
+    mov es, ax
+    xor ax, ax
+    mov di, 1128             /* y28 /2 *80 + x32/4 */
+    mov bx, 64               /* 128 physical scan lines */
+stage_box_row:
+    push di
+    mov cx, 26
+    rep stosw
+    pop di
+    push di
+    add di, 0x2000
+    mov cx, 26
+    rep stosw
+    pop di
+    add di, 80
+    dec bx
+    jnz stage_box_row
+    pop es
+    pop di
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+/* Counts for each of four enemy types, displayed beside their 100-400
+ * point weights. The global score is retained across the nine stages.
+ */
+format_tally:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    xor bx, bx
+tally_next:
+    xor ax, ax
+    mov al, [kills_by_type+bx]
+    mov cl, 10
+    div cl
+    add al, '0'
+    add ah, '0'
+    push bx
+    shl bx, 1
+    mov si, [tally_ptrs+bx]
+    pop bx
+    mov [si+11], al
+    mov [si+12], ah
+    inc bx
+    cmp bx, 4
+    jb tally_next
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
     ret
 
 game_over_hud:
@@ -2070,6 +2198,17 @@ test_wave_complete:
     je 1f
     jmp test_failed_jump
 1:
+    mov byte ptr [test_phase], 20
+    mov byte ptr [kills_by_type+2], 12
+    call format_tally
+    cmp byte ptr [tally3+11], '1'
+    je 1f
+    jmp test_failed_jump
+1:
+    cmp byte ptr [tally3+12], '2'
+    je 1f
+    jmp test_failed_jump
+1:
     jmp smoke_pass
 test_failed_jump:
     jmp smoke_fail
@@ -2086,6 +2225,7 @@ smoke_fail:
     int 0x21
 
 .section .data
+kills_by_type: .space 4
 stage: .byte 1
 /* Six original effects in a new arrangement; all durations are BIOS ticks. */
 bonus_active: .byte 0
@@ -2159,6 +2299,13 @@ power_sprite_ptrs:
 armor_sprite_ptrs:
     .word sprite_armor_up, sprite_armor_right, sprite_armor_down, sprite_armor_left
 hud_remaining: .byte 20
+tally_ptrs:
+    .word tally1, tally2, tally3, tally4
+tally1: .asciz "100 PTS   x00"
+tally2: .asciz "200 PTS   x00"
+tally3: .asciz "300 PTS   x00"
+tally4: .asciz "400 PTS   x00"
+pause_string: .asciz "PAUSED  P=PLAY"
 score_string: .asciz "SCORE 00000"
 victory_string: .asciz "STAGE CLEAR"
 game_over_string: .asciz "GAME OVER"
