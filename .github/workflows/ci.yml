@@ -1,0 +1,22 @@
+name: Sanity check (8086 diagnostics and map)
+on:
+  push:
+  pull_request:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build 8086 DOS diagnostic
+        run: make clean all
+      - name: Unit tests and level validation
+        run: make test
+      - name: Verify COM file size
+        run: test "$(wc -c < build/XTINFO.COM)" -lt 16384
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dos-xtinfo-diagnostic-not-game
+          path: build/XTINFO.COM

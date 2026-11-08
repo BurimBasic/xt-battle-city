@@ -1,0 +1,16 @@
+/build/
+*.o
+*.obj
+*.map.tmp
+*.log
+*.swp
+.DS_Store
+__pycache__/
+.pytest_cache/
+*.pyc
+*.img
+*.ima
+*.vhd
+*.qcow2
+*.rom
+*.bin
