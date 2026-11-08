@@ -22,24 +22,24 @@ References (independent descriptions):
 | Defend HQ / lose when destroyed | Yes | v0.2 CGA: implemented |
 | Player lives | 3 | v0.2 CGA: implemented; respawn shield basic |
 | 20 enemies per stage | Yes | v0.2 CGA: implemented |
-| Concurrent enemies | Up to 4 | v0.2 CGA: up to 3; needs optimization/profiling |
-| Enemy AI and enemy fire | Yes | v0.2 basic path selection and single projectiles |
+| Concurrent enemies | Up to 4 | v0.3 CGA: up to 4; performance not yet profiled on 8088 |
+| Enemy AI and enemy fire | Yes | v0.3 basic path selection and single projectiles |
 | Stage layouts | 35 original | 3 **original** layouts; no source-map copying |
 | Brick / steel / water | Yes | v0.2 basic whole-cell rules; *partial brick damage* missing |
 | Two-player cooperative | Yes | Not implemented |
 | Player movement / collision | Continuous pixel motion | v0.2 tile-step; **major gap** |
-| Enemy types and 4-hit armor | Four classes | Not implemented |
+| Enemy types and 4-hit armor | Four classes | v0.3: basic / faster / high-fire-rate / armored (4 HP), distinct art and 100–400 points; tuning pending |
 | Power-ups | Six classic | Not implemented |
 | Forest and ice | Yes | Not implemented |
 | Sound | NES effects/music | Not implemented, PC Speaker/optional AdLib planned |
-| Classic score screen | Per-tank tally | v0.2 score only, no stage breakdown |
+| Classic score screen | Per-tank tally | v0.3 score only, no stage breakdown |
 | Poisk-1 base configuration | Outside NES target | Separate native loader / video / keyboard not yet implemented |
 
 ## Work order toward gameplay fidelity
 
 1. Move player/tanks **by sub-tile pixels** in a fixed game loop, with direct keyboard state (no reliance on typematic repeat).
 2. Split brick tiles into damageable quadrants; implement bullet-to-bullet collisions and precise tanks/shell hitboxes.
-3. Add fourth concurrent enemy and distinct speed/fire/armor classes, 20-wave composition; test 8088 budget.
+3. Tune class-specific speed/fire/armor to reference timings, test 8088 budget and attack balance.
 4. Two-player cooperative mode, shared HQ defense, friendly fire rules.
 5. Add forest/ice overlays, six power-ups and temporary effects.
 6. Develop 35 **new** levels inspired by progressive challenge, plus builder/selector; not copied NES map dumps.

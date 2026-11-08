@@ -95,11 +95,11 @@ marker_next:
     mov byte ptr [game_tick], 0
     mov byte ptr [enemy_ai_phase], 0
     mov di, offset enemy_active
-    mov cx, 3
+    mov cx, 4
     xor al, al
     rep stosb
     mov di, offset shot_active
-    mov cx, 3
+    mov cx, 4
     rep stosb
     mov cx, 3
 spawn_initial:
@@ -285,9 +285,17 @@ tick_no_shield:
     call update_enemy_bullets
     test byte ptr [game_tick], 3
     jnz tick_no_ai
+    mov byte ptr [only_fast], 0
     call move_enemies
     call enemy_fire_cycle
 tick_no_ai:
+    mov al, [game_tick]
+    and al, 3
+    cmp al, 2
+    jne tick_no_fast
+    mov byte ptr [only_fast], 1
+    call move_enemies
+tick_no_fast:
     test byte ptr [game_tick], 7
     jnz tick_no_spawn
     call spawn_enemy
@@ -315,7 +323,7 @@ spawn_find_slot:
     cmp byte ptr [enemy_active+bx], 0
     je spawn_slot_found
     inc bx
-    cmp bx, 3
+    cmp bx, 4
     jb spawn_find_slot
     ret
 spawn_slot_found:
@@ -344,6 +352,14 @@ spawn_ready:
     mov [enemy_col+bx], dl
     mov [enemy_row+bx], dh
     mov byte ptr [enemy_dir+bx], 2
+    mov al, [enemy_spawned]
+    and al, 3
+    mov [enemy_type+bx], al
+    mov byte ptr [enemy_hp+bx], 1
+    cmp al, 3
+    jne spawn_basic_health
+    mov byte ptr [enemy_hp+bx], 4
+spawn_basic_health:
     mov byte ptr [enemy_active+bx], 1
     mov byte ptr [shot_active+bx], 0
     inc byte ptr [enemy_spawned]
@@ -367,7 +383,7 @@ enemy_at_loop:
     ret
 enemy_at_continue:
     inc bx
-    cmp bx, 3
+    cmp bx, 4
     jb enemy_at_loop
     mov al, 0xff
     pop bx
@@ -381,6 +397,12 @@ enemy_move_loop:
     jne enemy_move_active
     jmp enemy_move_next
 enemy_move_active:
+    cmp byte ptr [only_fast], 0
+    je enemy_move_unfiltered
+    cmp byte ptr [enemy_type+bx], 1
+    je enemy_move_unfiltered
+    jmp enemy_move_next
+enemy_move_unfiltered:
     call random_byte
     and al, 7
     cmp al, 5
@@ -445,7 +467,7 @@ enemy_no_player:
     call draw_cell
 enemy_move_next:
     inc bx
-    cmp bx, 3
+    cmp bx, 4
     jae enemy_move_finished
     jmp enemy_move_loop
 enemy_move_finished:
@@ -458,9 +480,12 @@ enemy_fire_loop:
     je enemy_fire_next
     cmp byte ptr [shot_active+bx], 0
     jne enemy_fire_next
+    cmp byte ptr [enemy_type+bx], 2
+    je enemy_fire_now
     call random_byte
     test al, 3
     jnz enemy_fire_next
+enemy_fire_now:
     mov al, [enemy_col+bx]
     mov [shot_col+bx], al
     mov al, [enemy_row+bx]
@@ -472,7 +497,7 @@ enemy_fire_loop:
     call advance_enemy_shot
 enemy_fire_next:
     inc bx
-    cmp bx, 3
+    cmp bx, 4
     jb enemy_fire_loop
     ret
 
@@ -506,7 +531,9 @@ bullet_step:
     mov [old_row], dh
     mov al, [bullet_dir]
     call step_position
-    jc bullet_out
+    jnc bullet_inside
+    jmp bullet_out
+bullet_inside:
     mov [next_col], dl
     mov [next_row], dh
     call get_tile
@@ -539,10 +566,20 @@ bullet_break_base:
 bullet_kill_enemy:
     xor bx, bx
     mov bl, al
+    cmp byte ptr [enemy_hp+bx], 1
+    jbe bullet_enemy_destroyed
+    dec byte ptr [enemy_hp+bx]
+    jmp bullet_impact
+bullet_enemy_destroyed:
     mov byte ptr [enemy_active+bx], 0
     mov byte ptr [shot_active+bx], 0
     inc byte ptr [enemy_killed]
-    add word ptr [score], 100
+    xor ax, ax
+    mov al, [enemy_type+bx]
+    inc al
+    mov cl, 100
+    mul cl
+    add [score], ax
     call draw_hud
     jmp bullet_impact
 bullet_out:
@@ -610,7 +647,7 @@ shot_tick_loop:
     call advance_enemy_shot
 shot_tick_next:
     inc bx
-    cmp bx, 3
+    cmp bx, 4
     jb shot_tick_loop
     ret
 advance_enemy_shot:
@@ -799,7 +836,23 @@ draw_entities:
     mov cl, [enemy_dir+bx]
     shl cx, 1
     mov si, cx
+    cmp byte ptr [enemy_type+bx], 1
+    jne draw_enemy_not_fast
+    mov si, [fast_sprite_ptrs+si]
+    jmp draw_enemy_selected
+draw_enemy_not_fast:
+    cmp byte ptr [enemy_type+bx], 2
+    jne draw_enemy_not_power
+    mov si, [power_sprite_ptrs+si]
+    jmp draw_enemy_selected
+draw_enemy_not_power:
+    cmp byte ptr [enemy_type+bx], 3
+    jne draw_enemy_normal
+    mov si, [armor_sprite_ptrs+si]
+    jmp draw_enemy_selected
+draw_enemy_normal:
     mov si, [enemy_sprite_ptrs+si]
+draw_enemy_selected:
 draw_no_enemy:
     mov [draw_sprite_ptr], si
     pop si
@@ -833,7 +886,7 @@ draw_enemy_bullet_loop:
     jmp draw_final
 draw_enemy_bullet_next:
     inc bx
-    cmp bx, 3
+    cmp bx, 4
     jb draw_enemy_bullet_loop
 draw_final:
     mov si, [draw_sprite_ptr]
@@ -1042,7 +1095,33 @@ test_base:
     mov byte ptr [enemy_killed], 20
     call check_stage_complete
     cmp byte ptr [game_state], 1
-    je smoke_pass
+    je test_wave_complete
+    jmp smoke_fail
+test_wave_complete:
+    mov byte ptr [test_phase], 9
+    call reset_campaign
+    /* First spawned enemy at lane 0 should be basic, second fast, third power. */
+    cmp byte ptr [enemy_type], 0
+    jne test_failed_jump
+    cmp byte ptr [enemy_type+1], 1
+    jne test_failed_jump
+    cmp byte ptr [enemy_type+2], 2
+    jne test_failed_jump
+    /* Force enemy 0 to armor, then hit once: it must survive with 3 HP. */
+    mov byte ptr [enemy_type], 3
+    mov byte ptr [enemy_hp], 4
+    mov byte ptr [bullet_col], 0
+    mov byte ptr [bullet_row], 1
+    mov byte ptr [bullet_dir], 0
+    mov byte ptr [bullet_delay], 1
+    mov byte ptr [bullet_active], 1
+    call advance_bullet
+    cmp byte ptr [enemy_hp], 3
+    jne test_failed_jump
+    cmp byte ptr [enemy_active], 1
+    jne test_failed_jump
+    jmp smoke_pass
+test_failed_jump:
     jmp smoke_fail
 smoke_pass:
     mov ax, 0x0003
@@ -1073,6 +1152,7 @@ bullet_delay: .byte 0
 game_state: .byte 0
 game_tick: .byte 0
 enemy_ai_phase: .byte 0
+only_fast: .byte 0
 enemy_spawned: .byte 0
 enemy_killed: .byte 0
 rng_state: .word 0x51ab
@@ -1083,20 +1163,28 @@ old_row: .byte 0
 next_col: .byte 0
 next_row: .byte 0
 spawn_columns: .byte 0, 6, 12
-enemy_col: .space 3
-enemy_row: .space 3
-enemy_dir: .space 3
-enemy_active: .space 3
-shot_col: .space 3
-shot_row: .space 3
-shot_dir: .space 3
-shot_active: .space 3
-shot_delay: .space 3
+enemy_col: .space 4
+enemy_row: .space 4
+enemy_dir: .space 4
+enemy_active: .space 4
+enemy_type: .space 4
+enemy_hp: .space 4
+shot_col: .space 4
+shot_row: .space 4
+shot_dir: .space 4
+shot_active: .space 4
+shot_delay: .space 4
 draw_sprite_ptr: .word 0
 player_sprite_ptrs:
     .word sprite_player_up, sprite_player_right, sprite_player_down, sprite_player_left
 enemy_sprite_ptrs:
     .word sprite_enemy_up, sprite_enemy_right, sprite_enemy, sprite_enemy_left
+fast_sprite_ptrs:
+    .word sprite_fast_up, sprite_fast_right, sprite_fast_down, sprite_fast_left
+power_sprite_ptrs:
+    .word sprite_power_up, sprite_power_right, sprite_power_down, sprite_power_left
+armor_sprite_ptrs:
+    .word sprite_armor_up, sprite_armor_right, sprite_armor_down, sprite_armor_left
 title_string: .asciz " XT BATTLE CITY 2 / CGA / XT 8088 "
 help_string: .asciz "ARROWS/WASD MOVE SPACE FIRE R RESET ESC"
 /* Update digit offsets in draw_hud whenever editing this template! */

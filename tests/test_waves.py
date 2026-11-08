@@ -25,11 +25,12 @@ class WaveTests(unittest.TestCase):
                 self.assertEqual(rows[12][7], '#')
 
     def test_usable_enemy_direction_sprites(self):
-        for name in ('enemy_up', 'enemy_right', 'enemy', 'enemy_left', 'enemy_bullet'):
+        for name in ('enemy_up', 'enemy_right', 'enemy', 'enemy_left', 'enemy_bullet', 'fast_down', 'power_down', 'armor_down'):
             self.assertIn(name, sprites.SPRITES)
             self.assertEqual(len(sprites.pack(sprites.SPRITES[name])), 48)
         self.assertNotEqual(sprites.SPRITES['enemy_right'], sprites.SPRITES['enemy_left'])
         self.assertNotEqual(sprites.SPRITES['enemy_up'], sprites.SPRITES['enemy'])
+        self.assertEqual(len({tuple(sprites.SPRITES[x]) for x in ('enemy','fast_down','power_down','armor_down')}),4)
 
     def test_hud_digit_offsets(self):
         source = (ROOT / 'src' / 'dos' / 'tanks.S').read_text()

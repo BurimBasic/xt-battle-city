@@ -63,6 +63,19 @@ TANK_LEFT = padded(rotate_grid(rotate_grid(rotate_grid(G_UP))))
 # Enemy is same geometry but visibly magenta instead of cyan.
 ENEMY = sprite(*(row.replace('1', '2').replace('3','1') for row in TANK_DOWN))
 EG_DOWN = [list(row[2:14]) for row in ENEMY]
+# Four NES-style gameplay classes remain distinguishable on 4-color CGA.
+def remap(rows, table):
+    return sprite(*(row.translate(str.maketrans(table)) for row in rows))
+
+def four_directions(down):
+    core = [list(row[2:14]) for row in down]
+    left = padded(rotate_grid(core))
+    up = padded(rotate_grid(rotate_grid(core)))
+    right = padded(rotate_grid(rotate_grid(rotate_grid(core))))
+    return up, right, down, left
+FAST_UP, FAST_RIGHT, FAST_DOWN, FAST_LEFT = four_directions(remap(ENEMY, {'2':'3'}))
+POWER_UP, POWER_RIGHT, POWER_DOWN, POWER_LEFT = four_directions(remap(ENEMY, {'2':'1', '1':'2'}))
+ARMOR_UP, ARMOR_RIGHT, ARMOR_DOWN, ARMOR_LEFT = four_directions(remap(ENEMY, {'2':'3', '1':'2'}))
 ENEMY_LEFT = padded(rotate_grid(EG_DOWN))
 ENEMY_UP = padded(rotate_grid(rotate_grid(EG_DOWN)))
 ENEMY_RIGHT = padded(rotate_grid(rotate_grid(rotate_grid(EG_DOWN))))
@@ -89,6 +102,18 @@ SPRITES = {
     'enemy_up': ENEMY_UP,
     'enemy_right': ENEMY_RIGHT,
     'enemy_left': ENEMY_LEFT,
+    'fast_up': FAST_UP,
+    'fast_right': FAST_RIGHT,
+    'fast_down': FAST_DOWN,
+    'fast_left': FAST_LEFT,
+    'power_up': POWER_UP,
+    'power_right': POWER_RIGHT,
+    'power_down': POWER_DOWN,
+    'power_left': POWER_LEFT,
+    'armor_up': ARMOR_UP,
+    'armor_right': ARMOR_RIGHT,
+    'armor_down': ARMOR_DOWN,
+    'armor_left': ARMOR_LEFT,
     'bullet': BULLET,
     'enemy_bullet': ENEMY_BULLET,
 }

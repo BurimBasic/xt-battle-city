@@ -21,3 +21,11 @@
 - Three player lives, short respawn protection, stage clear / game over, HUD with stage / enemies / lives / score.
 - Additional assembly smoke test covers spawning, player collision with steel, brick destruction, player damage, HQ destruction and stage completion.
 - Updated 8086 instruction audit, map tests, and deterministic assets generator; *does not* claim pixel-perfect Battle City compatibility or tested base Poisk-1 support.
+
+## Unreleased — CGA gameplay milestone 0.3
+
+- Up to four enemies simultaneously, matching the classic concurrency budget.
+- Four enemy types in repeating wave composition: basic, faster, frequent-fire, armor (4 hits); 100/200/300/400 scoring.
+- Different CGA palette/pattern sprites for types, generated from project-owned pixel art.
+- Extended built-in DOS smoke test with enemy type and armored damage regression.
+- **Not** a pixel-perfect recreation: sub-tile motion, quadrant brick damage, bonuses, two-player and 35 authored stages are still in the fidelity backlog.
