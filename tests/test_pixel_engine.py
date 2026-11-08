@@ -59,7 +59,7 @@ class PixelEngineTests(unittest.TestCase):
             self.assertIn(sym,s)
         self.assertIn('call install_keyboard',s)
         self.assertIn('call restore_keyboard',s)
-        self.assertIn('mov byte ptr [test_phase], 25',s)
+        self.assertIn('mov byte ptr [test_phase], 27',s)
 
 if __name__=='__main__':
     unittest.main()

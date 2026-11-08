@@ -3474,10 +3474,32 @@ test_wave_complete:
 1:
     mov byte ptr [test_phase], 25
     /* Verify shifted 2-bit mask/colour atlas: 4 phases x 12 x 10 bytes. */
-    mov al, byte ptr [smooth_player_up+0]
-    or al, byte ptr [smooth_player_up+120]
+    mov al, byte ptr [smooth_player_up+1]
+    or al, byte ptr [smooth_player_up+121]
     cmp al, 0
     jne 1f
+    jmp smoke_fail
+1:
+    mov byte ptr [test_phase], 26
+    call reset_campaign
+    mov byte ptr [held_keys], 1
+    call move_player_smooth
+    cmp byte ptr [player_py], 130
+    je 1f
+    jmp smoke_fail
+1:
+    mov byte ptr [held_keys], 0
+    mov byte ptr [test_phase], 27
+    call refresh_screen
+    mov cx, 8
+smooth_regression_loop:
+    push cx
+    call game_tick_step
+    call render_frame
+    pop cx
+    loop smooth_regression_loop
+    cmp byte ptr [game_tick], 8
+    je 1f
     jmp smoke_fail
 1:
     jmp smoke_pass
