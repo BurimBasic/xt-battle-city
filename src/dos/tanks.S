@@ -365,11 +365,20 @@ slide_player:
     jnz slide_done
     mov dl, [player_col]
     mov dh, [player_row]
+    mov [slide_old_col], dl
+    mov [slide_old_row], dh
     mov al, [player_dir]
     call step_position
     jc slide_end
     call try_move
-    ret
+    mov al, [slide_old_col]
+    cmp al, [player_col]
+    jne slide_done
+    mov al, [slide_old_row]
+    cmp al, [player_row]
+    jne slide_done
+    /* The next tile was blocked, so do not repeat futile slide steps. */
+    jmp slide_end
 slide_end:
     mov byte ptr [slide_ticks], 0
 slide_done:
@@ -2244,6 +2253,8 @@ hq_shield: .byte 0
 hq_originals: .space 4
 hq_original_masks: .space 4
 slide_ticks: .byte 0
+slide_old_col: .byte 0
+slide_old_row: .byte 0
 sound_muted: .byte 0
 sound_ticks: .byte 0
 sound_tone: .word 0
