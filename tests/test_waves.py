@@ -10,8 +10,8 @@ import build_cga_assets as sprites
 
 class WaveTests(unittest.TestCase):
     def test_unique_stages_with_safe_spawns_and_base(self):
-        maps = [sprites.get_map(ROOT / 'assets' / 'maps' / f'level{i:02}.map') for i in (1, 2, 3)]
-        self.assertEqual(len({tuple(m) for m in maps}), 3)
+        maps = [sprites.get_map(ROOT / 'assets' / 'maps' / f'level{i:02}.map') for i in range(1, 10)]
+        self.assertEqual(len({tuple(m) for m in maps}), 9)
         for stage, rows in enumerate(maps, 1):
             with self.subTest(stage=stage):
                 self.assertEqual(rows[0][0], 'E')
@@ -51,7 +51,8 @@ class WaveTests(unittest.TestCase):
         lines = sprites.generate_hud()
         self.assertEqual(len(sprites.hud_glyph(sprites.HUD_TANK)), 16)
         self.assertEqual(len(sprites.hud_glyph(sprites.HUD_FLAG)), 16)
-        self.assertEqual(len(lines), 5 + 2*15)
+        self.assertEqual(len(lines), 5 + 2*16)
+        self.assertIn('hud_star_icon:', lines)
         self.assertIn('hud_indicator_offsets:', lines)
         self.assertIn('hud_digit_ptrs:', lines)
         # Map start x32 and width208; sidebar starts x248 (8px gap).

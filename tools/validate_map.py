@@ -3,7 +3,7 @@
 from pathlib import Path
 import sys
 
-ALLOWED = set(".#X~TPEB")
+ALLOWED = set(".#X~TPEBFI")
 
 
 def validate(text: str) -> list[str]:

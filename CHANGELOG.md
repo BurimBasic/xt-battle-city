@@ -29,3 +29,13 @@
 - Different CGA palette/pattern sprites for types, generated from project-owned pixel art.
 - Extended built-in DOS smoke test with enemy type and armored damage regression.
 - **Not** a pixel-perfect recreation: sub-tile motion, quadrant brick damage, bonuses, two-player and 35 authored stages are still in the fidelity backlog.
+
+## 2026-11-09 — wave 0.5 (CGA gameplay)
+
+- Nine original hand-authored levels, stage pointer table, enhanced terrain with forest and ice.
+- Four independently stored brick quadrants; directional projectile impact removes an exposed half, updating the tile sprite. **Not yet pixel-level collision.**
+- Six original power-up icons and effects: star, helmet, grenade, temporary steel HQ barrier, freeze enemies, extra life. One visible pickup with timeout; drops every fourth kill if the previous pickup is gone.
+- Player/enemy projectile interception, extra star-powered fire and top-tier steel shot, short ice sliding.
+- PC Speaker non-blocking sound effects and `M` mute; no AdLib implementation yet.
+- Visible shield silhouette and star-level indicator on the classic CGA sidebar.
+- New emulator `/TEST` phases and Python asset/map invariants. Still needs real XT 4.77MHz / Poisk native benchmarks.

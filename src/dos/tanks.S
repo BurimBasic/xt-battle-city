@@ -1,5 +1,5 @@
 /* XT Battle City v0.4: original CGA tile arcade for DOS, 8086/8088.
- * Gameplay: waves of 20, 4 active enemies, movement/AI, enemy shots,
+ * Gameplay: 20-enemy waves, 4 tank classes, segmented bricks, 6 pickups,
  * destructible bricks, lives, headquarters, score and stage transitions.
  * 16x12 CGA cells, 13x13 battlefield. Original artwork and stage layouts.
  * This is NOT the Poisk-1 native version and is NOT a pixel-perfect NES port.
@@ -52,21 +52,19 @@ reset_campaign:
     mov byte ptr [stage], 1
     mov byte ptr [lives], 3
     mov word ptr [score], 0
+    mov byte ptr [bonus_sequence], 0
+    mov byte ptr [sound_muted], 0
     call load_stage
     ret
 load_stage:
     push es
     push ds
     pop es
-    mov si, offset level_template
-    cmp byte ptr [stage], 2
-    jne load_not2
-    mov si, offset level2_template
-load_not2:
-    cmp byte ptr [stage], 3
-    jne load_selected
-    mov si, offset level3_template
-load_selected:
+    xor bx, bx
+    mov bl, [stage]
+    dec bx
+    shl bx, 1
+    mov si, [stage_ptrs+bx]
     mov di, offset level_data
     mov cx, 169
     rep movsb
@@ -95,6 +93,26 @@ marker_next:
     mov byte ptr [game_state], 0
     mov byte ptr [game_tick], 0
     mov byte ptr [enemy_ai_phase], 0
+    mov byte ptr [player_upgrade], 0
+    mov byte ptr [bonus_active], 0
+    mov byte ptr [bonus_timer], 0
+    mov byte ptr [freeze_ticks], 0
+    mov byte ptr [hq_shield], 0
+    mov byte ptr [slide_ticks], 0
+    mov byte ptr [sound_ticks], 0
+    mov si, offset level_data
+    mov di, offset brick_masks
+    mov cx, 169
+init_bricks:
+    xor al, al
+    cmp byte ptr [si], '#'
+    jne init_brick_store
+    mov al, 15
+init_brick_store:
+    mov [di], al
+    inc si
+    inc di
+    loop init_bricks
     mov di, offset enemy_active
     mov cx, 4
     xor al, al
@@ -129,12 +147,22 @@ kb_not_escape:
 kb_restart:
     jmp do_restart
 kb_not_restart:
+    cmp al, 'm'
+    je toggle_sound
+    cmp al, 'M'
+    je toggle_sound
+    jmp kb_after_sound
+toggle_sound:
+    xor byte ptr [sound_muted], 1
+    call sound_stop
+    ret
+kb_after_sound:
     cmp byte ptr [game_state], 1
     jne kb_not_won
     cmp al, ' '
     jne kb_return
     inc byte ptr [stage]
-    cmp byte ptr [stage], 3
+    cmp byte ptr [stage], 9
     jbe kb_next_level
     mov byte ptr [stage], 1
 kb_next_level:
@@ -199,6 +227,7 @@ refresh_screen:
     call draw_hud
     ret
 exit_game:
+    call sound_stop
     mov ax, 0x0003
     int 0x10
     mov ax, 0x4c00
@@ -249,7 +278,13 @@ try_move:
     push dx
     call get_tile
     cmp al, '.'
-    jne blocked_move
+    je move_tile_ok
+    cmp al, 'F'
+    je move_tile_ok
+    cmp al, 'I'
+    je move_tile_ok
+    jmp blocked_move
+move_tile_ok:
     pop dx
     push dx
     call enemy_at
@@ -264,6 +299,11 @@ try_move:
     mov [player_col], al
     mov al, [next_row]
     mov [player_row], al
+    push dx
+    mov dl, [player_col]
+    mov dh, [player_row]
+    call player_enter_tile
+    pop dx
     call draw_cell
     mov dl, [player_col]
     mov dh, [player_row]
@@ -276,14 +316,62 @@ blocked_move:
     call draw_cell
     ret
 
+
+/* Entering ordinary terrain ends the slide; ice continues for a few ticks.
+ * Pickups are independent entities and can be collected from any floor type.
+ */
+player_enter_tile:
+    push ax
+    push bx
+    push dx
+    call get_tile
+    cmp al, 'I'
+    jne player_ice_end
+    mov byte ptr [slide_ticks], 2
+    jmp player_check_pickup
+player_ice_end:
+    mov byte ptr [slide_ticks], 0
+player_check_pickup:
+    call check_bonus_pickup
+    pop dx
+    pop bx
+    pop ax
+    ret
+
+slide_player:
+    cmp byte ptr [slide_ticks], 0
+    je slide_done
+    test byte ptr [game_tick], 3
+    jnz slide_done
+    mov dl, [player_col]
+    mov dh, [player_row]
+    mov al, [player_dir]
+    call step_position
+    jc slide_end
+    call try_move
+    ret
+slide_end:
+    mov byte ptr [slide_ticks], 0
+slide_done:
+    ret
+
 /* 18.2 Hz game tick, no busy-wait dependent on CPU MHz. */
 game_tick_step:
     inc byte ptr [game_tick]
+    call sound_tick
+    call tick_powerups
+    call slide_player
     cmp byte ptr [player_shield], 0
     je tick_no_shield
     dec byte ptr [player_shield]
+    jnz tick_no_shield
+    mov dl, [player_col]
+    mov dh, [player_row]
+    call draw_cell
 tick_no_shield:
     call advance_bullet
+    cmp byte ptr [freeze_ticks], 0
+    jne tick_frozen
     call update_enemy_bullets
     test byte ptr [game_tick], 3
     jnz tick_no_ai
@@ -302,7 +390,327 @@ tick_no_fast:
     jnz tick_no_spawn
     call spawn_enemy
 tick_no_spawn:
+tick_frozen:
     call check_stage_complete
+    ret
+
+/* Power-up sequence: 0 star, 1 helmet, 2 grenade, 3 shovel,
+ * 4 clock, 5 extra life. All spawn positions are open in authored maps.
+ */
+maybe_drop_bonus:
+    push ax
+    push bx
+    push dx
+    push si
+    cmp byte ptr [bonus_active], 0
+    jne bonus_drop_done
+    mov al, [enemy_killed]
+    and al, 3
+    jnz bonus_drop_done
+    xor bx, bx
+    mov bl, [bonus_sequence]
+    mov [bonus_type], bl
+    mov dl, [bonus_columns+bx]
+    mov dh, 10
+    call get_tile
+    cmp al, '.'
+    jne bonus_drop_done
+    call enemy_at
+    cmp al, 0xff
+    jne bonus_drop_done
+    cmp dh, [player_row]
+    jne bonus_drop_ready
+    cmp dl, [player_col]
+    je bonus_drop_done
+bonus_drop_ready:
+    mov [bonus_col], dl
+    mov [bonus_row], dh
+    mov byte ptr [bonus_active], 1
+    mov byte ptr [bonus_timer], 180
+    inc byte ptr [bonus_sequence]
+    cmp byte ptr [bonus_sequence], 6
+    jb bonus_cycle_valid
+    mov byte ptr [bonus_sequence], 0
+bonus_cycle_valid:
+    call draw_cell
+bonus_drop_done:
+    pop si
+    pop dx
+    pop bx
+    pop ax
+    ret
+
+/* Called once movement has committed. Registers preserved. */
+check_bonus_pickup:
+    push ax
+    push bx
+    push cx
+    push dx
+    cmp byte ptr [bonus_active], 0
+    jne bonus_can_collect
+    jmp bonus_pickup_done
+bonus_can_collect:
+    mov al, [player_col]
+    cmp al, [bonus_col]
+    jne bonus_pickup_done
+    mov al, [player_row]
+    cmp al, [bonus_row]
+    jne bonus_pickup_done
+    mov byte ptr [bonus_active], 0
+    mov byte ptr [bonus_timer], 0
+    mov ax, 880
+    call sound_play
+    mov al, [bonus_type]
+    cmp al, 0
+    jne pickup_not_star
+    cmp byte ptr [player_upgrade], 3
+    jae bonus_pickup_done
+    inc byte ptr [player_upgrade]
+    call draw_hud
+    jmp bonus_pickup_done
+pickup_not_star:
+    cmp al, 1
+    jne pickup_not_helmet
+    mov byte ptr [player_shield], 150
+    jmp bonus_pickup_done
+pickup_not_helmet:
+    cmp al, 2
+    jne pickup_not_grenade
+    call grenade_all_enemies
+    jmp bonus_pickup_done
+pickup_not_grenade:
+    cmp al, 3
+    jne pickup_not_shovel
+    call protect_hq
+    jmp bonus_pickup_done
+pickup_not_shovel:
+    cmp al, 4
+    jne pickup_not_clock
+    mov byte ptr [freeze_ticks], 120
+    jmp bonus_pickup_done
+pickup_not_clock:
+    cmp byte ptr [lives], 9
+    jae bonus_pickup_done
+    inc byte ptr [lives]
+    call draw_hud
+bonus_pickup_done:
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+grenade_all_enemies:
+    push ax
+    push bx
+    push dx
+    xor bx, bx
+grenade_next:
+    cmp byte ptr [enemy_active+bx], 0
+    je grenade_skip
+    mov byte ptr [enemy_active+bx], 0
+    mov byte ptr [shot_active+bx], 0
+    inc byte ptr [enemy_killed]
+    xor ax, ax
+    mov al, [enemy_type+bx]
+    inc al
+    mov dl, 100
+    mul dl
+    add [score], ax
+    mov dl, [enemy_col+bx]
+    mov dh, [enemy_row+bx]
+    call draw_cell
+grenade_skip:
+    inc bx
+    cmp bx, 4
+    jb grenade_next
+    call draw_hud
+    pop dx
+    pop bx
+    pop ax
+    ret
+
+/* Shovel: preserve the exact four original barrier cells/masks, turn them
+ * into steel, and restore on expiry without resetting the level map.
+ */
+protect_hq:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    cmp byte ptr [hq_shield], 0
+    jne hq_refresh_timer
+    xor bx, bx
+hq_save_next:
+    xor si, si
+    mov si, bx
+    shl si, 1
+    mov si, [hq_wall_indices+si]
+    mov al, [level_data+si]
+    mov [hq_originals+bx], al
+    mov al, [brick_masks+si]
+    mov [hq_original_masks+bx], al
+    mov byte ptr [level_data+si], 'T'
+    mov byte ptr [brick_masks+si], 0
+    push bx
+    call draw_hq_wall
+    pop bx
+    inc bx
+    cmp bx, 4
+    jb hq_save_next
+hq_refresh_timer:
+    mov byte ptr [hq_shield], 160
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+restore_hq:
+    push ax
+    push bx
+    push dx
+    push si
+    xor bx, bx
+hq_restore_next:
+    mov si, bx
+    shl si, 1
+    mov si, [hq_wall_indices+si]
+    mov al, [hq_originals+bx]
+    mov [level_data+si], al
+    mov al, [hq_original_masks+bx]
+    mov [brick_masks+si], al
+    push bx
+    call draw_hq_wall
+    pop bx
+    inc bx
+    cmp bx, 4
+    jb hq_restore_next
+    pop si
+    pop dx
+    pop bx
+    pop ax
+    ret
+
+/* BX is the index 0..3 in the four corners around the HQ. */
+draw_hq_wall:
+    mov dl, [hq_wall_columns+bx]
+    mov dh, [hq_wall_rows+bx]
+    call draw_cell
+    ret
+
+tick_powerups:
+    push ax
+    push dx
+    cmp byte ptr [bonus_active], 0
+    je tick_no_bonus
+    dec byte ptr [bonus_timer]
+    jnz tick_no_bonus
+    mov byte ptr [bonus_active], 0
+    mov dl, [bonus_col]
+    mov dh, [bonus_row]
+    call draw_cell
+tick_no_bonus:
+    cmp byte ptr [freeze_ticks], 0
+    je tick_no_clock
+    dec byte ptr [freeze_ticks]
+tick_no_clock:
+    cmp byte ptr [hq_shield], 0
+    je tick_power_done
+    dec byte ptr [hq_shield]
+    jnz tick_power_done
+    call restore_hq
+tick_power_done:
+    pop dx
+    pop ax
+    ret
+
+/* Short nonblocking PC Speaker effects. No TSR, driver, DOS service or FPU.
+ * Input AX = PIT divisor (larger value means lower pitch).
+ * An AdLib detection and OPL2 layer can be plugged in later.
+ */
+sound_play:
+    push ax
+    push bx
+    push dx
+    cmp byte ptr [sound_muted], 0
+    jne sound_play_done
+    mov bx, ax
+    mov al, 0xb6
+    out 0x43, al
+    mov ax, bx
+    out 0x42, al
+    mov al, ah
+    out 0x42, al
+    in al, 0x61
+    or al, 3
+    out 0x61, al
+    mov byte ptr [sound_ticks], 2
+sound_play_done:
+    pop dx
+    pop bx
+    pop ax
+    ret
+sound_tick:
+    cmp byte ptr [sound_ticks], 0
+    je sound_tick_done
+    dec byte ptr [sound_ticks]
+    jnz sound_tick_done
+    call sound_stop
+sound_tick_done:
+    ret
+sound_stop:
+    push ax
+    in al, 0x61
+    and al, 0xfc
+    out 0x61, al
+    mov byte ptr [sound_ticks], 0
+    pop ax
+    ret
+
+/* A full brick starts with four 8x6 quarters. Shots chip the nearest
+ * half first. This grid-based prototype does not yet model pixel-accurate
+ * half-brick collision, but damage/graphics persist per quadrant.
+ * Input SI points into level_data, AL gives projectile direction.
+ */
+damage_brick:
+    push ax
+    push bx
+    push dx
+    push si
+    sub si, offset level_data
+    mov bl, [brick_masks+si]
+    mov dl, 0x0c                /* upward shot arrives from below */
+    cmp al, 0
+    je damage_mask_ready
+    mov dl, 0x05                /* rightward arrives from left */
+    cmp al, 1
+    je damage_mask_ready
+    mov dl, 0x03                /* downward arrives from top */
+    cmp al, 2
+    je damage_mask_ready
+    mov dl, 0x0a                /* leftward arrives from right */
+damage_mask_ready:
+    mov dh, bl
+    and dh, dl
+    jnz damage_front
+    mov dl, 0x0f                /* remaining rear half */
+damage_front:
+    not dl
+    and bl, dl
+    mov [brick_masks+si], bl
+    test bl, bl
+    jnz damage_done
+    mov byte ptr [level_data+si], '.'
+damage_done:
+    pop si
+    pop dx
+    pop bx
+    pop ax
     ret
 
 /* Seeded simple 16-bit pseudo-random sequence, deterministic per DOS start. */
@@ -406,10 +814,15 @@ enemy_move_active:
     jmp enemy_move_next
 enemy_move_unfiltered:
     call random_byte
-    and al, 7
-    cmp al, 5
+    and al, 15
+    cmp al, 11
+    jb enemy_keep_direction
+    cmp al, 13
     jae enemy_random_dir
     mov al, 2
+    jmp enemy_direction_chosen
+enemy_keep_direction:
+    mov al, [enemy_dir+bx]
     jmp enemy_direction_chosen
 enemy_random_dir:
     and al, 3
@@ -446,7 +859,13 @@ enemy_target:
     mov [next_row], dh
     call get_tile
     cmp al, '.'
-    jne enemy_move_next
+    je enemy_floor_ok
+    cmp al, 'F'
+    je enemy_floor_ok
+    cmp al, 'I'
+    je enemy_floor_ok
+    jmp enemy_move_next
+enemy_floor_ok:
     mov dl, [next_col]
     mov dh, [next_row]
     cmp dl, [player_col]
@@ -515,6 +934,8 @@ do_fire:
     mov [bullet_dir], al
     mov byte ptr [bullet_active], 1
     mov byte ptr [bullet_delay], 1
+    mov ax, 1250
+    call sound_play
     call advance_bullet
 fire_done:
     ret
@@ -523,6 +944,8 @@ advance_bullet:
     jne bullet_ready
     ret
 bullet_ready:
+    cmp byte ptr [player_upgrade], 0
+    jne bullet_step
     xor byte ptr [bullet_delay], 1
     jz bullet_step
     ret
@@ -538,11 +961,42 @@ bullet_step:
 bullet_inside:
     mov [next_col], dl
     mov [next_row], dh
+    push bx
+    xor bx, bx
+bullet_vs_shot_loop:
+    cmp byte ptr [shot_active+bx], 0
+    je bullet_vs_shot_next
+    cmp dl, [shot_col+bx]
+    jne bullet_vs_shot_next
+    cmp dh, [shot_row+bx]
+    jne bullet_vs_shot_next
+    mov byte ptr [shot_active+bx], 0
+    mov byte ptr [bullet_active], 0
+    pop bx
+    mov dl, [old_col]
+    mov dh, [old_row]
+    call draw_cell
+    mov dl, [next_col]
+    mov dh, [next_row]
+    call draw_cell
+    ret
+bullet_vs_shot_next:
+    inc bx
+    cmp bx, 4
+    jb bullet_vs_shot_loop
+    pop bx
     call get_tile
     cmp al, '#'
     je bullet_break_brick
     cmp al, 'T'
-    je bullet_out
+    jne bullet_not_steel
+    cmp byte ptr [player_upgrade], 3
+    jae bullet_break_steel
+    jmp bullet_out
+bullet_break_steel:
+    mov byte ptr [si], '.'
+    jmp bullet_impact
+bullet_not_steel:
     cmp al, 'B'
     je bullet_break_base
     mov dl, [next_col]
@@ -560,9 +1014,12 @@ bullet_inside:
     call draw_cell
     ret
 bullet_break_brick:
-    mov byte ptr [si], '.'
+    mov al, [bullet_dir]
+    call damage_brick
     jmp bullet_impact
 bullet_break_base:
+    cmp byte ptr [hq_shield], 0
+    jne bullet_impact
     mov byte ptr [game_state], 2
     jmp bullet_impact
 bullet_kill_enemy:
@@ -576,6 +1033,9 @@ bullet_enemy_destroyed:
     mov byte ptr [enemy_active+bx], 0
     mov byte ptr [shot_active+bx], 0
     inc byte ptr [enemy_killed]
+    push bx
+    call maybe_drop_bonus
+    pop bx
     xor ax, ax
     mov al, [enemy_type+bx]
     inc al
@@ -591,6 +1051,8 @@ bullet_out:
     call draw_cell
     ret
 bullet_impact:
+    mov ax, 2300
+    call sound_play
     mov byte ptr [bullet_active], 0
     mov dl, [old_col]
     mov dh, [old_row]
@@ -672,6 +1134,22 @@ shot_step:
 shot_inside:
     mov [next_col], dl
     mov [next_row], dh
+    cmp byte ptr [bullet_active], 0
+    je shot_no_bullet_collision
+    cmp dl, [bullet_col]
+    jne shot_no_bullet_collision
+    cmp dh, [bullet_row]
+    jne shot_no_bullet_collision
+    mov byte ptr [shot_active+bx], 0
+    mov byte ptr [bullet_active], 0
+    mov dl, [old_col]
+    mov dh, [old_row]
+    call draw_cell
+    mov dl, [next_col]
+    mov dh, [next_row]
+    call draw_cell
+    ret
+shot_no_bullet_collision:
     call get_tile
     cmp al, '#'
     je shot_break_brick
@@ -701,9 +1179,12 @@ shot_moved:
     call draw_cell
     ret
 shot_break_brick:
-    mov byte ptr [si], '.'
+    mov al, [shot_dir+bx]
+    call damage_brick
     jmp shot_impact
 shot_base_hit:
+    cmp byte ptr [hq_shield], 0
+    jne shot_impact
     mov byte ptr [game_state], 2
     jmp shot_impact
 shot_player_hit:
@@ -731,6 +1212,8 @@ shot_out:
     call draw_cell
     ret
 shot_impact:
+    mov ax, 2600
+    call sound_play
     mov byte ptr [shot_active+bx], 0
     mov dl, [old_col]
     mov dh, [old_row]
@@ -899,7 +1382,15 @@ draw_cell:
     mov si, offset sprite_empty
     cmp al, '#'
     jne draw_not_brick
-    mov si, offset sprite_brick
+    push bx
+    mov bx, si
+    sub bx, offset level_data
+    xor ax, ax
+    mov al, [brick_masks+bx]
+    shl ax, 1
+    mov bx, ax
+    mov si, [brick_sprite_ptrs+bx]
+    pop bx
     jmp draw_entities
 draw_not_brick:
     cmp al, 'T'
@@ -912,6 +1403,16 @@ draw_not_steel:
     mov si, offset sprite_water
     jmp draw_entities
 draw_not_water:
+    cmp al, 'F'
+    jne draw_not_forest
+    mov si, offset sprite_forest
+    jmp draw_entities
+draw_not_forest:
+    cmp al, 'I'
+    jne draw_not_ice
+    mov si, offset sprite_ice
+    jmp draw_entities
+draw_not_ice:
     cmp al, 'B'
     jne draw_entities
     mov si, offset sprite_base
@@ -946,6 +1447,20 @@ draw_enemy_selected:
 draw_no_enemy:
     mov [draw_sprite_ptr], si
     pop si
+    cmp byte ptr [bonus_active], 0
+    je draw_no_bonus
+    cmp dl, [bonus_col]
+    jne draw_no_bonus
+    cmp dh, [bonus_row]
+    jne draw_no_bonus
+    push bx
+    xor bx, bx
+    mov bl, [bonus_type]
+    shl bx, 1
+    mov si, [bonus_sprite_ptrs+bx]
+    mov [draw_sprite_ptr], si
+    pop bx
+draw_no_bonus:
     cmp dl, [player_col]
     jne draw_not_player
     cmp dh, [player_row]
@@ -953,7 +1468,13 @@ draw_no_enemy:
     xor bx, bx
     mov bl, [player_dir]
     shl bx, 1
+    cmp byte ptr [player_shield], 0
+    jne draw_player_shielded
     mov si, [player_sprite_ptrs+bx]
+    jmp draw_player_sprite
+draw_player_shielded:
+    mov si, [player_shield_sprite_ptrs+bx]
+draw_player_sprite:
     mov [draw_sprite_ptr], si
 draw_not_player:
     cmp byte ptr [bullet_active], 0
@@ -1176,6 +1697,15 @@ draw_hud:
 hud_lives_zero:
     mov di, 5506
     call draw_hud_digit
+    cmp byte ptr [player_upgrade], 0
+    je hud_no_upgrade
+    mov di, 5510             /* x280, y136: star power indicator */
+    mov si, offset hud_star_icon
+    call draw_hud_glyph
+    mov al, [player_upgrade]
+    mov di, 5512             /* x288, y136: upgrade level */
+    call draw_hud_digit
+hud_no_upgrade:
     mov di, 6464             /* x256, y160: stage flag */
     mov si, offset hud_flag_icon
     call draw_hud_glyph
@@ -1278,8 +1808,23 @@ test_bullet_loop:
     call advance_bullet
     pop cx
     loop test_bullet_loop
+    /* One hit destroys only the entry-side half of the brick. */
+    cmp byte ptr [level_data+126], '#'
+    jne test_failed_jump_far
+    cmp byte ptr [brick_masks+126], 10
+    jne test_failed_jump_far
+    /* A second shot removes the remaining half. */
+    call do_fire
+    mov cx, 12
+test_bullet_again:
+    push cx
+    call advance_bullet
+    pop cx
+    loop test_bullet_again
     cmp byte ptr [level_data+126], '.'
     je test_brick
+    jmp smoke_fail
+test_failed_jump_far:
     jmp smoke_fail
 test_brick:
     mov byte ptr [test_phase], 6
@@ -1321,11 +1866,17 @@ test_wave_complete:
     call reset_campaign
     /* First spawned enemy at lane 0 should be basic, second fast, third power. */
     cmp byte ptr [enemy_type], 0
-    jne test_failed_jump
+    je 1f
+    jmp test_failed_jump
+1:
     cmp byte ptr [enemy_type+1], 1
-    jne test_failed_jump
+    je 1f
+    jmp test_failed_jump
+1:
     cmp byte ptr [enemy_type+2], 2
-    jne test_failed_jump
+    je 1f
+    jmp test_failed_jump
+1:
     /* Force enemy 0 to armor, then hit once: it must survive with 3 HP. */
     mov byte ptr [enemy_type], 3
     mov byte ptr [enemy_hp], 4
@@ -1336,23 +1887,189 @@ test_wave_complete:
     mov byte ptr [bullet_active], 1
     call advance_bullet
     cmp byte ptr [enemy_hp], 3
-    jne test_failed_jump
+    je 1f
+    jmp test_failed_jump
+1:
     cmp byte ptr [enemy_active], 1
-    jne test_failed_jump
+    je 1f
+    jmp test_failed_jump
+1:
     /* Score must be shown on stage-result overlay as five digits. */
     mov byte ptr [test_phase], 11
     mov word ptr [score], 1234
     call format_score
     cmp byte ptr [score_string+6], '0'
-    jne test_failed_jump
+    je 1f
+    jmp test_failed_jump
+1:
     cmp byte ptr [score_string+7], '1'
-    jne test_failed_jump
+    je 1f
+    jmp test_failed_jump
+1:
     cmp byte ptr [score_string+8], '2'
-    jne test_failed_jump
+    je 1f
+    jmp test_failed_jump
+1:
     cmp byte ptr [score_string+9], '3'
-    jne test_failed_jump
+    je 1f
+    jmp test_failed_jump
+1:
     cmp byte ptr [score_string+10], '4'
-    jne test_failed_jump
+    je 1f
+    jmp test_failed_jump
+1:
+
+    mov byte ptr [test_phase], 12
+    call reset_campaign
+    mov byte ptr [enemy_killed], 4
+    call maybe_drop_bonus
+    cmp byte ptr [bonus_active], 1
+    je 1f
+    jmp test_failed_jump
+1:
+    cmp byte ptr [bonus_type], 0
+    je 1f
+    jmp test_failed_jump
+1:
+    mov al, [bonus_col]
+    mov [player_col], al
+    mov al, [bonus_row]
+    mov [player_row], al
+    call check_bonus_pickup
+    cmp byte ptr [player_upgrade], 1
+    je 1f
+    jmp test_failed_jump
+1:
+    cmp byte ptr [bonus_active], 0
+    je 1f
+    jmp test_failed_jump
+1:
+
+    mov byte ptr [test_phase], 13
+    call protect_hq
+    cmp byte ptr [level_data+148], 'T'
+    je 1f
+    jmp test_failed_jump
+1:
+    cmp byte ptr [level_data+150], 'T'
+    je 1f
+    jmp test_failed_jump
+1:
+    call restore_hq
+    mov byte ptr [hq_shield], 0
+    cmp byte ptr [level_data+148], '#'
+    je 1f
+    jmp test_failed_jump
+1:
+    cmp byte ptr [brick_masks+148], 15
+    je 1f
+    jmp test_failed_jump
+1:
+
+    mov byte ptr [test_phase], 14
+    mov byte ptr [bullet_col], 3
+    mov byte ptr [bullet_row], 10
+    mov byte ptr [bullet_dir], 1
+    mov byte ptr [bullet_active], 1
+    mov byte ptr [bullet_delay], 1
+    mov byte ptr [shot_col], 4
+    mov byte ptr [shot_row], 10
+    mov byte ptr [shot_active], 1
+    call advance_bullet
+    cmp byte ptr [bullet_active], 0
+    je 1f
+    jmp test_failed_jump
+1:
+    cmp byte ptr [shot_active], 0
+    je 1f
+    jmp test_failed_jump
+1:
+
+    mov byte ptr [test_phase], 15
+    mov byte ptr [bonus_active], 1
+    mov byte ptr [bonus_type], 1      /* helmet */
+    mov al, [player_col]
+    mov [bonus_col], al
+    mov al, [player_row]
+    mov [bonus_row], al
+    call check_bonus_pickup
+    cmp byte ptr [player_shield], 150
+    je 1f
+    jmp test_failed_jump
+1:
+    mov byte ptr [bonus_active], 1
+    mov byte ptr [bonus_type], 4      /* clock */
+    call check_bonus_pickup
+    cmp byte ptr [freeze_ticks], 120
+    je 1f
+    jmp test_failed_jump
+1:
+    mov byte ptr [bonus_active], 1
+    mov byte ptr [bonus_type], 5      /* extra tank */
+    call check_bonus_pickup
+    cmp byte ptr [lives], 4
+    je 1f
+    jmp test_failed_jump
+1:
+
+    mov byte ptr [test_phase], 16
+    mov byte ptr [bonus_active], 1
+    mov byte ptr [bonus_type], 2      /* grenade */
+    call check_bonus_pickup
+    cmp byte ptr [enemy_active], 0
+    je 1f
+    jmp test_failed_jump
+1:
+    cmp byte ptr [enemy_active+1], 0
+    je 1f
+    jmp test_failed_jump
+1:
+    cmp byte ptr [enemy_active+2], 0
+    je 1f
+    jmp test_failed_jump
+1:
+    mov byte ptr [test_phase], 17
+    call reset_campaign
+    mov byte ptr [player_col], 0
+    mov byte ptr [player_row], 4
+    mov dl, 1
+    mov dh, 4
+    call try_move
+    cmp byte ptr [player_col], 1
+    je 1f
+    jmp test_failed_jump
+1:
+    mov byte ptr [player_col], 8
+    mov byte ptr [player_row], 7
+    mov dl, 9
+    mov dh, 7
+    call try_move
+    cmp byte ptr [player_col], 9
+    je 1f
+    jmp test_failed_jump
+1:
+    cmp byte ptr [slide_ticks], 2
+    je 1f
+    jmp test_failed_jump
+1:
+    mov byte ptr [test_phase], 18
+    mov byte ptr [stage], 9
+    call load_stage
+    cmp byte ptr [level_data+40], 'F' /* row3, col1 */
+    je 1f
+    jmp test_failed_jump
+1:
+    mov byte ptr [test_phase], 19
+    call reset_campaign
+    mov byte ptr [player_col], 6
+    mov byte ptr [player_row], 9
+    mov byte ptr [player_dir], 0
+    mov byte ptr [player_upgrade], 3
+    call do_fire
+    cmp byte ptr [level_data+110], '.' /* max upgrade cuts steel */
+    je 1f
+    jmp test_failed_jump
+1:
     jmp smoke_pass
 test_failed_jump:
     jmp smoke_fail
@@ -1370,6 +2087,27 @@ smoke_fail:
 
 .section .data
 stage: .byte 1
+/* Six original effects in a new arrangement; all durations are BIOS ticks. */
+bonus_active: .byte 0
+bonus_col: .byte 0
+bonus_row: .byte 0
+bonus_type: .byte 0
+bonus_timer: .byte 0
+bonus_sequence: .byte 0
+bonus_columns: .byte 2, 10, 4, 8, 1, 11
+hq_wall_indices: .word 148, 150, 161, 163
+hq_wall_columns: .byte 5, 7, 5, 7
+hq_wall_rows: .byte 11, 11, 12, 12
+player_upgrade: .byte 0
+freeze_ticks: .byte 0
+hq_shield: .byte 0
+hq_originals: .space 4
+hq_original_masks: .space 4
+slide_ticks: .byte 0
+sound_muted: .byte 0
+sound_ticks: .byte 0
+sound_tone: .word 0
+brick_masks: .space 169
 test_phase: .byte 0
 lives: .byte 3
 score: .word 0
@@ -1410,6 +2148,8 @@ shot_delay: .space 4
 draw_sprite_ptr: .word 0
 player_sprite_ptrs:
     .word sprite_player_up, sprite_player_right, sprite_player_down, sprite_player_left
+player_shield_sprite_ptrs:
+    .word sprite_player_shield_up, sprite_player_shield_right, sprite_player_shield_down, sprite_player_shield_left
 enemy_sprite_ptrs:
     .word sprite_enemy_up, sprite_enemy_right, sprite_enemy, sprite_enemy_left
 fast_sprite_ptrs:

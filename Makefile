@@ -25,9 +25,7 @@ assets:
 
 test: all
 	$(PYTHON) -m unittest discover -s tests -v
-	$(PYTHON) tools/validate_map.py assets/maps/level01.map
-	$(PYTHON) tools/validate_map.py assets/maps/level02.map
-	$(PYTHON) tools/validate_map.py assets/maps/level03.map
+	@for f in assets/maps/level*.map; do $(PYTHON) tools/validate_map.py "$$f" || exit 1; done
 	$(PYTHON) tools/build_cga_assets.py --check
 	$(PYTHON) tools/check_8086.py build/tanks.o
 	@test "$$(wc -c < build/TANKS.COM)" -lt 16384

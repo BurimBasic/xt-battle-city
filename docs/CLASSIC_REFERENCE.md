@@ -24,14 +24,14 @@ References (independent descriptions):
 | 20 enemies per stage | Yes | v0.2 CGA: implemented |
 | Concurrent enemies | Up to 4 | v0.3 CGA: up to 4; performance not yet profiled on 8088 |
 | Enemy AI and enemy fire | Yes | v0.3 basic path selection and single projectiles |
-| Stage layouts | 35 original | 3 **original** layouts; no source-map copying |
-| Brick / steel / water | Yes | v0.2 basic whole-cell rules; *partial brick damage* missing |
+| Stage layouts | 35 original | 9 **original** layouts; no source-map copying |
+| Brick / steel / water | Yes | v0.5: separate 4-bit wall mask with directional half-cell removal; pixel collision is pending |
 | Two-player cooperative | Yes | Not implemented |
 | Player movement / collision | Continuous pixel motion | v0.2 tile-step; **major gap** |
 | Enemy types and 4-hit armor | Four classes | v0.3: basic / faster / high-fire-rate / armored (4 HP), distinct art and 100–400 points; tuning pending |
-| Power-ups | Six classic | Not implemented |
-| Forest and ice | Yes | Not implemented |
-| Sound | NES effects/music | Not implemented, PC Speaker/optional AdLib planned |
+| Power-ups | Six classic | v0.5: all six item effects; drops and durations are provisional, not NES timing-accurate |
+| Forest and ice | Yes | v0.5: original sprites, passable forest and short ice auto-slide; true ice physics pending |
+| Sound | NES effects/music | v0.5: original PC Speaker short beeps + mute; AdLib OPL2 pending |
 | Classic score screen | Per-tank tally on separate results screen | v0.4 black result overlay with score; per-tank tally still missing |
 | Poisk-1 base configuration | Outside NES target | Separate native loader / video / keyboard not yet implemented |
 
