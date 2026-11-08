@@ -1,5 +1,5 @@
-/* XT Battle City v0.2: original CGA tile arcade for DOS, 8086/8088.
- * Gameplay: waves of 20, 3 active enemies, movement/AI, enemy shots,
+/* XT Battle City v0.4: original CGA tile arcade for DOS, 8086/8088.
+ * Gameplay: waves of 20, 4 active enemies, movement/AI, enemy shots,
  * destructible bricks, lives, headquarters, score and stage transitions.
  * 16x12 CGA cells, 13x13 battlefield. Original artwork and stage layouts.
  * This is NOT the Poisk-1 native version and is NOT a pixel-perfect NES port.
@@ -21,6 +21,7 @@ _start:
     mov bx, 0x0101
     int 0x10
     call draw_map
+    call draw_sidebar_background
     call draw_hud
     /* Invocation: TANKS.COM /TEST (six command-line chars). */
     cmp byte ptr [0x80], 6
@@ -194,6 +195,7 @@ refresh_screen:
     mov bx, 0x0101
     int 0x10
     call draw_map
+    call draw_sidebar_background
     call draw_hud
     ret
 exit_game:
@@ -751,19 +753,107 @@ check_stage_complete:
     call stage_clear_hud
 stage_not_done:
     ret
+/* Classic-style black-on-blackfield overlay for stage completion/game over.
+ * Score is displayed here, not across the action screen (as on NES).
+ */
 stage_clear_hud:
-    mov dh, 22
-    xor dl, dl
+    call draw_result_box
+    call format_score
+    mov dl, 11
+    mov dh, 10
     call cursor_at
     mov si, offset victory_string
     call bios_string
+    mov dl, 11
+    mov dh, 12
+    call cursor_at
+    mov si, offset score_string
+    call bios_string
+    mov dl, 10
+    mov dh, 14
+    call cursor_at
+    mov si, offset next_string
+    call bios_string
     ret
+
 game_over_hud:
-    mov dh, 22
-    xor dl, dl
+    call draw_result_box
+    call format_score
+    mov dl, 12
+    mov dh, 10
     call cursor_at
     mov si, offset game_over_string
     call bios_string
+    mov dl, 11
+    mov dh, 12
+    call cursor_at
+    mov si, offset score_string
+    call bios_string
+    mov dl, 10
+    mov dh, 14
+    call cursor_at
+    mov si, offset restart_string
+    call bios_string
+    ret
+
+/* Clear a centered inset from x32..239, y72..135 in both CGA banks.
+ * Since simulation is paused on game over or victory, screen restoration
+ * happens only through refresh_screen on next stage/restart.
+ */
+draw_result_box:
+    push ax
+    push bx
+    push cx
+    push di
+    push es
+    mov ax, 0xb800
+    mov es, ax
+    xor ax, ax
+    mov di, 2888             /* (72/2)*80 + 32/4 */
+    mov bx, 32               /* 64 physical scan lines */
+result_box_row:
+    push di
+    mov cx, 26               /* 208 pixels = 52 bytes */
+    rep stosw
+    pop di
+    push di
+    add di, 0x2000
+    mov cx, 26
+    rep stosw
+    pop di
+    add di, 80
+    dec bx
+    jnz result_box_row
+    pop es
+    pop di
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+/* Convert the retained 16-bit score to five ASCII digits for result screen. */
+format_score:
+    push ax
+    push bx
+    push cx
+    push dx
+    push di
+    mov ax, [score]
+    mov bx, 10
+    mov cx, 5
+    mov di, offset score_string+10
+format_score_digit:
+    xor dx, dx
+    div bx
+    add dl, '0'
+    mov [di], dl
+    dec di
+    loop format_score_digit
+    pop di
+    pop dx
+    pop cx
+    pop bx
+    pop ax
     ret
 
 /* Return AL tile and SI writable address, DL/DH grid 0..12. */
@@ -939,55 +1029,167 @@ sprite_row:
     pop ax
     ret
 
-/* HUD drawn only on state change, not on every tick. */
+/* The original Battle City used a separate grey right HUD (enemy tank
+ * badges, 1P lives, stage flag); score was shown on results after the stage.
+ * CGA has no gray in this palette, so we use a white panel and black glyphs.
+ * The 13x13 map is drawn at x32..239, sidebar starts at x248.
+ */
+draw_sidebar_background:
+    push ax
+    push bx
+    push cx
+    push di
+    push es
+    mov ax, 0xb800
+    mov es, ax
+    mov ax, 0xffff
+    mov di, 62               /* x248 / 4 pixels per byte */
+    mov bx, 100              /* 100 even/odd pairs = 200 scanlines */
+sidebar_row:
+    push di
+    mov cx, 9                /* 72px = 18 bytes = 9 words */
+    rep stosw
+    pop di
+    push di
+    add di, 0x2000
+    mov cx, 9
+    rep stosw
+    pop di
+    add di, 80
+    dec bx
+    jnz sidebar_row
+    pop es
+    pop di
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+/* Every 8x8 HUD glyph is 16 bytes packed CGA. DI points to its first
+ * even scanline in B800:, 2 bytes wide; SI points to packed pixels.
+ */
+draw_hud_glyph:
+    push ax
+    push cx
+    push di
+    push si
+    push es
+    mov ax, 0xb800
+    mov es, ax
+    mov cx, 4
+hud_glyph_row:
+    mov ax, [si]
+    mov es:[di], ax
+    mov ax, [si+2]
+    mov es:[di+0x2000], ax
+    add si, 4
+    add di, 80
+    loop hud_glyph_row
+    pop es
+    pop si
+    pop di
+    pop cx
+    pop ax
+    ret
+
+/* AL = digit 0..9, DI = B800 even-bank offset (x multiple of 4px). */
+draw_hud_digit:
+    push bx
+    push si
+    xor bx, bx
+    mov bl, al
+    shl bx, 1
+    mov si, [hud_digit_ptrs+bx]
+    call draw_hud_glyph
+    pop si
+    pop bx
+    ret
+
+/* Refresh all 20 enemy badges (two columns of 10). The blank badge
+ * is white, so the icons disappear as enemies are killed.
+ */
+draw_enemy_markers:
+    push ax
+    push bx
+    push cx
+    push dx
+    push di
+    push si
+    mov al, 20
+    sub al, [enemy_killed]
+    mov [hud_remaining], al
+    xor bx, bx
+hud_enemy_next:
+    mov ax, bx
+    mov cl, 2
+    div cl
+    mov dl, ah               /* odd index -> second icon column */
+    xor ah, ah
+    shl ax, 1
+    mov si, ax
+    mov di, [hud_indicator_offsets+si]
+    test dl, dl
+    jz hud_enemy_first_column
+    add di, 6                /* x280 (24 px to right) */
+hud_enemy_first_column:
+    mov si, offset hud_tank_icon
+    cmp bl, [hud_remaining]
+    jb hud_enemy_active
+    mov si, offset hud_blank_icon
+hud_enemy_active:
+    call draw_hud_glyph
+    inc bl
+    cmp bl, 20
+    jb hud_enemy_next
+    pop si
+    pop di
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+/* Lives and stage use direct CGA 8x8 glyphs to keep black-on-white legible
+ * without BIOS teletype drawing black text with black backgrounds.
+ */
 draw_hud:
     push ax
     push bx
     push cx
     push dx
+    push di
     push si
-    mov dh, 0
-    xor dl, dl
-    call cursor_at
-    mov si, offset title_string
-    call bios_string
-    mov dh, 23
-    xor dl, dl
-    call cursor_at
-    mov si, offset help_string
-    call bios_string
+    call draw_enemy_markers
+    mov di, 4864             /* x256, y120  (1P) */
+    mov al, 1
+    call draw_hud_digit
+    mov di, 4866             /* x264, y120 */
+    mov si, offset hud_p_char
+    call draw_hud_glyph
+    mov di, 5504             /* x256, y136  (x2) */
+    mov si, offset hud_x_char
+    call draw_hud_glyph
+    mov al, [lives]
+    test al, al
+    jz hud_lives_zero
+    dec al                    /* NES HUD shows lives in reserve */
+hud_lives_zero:
+    mov di, 5506
+    call draw_hud_digit
+    mov di, 6464             /* x256, y160: stage flag */
+    mov si, offset hud_flag_icon
+    call draw_hud_glyph
     mov al, [stage]
-    add al, '0'
-    mov byte ptr [status_string+3], al
-    mov al, 20
-    sub al, [enemy_killed]
     xor ah, ah
     mov bl, 10
     div bl
-    add al, '0'
-    add ah, '0'
-    mov byte ptr [status_string+14], al
-    mov byte ptr [status_string+15], ah
-    mov al, [lives]
-    add al, '0'
-    mov byte ptr [status_string+24], al
-    mov ax, [score]
-    mov di, offset status_string+37
-    mov cx, 5
-    mov bx, 10
-score_digit_loop:
-    xor dx, dx
-    div bx
-    add dl, '0'
-    mov [di], dl
-    dec di
-    loop score_digit_loop
-    mov dh, 21
-    xor dl, dl
-    call cursor_at
-    mov si, offset status_string
-    call bios_string
+    mov di, 7104             /* x256, y176: two stage digits */
+    call draw_hud_digit
+    mov al, ah
+    mov di, 7106
+    call draw_hud_digit
     pop si
+    pop di
     pop dx
     pop cx
     pop bx
@@ -1019,6 +1221,23 @@ printed:
 
 /* Repeatable built-in headless emulator logic regression. */
 smoke_test:
+    /* Verify real B800: CGA sidebar data, not just generated source assets. */
+    mov byte ptr [test_phase], 10
+    push es
+    mov ax, 0xb800
+    mov es, ax
+    cmp word ptr es:[62], 0xffff       /* white first panel scanline */
+    je smoke_white_ok
+    pop es
+    jmp smoke_fail
+smoke_white_ok:
+    mov ax, [hud_tank_icon]            /* first active marker at x256,y16 */
+    cmp word ptr es:[704], ax          /* (16/2)*80 + 256/4 */
+    je smoke_mark_ok
+    pop es
+    jmp smoke_fail
+smoke_mark_ok:
+    pop es
     mov byte ptr [test_phase], 1
     /* All 3 starting enemy slots must be occupied. */
     cmp byte ptr [enemy_spawned], 3
@@ -1120,6 +1339,20 @@ test_wave_complete:
     jne test_failed_jump
     cmp byte ptr [enemy_active], 1
     jne test_failed_jump
+    /* Score must be shown on stage-result overlay as five digits. */
+    mov byte ptr [test_phase], 11
+    mov word ptr [score], 1234
+    call format_score
+    cmp byte ptr [score_string+6], '0'
+    jne test_failed_jump
+    cmp byte ptr [score_string+7], '1'
+    jne test_failed_jump
+    cmp byte ptr [score_string+8], '2'
+    jne test_failed_jump
+    cmp byte ptr [score_string+9], '3'
+    jne test_failed_jump
+    cmp byte ptr [score_string+10], '4'
+    jne test_failed_jump
     jmp smoke_pass
 test_failed_jump:
     jmp smoke_fail
@@ -1185,11 +1418,11 @@ power_sprite_ptrs:
     .word sprite_power_up, sprite_power_right, sprite_power_down, sprite_power_left
 armor_sprite_ptrs:
     .word sprite_armor_up, sprite_armor_right, sprite_armor_down, sprite_armor_left
-title_string: .asciz " XT BATTLE CITY 2 / CGA / XT 8088 "
-help_string: .asciz "ARROWS/WASD MOVE SPACE FIRE R RESET ESC"
-/* Update digit offsets in draw_hud whenever editing this template! */
-status_string: .asciz "ST 1  ENEMIES 20  LIVES 3  SCORE 00000"
-victory_string: .asciz "STAGE CLEAR! SPACE=NEXT  R=RESTART    "
-game_over_string: .asciz "GAME OVER! R=RESTART                 "
+hud_remaining: .byte 20
+score_string: .asciz "SCORE 00000"
+victory_string: .asciz "STAGE CLEAR"
+game_over_string: .asciz "GAME OVER"
+next_string: .asciz "SPACE - NEXT"
+restart_string: .asciz "R - RESTART"
 level_data: .space 169
 .include "src/dos/cga_assets.inc"

@@ -23,10 +23,10 @@ class SpriteTests(unittest.TestCase):
         self.assertEqual(''.join(rows).count('B'), 1)
 
     def test_video_boundaries(self):
-        # x=56+12*16=248 and y=16+12*12=160; last pixels x=263,y=171.
-        self.assertLessEqual(56 + 13*16, 320)
+        # x=32+12*16=224 and y=16+12*12=160; map ends x240.
+        self.assertLessEqual(32 + 13*16, 248)
         self.assertLessEqual(16 + 13*12, 200)
-        self.assertLess(640 + 12*480 + 5*80 + 0x2000 + 4*12 + 4, 16384)
+        self.assertLess(648 + 12*480 + 5*80 + 0x2000 + 4*12 + 4, 16384)
 
     def test_generated_include_is_current(self):
         expected = assets.generate(ROOT / 'assets/maps/level01.map')

@@ -32,7 +32,7 @@ References (independent descriptions):
 | Power-ups | Six classic | Not implemented |
 | Forest and ice | Yes | Not implemented |
 | Sound | NES effects/music | Not implemented, PC Speaker/optional AdLib planned |
-| Classic score screen | Per-tank tally | v0.3 score only, no stage breakdown |
+| Classic score screen | Per-tank tally on separate results screen | v0.4 black result overlay with score; per-tank tally still missing |
 | Poisk-1 base configuration | Outside NES target | Separate native loader / video / keyboard not yet implemented |
 
 ## Work order toward gameplay fidelity
@@ -47,3 +47,13 @@ References (independent descriptions):
 8. Complete EGA/VGA/Hercules, native Poisk-1 and physical hardware testing.
 
 All claims about equivalence to the original need reproduction tests (reference recordings/measurements) instead of assumption. All test reports must state `DOSBox-X / 86Box / MAME / physical hardware` explicitly.
+
+## v0.4 CGA presentation compared with original NES
+
+Classic Namco Battle City shows 20 enemy tank marks on the right, 1P/2P extra lives and a flag with the current stage. The action view does **not** have a bottom help strip or a running score label. After the stage the score is shown on a results screen.
+
+CGA v0.4 currently draws **original** 8×8 monochrome HUD glyphs on a white right sidebar, with 20 enemy marks, `1P` and spare lives, a flag, and two-digit stage. Game over / stage clear shows a centered black rectangle with total score; the full NES per-enemy breakdown is scheduled for later. The CGA layout is adapted to 320×200, 4 colors with 16×12 tiles and is not pixel-identical to NES.
+
+Reference manuals/reports:
+- https://usermanual.wiki/Document/UserManual.2090753506.pdf
+- https://www.cs.columbia.edu/~sedwards/classes/2011/4840/reports/Battle-City.pdf

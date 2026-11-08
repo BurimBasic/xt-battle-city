@@ -32,18 +32,33 @@ class WaveTests(unittest.TestCase):
         self.assertNotEqual(sprites.SPRITES['enemy_up'], sprites.SPRITES['enemy'])
         self.assertEqual(len({tuple(sprites.SPRITES[x]) for x in ('enemy','fast_down','power_down','armor_down')}),4)
 
-    def test_hud_digit_offsets(self):
+    def test_classic_sidebar_and_score_overlay(self):
         source = (ROOT / 'src' / 'dos' / 'tanks.S').read_text()
-        match = re.search(r'^status_string: \.asciz "([^"]+)"', source, re.M)
-        self.assertIsNotNone(match)
-        status = match.group(1)
-        self.assertEqual(status[3], '1')
-        self.assertEqual(status[14:16], '20')
-        self.assertEqual(status[24], '3')
-        self.assertEqual(status[33:38], '00000')
-        self.assertLessEqual(len(status), 40)
+        # Live gameplay uses a right sidebar rather than cluttering screen edges.
+        self.assertNotIn('status_string:', source)
+        self.assertNotIn('title_string:', source)
+        self.assertNotIn('help_string:', source)
+        self.assertIn('call draw_sidebar_background', source)
+        self.assertIn('call draw_enemy_markers', source)
+        self.assertIn('draw_result_box:', source)
+        self.assertIn('format_score:', source)
+        self.assertIn('score_string: .asciz "SCORE 00000"', source)
+        self.assertIn('mov di, offset score_string+10', source)
         self.assertIn('cmp byte ptr [enemy_spawned], 20', source)
         self.assertIn('cmp byte ptr [enemy_killed], 20', source)
+
+    def test_sidebar_font_and_bounds(self):
+        lines = sprites.generate_hud()
+        self.assertEqual(len(sprites.hud_glyph(sprites.HUD_TANK)), 16)
+        self.assertEqual(len(sprites.hud_glyph(sprites.HUD_FLAG)), 16)
+        self.assertEqual(len(lines), 5 + 2*15)
+        self.assertIn('hud_indicator_offsets:', lines)
+        self.assertIn('hud_digit_ptrs:', lines)
+        # Map start x32 and width208; sidebar starts x248 (8px gap).
+        self.assertEqual(648, 640 + 32//4)
+        self.assertLessEqual(32 + 13*16, 248)
+        self.assertEqual(248 + 72, 320)
+        self.assertLess(7106 + 0x2000 + 3*80 + 2, 16384)
 
 if __name__ == '__main__':
     unittest.main()

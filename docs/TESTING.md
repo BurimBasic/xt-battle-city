@@ -53,3 +53,11 @@ Evidence: logs/screenshots/repro:
 `TANKS.COM /TEST` executes a deterministic test of initial enemy spawn slots, player movement and steel collision, destruction of a brick, an enemy projectile reducing lives, destruction of headquarters, and wave completion. It returns DOS `ERRORLEVEL 0` for PASS or `1` for FAIL. Run this under `machine=cga` in DOSBox-X. Save an emulator log and ensure a conditional `IF ERRORLEVEL 1` detects failures. This test **does not** validate timing or natural AI behavior under gameplay input.
 
 For visual play, start `TANKS.COM` without arguments. While playing, send arrow keys/WASD and Space, verify enemy movement and shots, score, remaining enemies/lives, lose on HQ impact, and stage advance after 20 kills. Three game maps are authored locally. Do not call this a full Battle City replica: reference gaps tracked in [CLASSIC_REFERENCE.md](CLASSIC_REFERENCE.md).
+
+## v0.4 — экранная компоновка CGA
+
+- После запуска режима 04h в B800: проверяются белый первый байт боковой панели (`B800:003E = FFFFh`) и байты первого значка врага (`B800:02C0 = hud_tank_icon[0..1]`). Это включено в `TANKS.COM /TEST` (errorlevel 10 при ошибке экрана).
+- В режиме игры верхняя и нижняя полосы свободны от текста; HUD располагается справа от поля x32..239. HUD: 20 миниатюрных врагов в двух колонках; `1P`, запасные жизни; флажок и двухзначный этап.
+- После победы/проигрыша выводится центрированный экранный блок `STAGE CLEAR`/`GAME OVER` со счётом, форматирование `01234` дополнительно проверяется `/TEST` (errorlevel 11).
+- Для ручной приёмки: `RUN-CGA.cmd` на SLOW1; убить врага и убедиться, что **один** значок исчез, проверить обновление жизней и новую панель после `R`.
+- Это графическая/логическая проверка **DOSBox-X**, а не замер скорости на реальном XT 4,77 МГц или нативном «Поиске-1».
