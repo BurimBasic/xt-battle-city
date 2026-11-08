@@ -2786,18 +2786,16 @@ draw_static_cell:
     push si
     push di
     call get_tile
+    mov bx, si
+    sub bx, offset level_data  /* preserve true map-cell index */
     mov si, offset sprite_empty
     cmp al, '#'
     jne draw_not_brick
-    push bx
-    mov bx, si
-    sub bx, offset level_data
     xor ax, ax
     mov al, [brick_masks+bx]
     shl ax, 1
     mov bx, ax
     mov si, [brick_sprite_ptrs+bx]
-    pop bx
     jmp draw_entities
 draw_not_brick:
     cmp al, 'T'
