@@ -23,7 +23,6 @@ _start:
     call draw_map
     call draw_sidebar_background
     call draw_hud
-    call render_frame
     /* Invocation: TANKS.COM /TEST (six command-line chars). */
     cmp byte ptr [0x80], 6
     jne normal_start
@@ -33,6 +32,7 @@ _start:
     jne normal_start
     jmp smoke_test
 normal_start:
+    call render_frame
     call install_keyboard
     mov ah, 0
     int 0x1a
