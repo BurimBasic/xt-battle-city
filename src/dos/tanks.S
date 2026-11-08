@@ -1586,19 +1586,22 @@ advance_enemy_one_pixel:
     jnc 1f
     jmp enemy_pixel_collision
 1:
-    /* Collision with the player. */
+    /* Collision with the player only when BOTH axes overlap. */
     mov al, [candidate_x]
     sub al, [player_px]
     cmp al, 16
-    jb enemy_pixel_collision
+    jb enemy_pixel_check_player_y
     cmp al, 241
-    ja enemy_pixel_collision
+    jae enemy_pixel_check_player_y
+    jmp enemy_pixel_no_player
+ enemy_pixel_check_player_y:
     mov al, [candidate_y]
     sub al, [player_py]
     cmp al, 12
     jb enemy_pixel_collision
     cmp al, 245
     jae enemy_pixel_collision
+ enemy_pixel_no_player:
     /* Enemy-enemy AABB; BX is our actor index. */
     xor si, si
 enemy_pixel_check_others:
@@ -2216,9 +2219,11 @@ player_pixel_check_enemies:
     mov al, [candidate_x]
     sub al, [enemy_px+bx]
     cmp al, 16
-    jb player_pixel_done
+    jb player_pixel_check_y
     cmp al, 241
-    ja player_pixel_done
+    jae player_pixel_check_y
+    jmp player_pixel_next_enemy
+player_pixel_check_y:
     mov al, [candidate_y]
     sub al, [enemy_py+bx]
     cmp al, 12
