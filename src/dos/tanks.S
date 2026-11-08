@@ -966,11 +966,13 @@ printed:
 
 /* Repeatable built-in headless emulator logic regression. */
 smoke_test:
+    mov byte ptr [test_phase], 1
     /* All 3 starting enemy slots must be occupied. */
     cmp byte ptr [enemy_spawned], 3
     je test_spawned
     jmp smoke_fail
 test_spawned:
+    mov byte ptr [test_phase], 2
     mov dl, 6
     mov dh, 10
     call try_move
@@ -978,6 +980,7 @@ test_spawned:
     je test_move1
     jmp smoke_fail
 test_move1:
+    mov byte ptr [test_phase], 3
     mov dl, 6
     mov dh, 9
     call try_move
@@ -985,6 +988,7 @@ test_move1:
     je test_move2
     jmp smoke_fail
 test_move2:
+    mov byte ptr [test_phase], 4
     mov dl, 6
     mov dh, 8
     call try_move
@@ -992,6 +996,7 @@ test_move2:
     je test_blocked
     jmp smoke_fail
 test_blocked:
+    mov byte ptr [test_phase], 5
     /* Advance player bullet at row 9 col 6 through brick at col 9. */
     mov byte ptr [player_dir], 1
     call do_fire
@@ -1005,6 +1010,7 @@ test_bullet_loop:
     je test_brick
     jmp smoke_fail
 test_brick:
+    mov byte ptr [test_phase], 6
     mov byte ptr [player_row], 11
     mov byte ptr [player_col], 6
     mov byte ptr [player_shield], 0
@@ -1019,6 +1025,7 @@ test_brick:
     je test_life
     jmp smoke_fail
 test_life:
+    mov byte ptr [test_phase], 7
     mov byte ptr [shot_col+bx], 6
     mov byte ptr [shot_row+bx], 11
     mov byte ptr [shot_dir+bx], 2
@@ -1029,6 +1036,7 @@ test_life:
     je test_base
     jmp smoke_fail
 test_base:
+    mov byte ptr [test_phase], 8
     mov byte ptr [game_state], 0
     mov byte ptr [enemy_spawned], 20
     mov byte ptr [enemy_killed], 20
@@ -1044,11 +1052,13 @@ smoke_pass:
 smoke_fail:
     mov ax, 0x0003
     int 0x10
-    mov ax, 0x4c01
+    mov al, [test_phase]
+    mov ah, 0x4c
     int 0x21
 
 .section .data
 stage: .byte 1
+test_phase: .byte 0
 lives: .byte 3
 score: .word 0
 player_col: .byte 6
