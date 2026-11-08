@@ -1,4 +1,4 @@
-name: Sanity check (8086 diagnostics and map)
+name: DOS 8086 CGA prototype and map tests
 on:
   push:
   pull_request:
@@ -10,13 +10,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Build 8086 DOS diagnostic
+      - name: Assemble 8086 DOS COM programs
         run: make clean all
-      - name: Unit tests and level validation
+      - name: Unit tests, map and 8086 ISA audit
         run: make test
-      - name: Verify COM file size
-        run: test "$(wc -c < build/XTINFO.COM)" -lt 16384
+      - name: Verify compact 8086 programs
+        run: |
+          test "$(wc -c < build/XTINFO.COM)" -lt 16384
+          test "$(wc -c < build/TANKS.COM)" -lt 16384
       - uses: actions/upload-artifact@v4
         with:
-          name: dos-xtinfo-diagnostic-not-game
-          path: build/XTINFO.COM
+          name: dos-cga-tanks-prototype-and-diagnostic
+          path: |
+            build/TANKS.COM
+            build/XTINFO.COM
