@@ -240,7 +240,7 @@ laser17_fire:
     mov [laser_start_x],al
     mov al,[player_py]
     mov [laser_start_y],al
-    mov byte ptr [laser_flash_ticks],4
+    mov byte ptr [laser_flash_ticks],3
     mov cx,88
 laser17_step:
     cmp byte ptr [bullet_active],0
@@ -542,62 +542,121 @@ grenade17_fx_paint_next:
     jb grenade17_fx_paint_loop
     ret
 
-/* Draw a 2-tick white/cyan beam at 8px intervals along the actual
- * same-tick traced shell path. Each sprite marks its old tiles dirty so
- * the next offscreen composition restores the map without ghosting. */
+/* v0.19: continuous 1-pixel laser line, rather than 16x12 projectile
+ * sprites every eight pixels. The shell trace above determines the REAL
+ * obstruction point, so this never crosses steel or an enemy. Alternate
+ * CGA color 1 / 3 each BIOS tick. Dirty tiles are restored the next frame
+ * so there are no ghost trails. One line = one bounded scan, no sprite
+ * blitter calls or per-pixel division/multiplication. */
 laser17_paint:
     cmp byte ptr [laser_flash_ticks],0
-    jne laser17_paint_go
+    jne laser19_paint_active
     ret
-laser17_paint_go:
+laser19_paint_active:
     push ax
     push bx
     push cx
     push dx
     push si
+    push di
+    push es
+    mov ax,[frame_seg]
+    mov es,ax
     mov dl,[laser_start_x]
+    add dl,8
     mov dh,[laser_start_y]
-    mov cx,28
-laser17_paint_next:
-    push cx
-    push dx
-    mov si,offset smooth_bullet
+    add dh,6
+    mov al,[laser_end_x]
+    cmp al,247
+    jbe laser19_end_x_clamped
+    mov al,247
+laser19_end_x_clamped:
+    add al,8
+    mov [laser_paint_end_x],al
+    mov al,[laser_end_y]
+    cmp al,185
+    jbe laser19_end_y_clamped
+    mov al,185
+laser19_end_y_clamped:
+    add al,6
+    mov [laser_paint_end_y],al
+    mov cx,240
+laser19_pixel:
+    cmp dh,192
+    jae laser19_finished
+    /* (y/12)*16 + (x/16) indexes a 16x16 static map. */
+    xor bx,bx
+    mov bl,dh
+    mov al,[pixel_y_tile_lookup+bx]
+    and al,0xf0
+    xor ah,ah
+    mov bx,ax
+    mov al,dl
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    xor ah,ah
+    add bx,ax
+    mov byte ptr [dirty_tiles+bx],1
+    mov byte ptr [upload_tiles+bx],1
+    /* Convert x/y to mode-4 CGA interleaved address. */
+    xor bx,bx
+    mov bl,dh
+    shl bx,1
+    mov di,[cga_scanline_offsets+bx]
+    xor bx,bx
+    mov bl,dl
+    shr bx,1
+    shr bx,1
+    add di,bx
+    mov al,dl
+    and al,3
+    xor bx,bx
+    mov bl,al
+    mov al,[laser19_masks+bx]
+    not al
+    and al,es:[di]
     test byte ptr [game_tick],1
-    jz laser17_paint_sprite
-    mov si,offset smooth_enemy_bullet
-laser17_paint_sprite:
-    call draw_smooth_sprite
-    pop dx
-    pop cx
+    jnz laser19_white
+    or al,[laser19_color1+bx]
+    jmp laser19_pixel_store
+laser19_white:
+    or al,[laser19_color3+bx]
+laser19_pixel_store:
+    mov es:[di],al
+    /* Stop at the captured shell impact, never continue past the wall. */
     mov al,[laser_dir]
     cmp al,0
-    jne laser17_paint_right
-    cmp dh,[laser_end_y]
-    jbe laser17_paint_done
-    sub dh,8
-    jmp laser17_paint_advance
-laser17_paint_right:
+    jne laser19_right
+    cmp dh,[laser_paint_end_y]
+    jbe laser19_finished
+    dec dh
+    jmp laser19_next
+laser19_right:
     cmp al,1
-    jne laser17_paint_down
-    cmp dl,[laser_end_x]
-    jae laser17_paint_done
-    add dl,8
-    jmp laser17_paint_advance
-laser17_paint_down:
+    jne laser19_down
+    cmp dl,[laser_paint_end_x]
+    jae laser19_finished
+    inc dl
+    jmp laser19_next
+laser19_down:
     cmp al,2
-    jne laser17_paint_left
-    cmp dh,[laser_end_y]
-    jae laser17_paint_done
-    add dh,8
-    jmp laser17_paint_advance
-laser17_paint_left:
-    cmp dl,[laser_end_x]
-    jbe laser17_paint_done
-    sub dl,8
-laser17_paint_advance:
-    dec cl
-    jnz laser17_paint_next
-laser17_paint_done:
+    jne laser19_left
+    cmp dh,[laser_paint_end_y]
+    jae laser19_finished
+    inc dh
+    jmp laser19_next
+laser19_left:
+    cmp dl,[laser_paint_end_x]
+    jbe laser19_finished
+    dec dl
+laser19_next:
+    dec cx
+    jnz laser19_pixel
+laser19_finished:
+    pop es
+    pop di
     pop si
     pop dx
     pop cx
@@ -611,6 +670,11 @@ multi_ticks: .byte 0
 homing_ticks: .byte 0
 frenzy_ticks: .byte 0
 laser_flash_ticks: .byte 0
+laser19_masks: .byte 0xc0,0x30,0x0c,0x03
+laser19_color1: .byte 0x40,0x10,0x04,0x01
+laser19_color3: .byte 0xc0,0x30,0x0c,0x03
+laser_paint_end_x: .byte 0
+laser_paint_end_y: .byte 0
 laser_dir: .byte 0
 laser_start_x: .byte 0
 laser_start_y: .byte 0
