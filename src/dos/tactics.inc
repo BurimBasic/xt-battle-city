@@ -18,12 +18,26 @@ tactical_player_decide:
     push dx
     push si
     mov byte ptr [tactical_fire_request], 0
+    cmp byte ptr [player_shield],0
+    jne tactical_dodge_done
     call tactical_find_threat
-    jnc 1f
+    jnc tactical_dodge_done
     jmp tactical_player_steer
-1:
-    /* An uncollected bonus is an urgent positional objective; abandon it
-       only for a tank already penetrating the HQ's defensive zone. */
+tactical_dodge_done:
+    /* Base breach takes priority over the pickup, but normal firing
+       is independent of BOTH and runs after every movement tick. */
+    call tactical_find_target
+    jnc tactical_bonus_objective
+    cmp byte ptr [enemy_py+bx],136
+    jae tactical_no_bonus_route
+    cmp byte ptr [enemy_py+bx],100
+    jb tactical_bonus_objective
+    mov al,[enemy_px+bx]
+    cmp al,72
+    jb tactical_bonus_objective
+    cmp al,168
+    jbe tactical_no_bonus_route
+tactical_bonus_objective:
     call strategy_bonus_heading
     jnc tactical_no_bonus_route
     mov byte ptr [tactical_fire_request],0
@@ -53,42 +67,31 @@ tactical_defense_position_ready:
     jae tactical_player_engage
     /* During a quiet opening establish a forward firing line, and then
        engage a reachable raider rather than watching a frozen screen. */
-    cmp byte ptr [player_py],112
+    cmp byte ptr [player_py],116
     jbe 1f
     jmp tactical_patrol
 1:
     cmp byte ptr [enemy_py+bx],16
     jae tactical_player_engage
-    jmp tactical_player_guard
+    jmp tactical_patrol
  tactical_player_engage:
-    /* BX = persistent enemy objective, selected by HQ threat. */
-    mov al, [enemy_px+bx]
-    sub al, [player_px]
-    add al, 9            /* projectile reaches outer treads */
-    cmp al, 19
+    /* Shot failed range or steel-line check. Close or change lane;
+       do not hold forever firing into an indestructible barrier. */
+    mov al,[enemy_px+bx]
+    sub al,[player_px]
+    add al,9
+    cmp al,19
     ja tactical_player_try_row
-    mov al, 0
-    mov dl, [enemy_py+bx]
-    cmp dl, [player_py]
-    jb tactical_aligned_vertical
-    mov al, 2
- tactical_aligned_vertical:
-    mov byte ptr [tactical_fire_request], 1
-    jmp tactical_player_hold_and_fire
+    cmp byte ptr [enemy_py+bx],112
+    jb tactical_engage_forward
+    cmp byte ptr [player_py],136
+    jae tactical_player_guard
+    mov al,2
+    jmp tactical_player_steer
+ tactical_engage_forward:
+    mov al,0
+    jmp tactical_player_steer
  tactical_player_try_row:
-    mov al, [enemy_py+bx]
-    sub al, [player_py]
-    add al, 7
-    cmp al, 15
-    ja tactical_player_seek_column
-    mov al, 3
-    mov dl, [enemy_px+bx]
-    cmp dl, [player_px]
-    jb tactical_aligned_horizontal
-    mov al, 1
- tactical_aligned_horizontal:
-    mov byte ptr [tactical_fire_request], 1
-    jmp tactical_player_hold_and_fire
  tactical_player_seek_column:
     /* Defender stays in the central two thirds until an enemy crosses
        the middle of the map. Keeps HQ cover from disappearing in demos. */
@@ -113,20 +116,41 @@ tactical_defense_position_ready:
     cmp byte ptr [enemy_px+bx],176
     ja tactical_player_guard
  tactical_seek_flank_breach:
-    mov al, [enemy_px+bx]
-    cmp al, [player_px]
+    /* Keep the intercept column near HQ; chasing a side-lane decoy can
+       leave the entire base unguarded. Expand only in a real breach. */
+    mov dl,[enemy_px+bx]
+    cmp byte ptr [enemy_py+bx],152
+    jae tactical_seek_compare
+    cmp dl,80
+    jae tactical_seek_clip_right
+    mov dl,80
+ tactical_seek_clip_right:
+    cmp dl,144
+    jbe tactical_seek_compare
+    mov dl,144
+ tactical_seek_compare:
+    cmp dl,[player_px]
     ja tactical_seek_right
-    mov al, 3
+    mov al,3
     jmp tactical_player_steer
  tactical_seek_right:
-    mov al, 1
+    mov al,1
     jmp tactical_player_steer
  tactical_patrol:
-    /* Active forward sentry, close enough to fire at a stalled attacker.
-       HQ emergency and incoming shells still preempt this position. */
-    cmp byte ptr [player_py],112
-    jbe tactical_player_guard
+    /* Main stage's center x112 lane contains STEEL at row 8. Patrol
+       from x96 instead, where real shots can reach attacking tanks. */
+    cmp byte ptr [player_py],120
+    jbe tactical_patrol_column
     mov al,0
+    jmp tactical_player_steer
+ tactical_patrol_column:
+    cmp byte ptr [player_px],96
+    je tactical_player_guard
+    ja tactical_patrol_left
+    mov al,1
+    jmp tactical_player_steer
+ tactical_patrol_left:
+    mov al,3
     jmp tactical_player_steer
  tactical_player_guard:
     mov byte ptr [held_keys],0
@@ -217,8 +241,9 @@ tactical_player_aim_if_aligned:
     jnc tactical_aim_vertical_abs
     neg al
  tactical_aim_vertical_abs:
-    cmp al,96
+    cmp al,136
     ja tactical_aim_fail
+    mov [tactical_aim_distance],al
     mov al,2
     mov ah,[enemy_py+bx]
     cmp ah,[player_py]
@@ -236,19 +261,122 @@ tactical_player_aim_if_aligned:
     jnc tactical_aim_horizontal_abs
     neg al
  tactical_aim_horizontal_abs:
-    cmp al,96
+    cmp al,136
     ja tactical_aim_fail
+    mov [tactical_aim_distance],al
     mov al,1
     mov ah,[enemy_px+bx]
     cmp ah,[player_px]
     ja tactical_aim_ready
     mov al,3
  tactical_aim_ready:
+    /* A missed southbound shot from the HQ pocket destroys our base. */
+    cmp al,2
+    jne tactical_aim_check_cover
+    cmp byte ptr [player_py],132
+    jb tactical_aim_check_cover
+    cmp byte ptr [player_px],96
+    jb tactical_aim_check_cover
+    cmp byte ptr [player_px],128
+    jbe tactical_aim_fail
+ tactical_aim_check_cover:
+    call tactical_player_line_clear
+    jnc tactical_aim_fail
     mov byte ptr [tactical_fire_request],1
     stc
     ret
  tactical_aim_fail:
     clc
+    ret
+
+/* Independent fire control runs after movement each tick, even while
+ * driving to a pickup. Choose the deepest aligned hostile shot. */
+tactical_player_autofire:
+    cmp byte ptr [bullet_active],0
+    je tactical_autofire_start
+    ret
+ tactical_autofire_start:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    mov byte ptr [tactical_best_shot_dir],0xff
+    mov byte ptr [tactical_best_shot_score],0
+    xor bx,bx
+ tactical_autofire_scan:
+    cmp byte ptr [enemy_active+bx],0
+    je tactical_autofire_next
+    call tactical_player_aim_if_aligned
+    jnc tactical_autofire_next
+    mov cl,[enemy_py+bx]
+    cmp cl,[tactical_best_shot_score]
+    jb tactical_autofire_next
+    mov [tactical_best_shot_score],cl
+    mov [tactical_best_shot_dir],al
+ tactical_autofire_next:
+    inc bx
+    cmp bx,4
+    jb tactical_autofire_scan
+    cmp byte ptr [tactical_best_shot_dir],0xff
+    je tactical_autofire_done
+    mov al,[tactical_best_shot_dir]
+    mov [player_dir],al
+    call do_fire
+ tactical_autofire_done:
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+/* The shell may chip brick, but never penetrate steel or HQ.
+ * Scan the first up to 72 pixels of its actual center trajectory and
+ * stop before the target (to ignore walls located BEHIND it). */
+tactical_player_line_clear:
+    push ax
+    push cx
+    push dx
+    push si
+    mov [tactical_lane_dir],al
+    mov dl,[player_px]
+    add dl,8
+    mov dh,[player_py]
+    add dh,6
+    xor ch,ch
+    mov cl,[tactical_aim_distance]
+    cmp cl,8
+    jbe tactical_lane_clear
+    sub cl,8
+    cmp cl,72
+    jbe tactical_lane_probe
+    mov cl,72
+ tactical_lane_probe:
+    mov al,[tactical_lane_dir]
+    call step_pixel
+    jc tactical_lane_clear
+    push dx
+    call projectile_probe
+    pop dx
+    cmp al,2
+    je tactical_lane_blocked
+    cmp al,3
+    je tactical_lane_blocked
+    cmp al,1
+    je tactical_lane_clear
+    dec cl
+    jnz tactical_lane_probe
+ tactical_lane_clear:
+    stc
+    jmp tactical_lane_done
+ tactical_lane_blocked:
+    clc
+ tactical_lane_done:
+    pop si
+    pop dx
+    pop cx
+    pop ax
     ret
 
 tactical_player_path_open:
@@ -863,5 +991,9 @@ tactical_probe_y: .byte 0
 tactical_best_dir: .byte 0
 tactical_best_score: .word 0xffff
 tactical_fire_request: .byte 0
+tactical_aim_distance: .byte 0
+tactical_lane_dir: .byte 0
+tactical_best_shot_dir: .byte 0xff
+tactical_best_shot_score: .byte 0
 tactical_key_bits: .byte 1,2,4,8
 .section .text
