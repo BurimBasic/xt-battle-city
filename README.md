@@ -159,3 +159,16 @@ python3 -m unittest discover -s tests -v
 Проверка: [четыре реальные палитры CGA](docs/preview-art-v10.png), [атлас в исходном разрешении](docs/preview-art-v10-native.png), [критерии рисунков](docs/ART_DIRECTION.md). Клавиша `C` переключает палитры.
 
 **Ограничения:** при яркой палитре 0 зелёные элементы совпадают по цвету с лесом; контуры, блики и разная геометрия должны обеспечивать различимость. Нужно подтвердить это ручным просмотром на CRT/эмуляторе. Тесты проверяют структуру и пиксели, но не дают объективной оценки художественного качества. Производительность на физическом XT и базовом «Поиск-1» пока не подтверждена.
+
+## v0.11 — AUTO tactical battle
+
+The game now **plays itself on launch**: the player's tank is computer-controlled
+and four enemy squads coordinate HQ assaults, flank approaches and interception.
+The AI uses 8088-budgeted integer goal selection and projectile threat reactions;
+this is a *tactical baseline*, not a full chess-level search engine. Arrow keys,
+WASD or Space give immediate manual control; press **Tab** to switch AUTO/MAN.
+In automatic mode the game advances after a win or restarts after a loss.
+A compact AUTO/MAN label is displayed on the right. Water uses horizontal
+wave crests; ice a geometric fractured slab. See [tactical AI](docs/TACTICAL_AI.md)
+and [material guide](docs/GRAPHICS_V11.md). No real 4.77MHz hardware FPS
+measurement is claimed from DOSBox-X smoke tests alone.

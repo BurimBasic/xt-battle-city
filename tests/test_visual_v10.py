@@ -20,7 +20,7 @@ class ReadabilityTests(unittest.TestCase):
     def test_materials_have_distinct_silhouettes_and_large_shapes(self):
         mats=[a.BRICK,a.STEEL,a.WATER,a.FOREST,a.ICE]
         self.assertEqual(len({tuple(x) for x in mats}),5)
-        self.assertGreater(sum(r.count('1') for r in a.WATER),90)
+        self.assertGreater(sum(r.count('.') for r in a.WATER),55)
         self.assertTrue(all(row[0]=='3' and row[-1]=='3' for row in a.ICE))
         self.assertTrue(all(ch!='.' for ch in a.STEEL[0]))
 
@@ -67,6 +67,6 @@ class ReadabilityTests(unittest.TestCase):
             if k in a.SMOOTH_SPRITES:
                 self.assertEqual(len(a.pack_smooth(asset)),480,k)
         p=ROOT/'build'/'TANKS.COM'
-        if p.exists():self.assertLess(p.stat().st_size,49152)
+        if p.exists():self.assertLess(p.stat().st_size,57344)
 
 if __name__=='__main__':unittest.main()

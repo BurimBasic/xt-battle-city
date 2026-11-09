@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate v0.10 8086-compatible CGA 2bpp art (16x12 tiles).
+"""Generate v0.11 8086-compatible CGA 2bpp art (16x12 tiles).
 
 Each pixel: 0 black, 1 cyan, 2 magenta, 3 white in CGA mode 4 palette 1.
 The original tank/level art is kept in this file as ASCII source.
@@ -57,19 +57,21 @@ STEEL=steel_tile()
 # Each material has one large, stable visual motif, not procedural pixel noise.
 # Water = three horizontal wave crests; evergreen = three rounded bushes;
 # ice = bright faceted surface with a diagonal fracture. No shared motifs.
+# Water is NEGATIVE SPACE with repeatable crests, not a green solid tile.
+# The long horizontal bands and dark current are readable in all CGA palettes.
 WATER=sprite(
- '1111111111111111',
- '1111111111111111',
- '1111.3333.111111',
- '11...1111...1111',
- '1111111111111111',
- '1111111111111111',
- '11111111.3333.11',
- '111111....1111..',
- '1111111111111111',
- '1111111111111111',
- '11.3333.11111111',
- '..111111..111111')
+ '................',
+ '..1111....1111..',
+ '.111111..111111.',
+ '11....1111....11',
+ '................',
+ '.....111111.....',
+ '..111111111111..',
+ '.1111......1111.',
+ '................',
+ '....1111....1111',
+ '..111111..111111',
+ '111....1111.....')
 
 FOREST=sprite(
  '..111....111....',
@@ -85,18 +87,20 @@ FOREST=sprite(
  '.111111111111...',
  '..1111..1111....')
 
+# Ice = one large icy slab with HARD triangular fracture. Black cracks and
+# alternating broad faces differentiate it from both rippling water and steel.
 ICE=sprite(
  '3333333333333333',
- '3111111111111113',
- '3111111111111113',
- '31111.1111111113',
- '311111.111111113',
- '3111111.11111113',
- '31111111.1111113',
- '311111111.111113',
- '3111111111.11113',
- '31111111111.1113',
- '3111111111111113',
+ '3311111111111133',
+ '3111111333311113',
+ '311111.333311113',
+ '31111..333311113',
+ '3111...333311113',
+ '311...1333111113',
+ '31...111.1111113',
+ '31..1111..111113',
+ '31111111...11113',
+ '3311111111111133',
  '3333333333333333')
 
 # Each wall tracks four independent quadrants. Fourteen intermediate shapes
@@ -393,6 +397,12 @@ HUD_FONT = {
  'p': ('####.', '#...#', '#...#', '####.', '#....', '#....', '#....'),
  'x': ('.....', '.....', '#...#', '.#.#.', '..#..', '.#.#.', '#...#'),
  's': ('.####', '#....', '#....', '.###.', '....#', '....#', '####.'),
+ 'a': ('.###.', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'),
+ 'u': ('#...#', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'),
+ 't': ('#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'),
+ 'o': ('.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'),
+ 'm': ('#...#', '##.##', '#.#.#', '#.#.#', '#...#', '#...#', '#...#'),
+ 'n': ('#...#', '##..#', '##..#', '#.#.#', '#..##', '#..##', '#...#'),
 }
 HUD_TANK = (
  '...##...', '.######.', '###..###', '########',
@@ -439,6 +449,12 @@ def generate_hud():
         'hud_p_char': hud_font_glyph('p'),
         'hud_x_char': hud_font_glyph('x'),
         'hud_s_char': hud_font_glyph('s'),
+        'hud_a_char': hud_font_glyph('a'),
+        'hud_u_char': hud_font_glyph('u'),
+        'hud_t_char': hud_font_glyph('t'),
+        'hud_o_char': hud_font_glyph('o'),
+        'hud_m_char': hud_font_glyph('m'),
+        'hud_n_char': hud_font_glyph('n'),
     }
     for digit in range(10):
         data['hud_digit_'+str(digit)] = hud_font_glyph(str(digit))

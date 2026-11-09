@@ -1,4 +1,4 @@
-/* XT Battle City v0.10: original CGA tile arcade for DOS, 8086/8088.
+/* XT Battle City v0.11: original CGA tile arcade for DOS, 8086/8088.
  * Gameplay: 20-enemy waves, 4 tank classes, segmented bricks, 6 pickups,
  * destructible bricks, lives, headquarters, score and stage transitions.
  * 16x12 CGA cells, 16x16 battlefield. Original artwork and stage layouts.
@@ -53,6 +53,7 @@ buffer_unavailable:
     call present_full_field
     call draw_sidebar_background
     call draw_hud
+    call draw_mode_indicator
     /* /AUDIO: DOS errorlevel 0 when OPL2 detected, 1 for speaker fallback.
        Safe to use for emulator acceptance without playing a stage. */
     cmp byte ptr [0x80], 7
@@ -95,9 +96,33 @@ main_loop:
     je main_loop
     mov [last_tick], dx
     cmp byte ptr [game_state], 0
-    jne main_loop
+    je main_loop_play
+    cmp byte ptr [auto_mode], 0
+    je main_loop
+    cmp byte ptr [game_state], 3
+    je main_loop
+    inc byte ptr [demo_timer]
+    cmp byte ptr [demo_timer], 72    /* 4s to appreciate the result */
+    jb main_loop
+    mov byte ptr [demo_timer], 0
+    cmp byte ptr [game_state], 1
+    jne main_loop_auto_restart
+    inc byte ptr [stage]
+    cmp byte ptr [stage], 35
+    jbe main_loop_auto_next
+    mov byte ptr [stage], 1
+main_loop_auto_next:
+    call load_stage
+    call refresh_screen
+    jmp main_loop
+main_loop_auto_restart:
+    call reset_campaign
+    call refresh_screen
+    jmp main_loop
+main_loop_play:
     call game_tick_step
     call render_frame
+    call draw_mode_indicator
     cmp byte ptr [game_state], 2
     jne no_end_overlay
     call game_over_hud
@@ -152,8 +177,12 @@ marker_next:
     mov byte ptr [enemy_spawned], 0
     mov byte ptr [enemy_killed], 0
     mov byte ptr [game_state], 0
+    mov byte ptr [demo_timer], 0
     mov byte ptr [game_tick], 0
     mov byte ptr [enemy_ai_phase], 0
+    mov byte ptr [squad_alert], 0
+    mov byte ptr [squad_target_x], 112
+    mov byte ptr [squad_target_y], 168
     mov byte ptr [player_upgrade], 0
     mov byte ptr [bonus_active], 0
     mov byte ptr [bonus_timer], 0
@@ -163,6 +192,7 @@ marker_next:
     mov byte ptr [sound_ticks], 0
     mov byte ptr [held_keys], 0
     mov byte ptr [pending_commands], 0
+    mov byte ptr [auto_toggle_pending], 0
     mov byte ptr [player_px], 112
     mov byte ptr [player_py], 168
     mov byte ptr [paint_player_valid], 0
@@ -197,6 +227,12 @@ init_brick_store:
     mov di, offset enemy_active
     mov cx, 4
     xor al, al
+    rep stosb
+    mov di, offset enemy_hold
+    mov cx, 4
+    rep stosb
+    mov di, offset enemy_blocked
+    mov cx, 4
     rep stosb
     mov di, offset shot_active
     mov cx, 4
@@ -328,6 +364,7 @@ refresh_screen:
     call draw_sidebar_background
     call draw_hud
     call render_frame
+    call draw_mode_indicator
     ret
 exit_game:
     call restore_keyboard
@@ -471,6 +508,14 @@ slide_done:
 /* 18.2 Hz game tick, no busy-wait dependent on CPU MHz. */
 game_tick_step:
     inc byte ptr [game_tick]
+    cmp byte ptr [auto_mode],0
+    je game_tick_no_autopilot
+    call tactical_player_tick
+ game_tick_no_autopilot:
+    cmp byte ptr [squad_alert],0
+    je game_tick_no_alert
+    dec byte ptr [squad_alert]
+ game_tick_no_alert:
     call move_player_smooth
     call sound_tick
     call tick_explosion
@@ -996,7 +1041,8 @@ spawn_slot_free:
     cmp dl, [player_col]
     jne spawn_ready
     cmp dh, [player_row]
-    je spawn_abort
+    jne spawn_ready
+    jmp spawn_abort
 spawn_ready:
     xor bx, bx
     mov bl, [temp_slot]
@@ -1040,6 +1086,8 @@ spawn_class_ready:
     mov byte ptr [enemy_hp+bx], 4
 spawn_basic_health:
     mov byte ptr [enemy_active+bx], 1
+    mov byte ptr [enemy_hold+bx], 0
+    mov byte ptr [enemy_blocked+bx], 0
     mov byte ptr [shot_active+bx], 0
     inc byte ptr [enemy_spawned]
     call draw_cell
@@ -1170,6 +1218,10 @@ enemy_fire_loop:
     je enemy_fire_next
     cmp byte ptr [shot_active+bx], 0
     jne enemy_fire_next
+    call tactical_safe_fire
+    jnc enemy_fire_next
+    cmp byte ptr [enemy_hold+bx], 0
+    jne enemy_fire_now
     cmp byte ptr [enemy_type+bx], 2
     je enemy_fire_now
     call random_byte
@@ -1211,6 +1263,7 @@ do_fire:
     mov [bullet_dir], al
     mov byte ptr [bullet_active], 1
     mov byte ptr [bullet_delay], 1
+    call tactical_report_player
     mov ax, 1250
     call sound_play
     cmp byte ptr [test_mode], 0
@@ -1650,12 +1703,12 @@ tally_next:
 game_over_hud:
     call draw_result_box
     call format_score
-    mov dl, 12
+    mov dl, 11
     mov dh, 10
     call cursor_at
     mov si, offset game_over_string
     call bios_string
-    mov dl, 11
+    mov dl, 10
     mov dh, 12
     call cursor_at
     mov si, offset score_string
@@ -1743,6 +1796,11 @@ move_smooth_enemy_loop:
     test byte ptr [game_tick], 1
     jnz move_smooth_enemy_next
 move_smooth_enemy_ready:
+    cmp byte ptr [enemy_hold+bx], 0
+    je move_smooth_enemy_active
+    dec byte ptr [enemy_hold+bx]
+    jmp move_smooth_enemy_next
+move_smooth_enemy_active:
     mov al, [game_tick]
     and al, 31
     cmp al, 0
@@ -1759,18 +1817,7 @@ move_smooth_enemy_next:
     jb move_smooth_enemy_loop
     ret
 choose_enemy_turn:
-    push ax
-    call random_byte
-    and al, 7
-    cmp al, 5
-    jb choose_enemy_down
-    and al, 3
-    jmp choose_enemy_done
-choose_enemy_down:
-    mov al, 2
-choose_enemy_done:
-    mov [enemy_dir+bx], al
-    pop ax
+    call tactical_enemy_turn
     ret
 advance_enemy_one_pixel:
     mov dl, [enemy_px+bx]
@@ -1827,6 +1874,7 @@ enemy_pixel_next_other:
     inc si
     cmp si, 4
     jb enemy_pixel_check_others
+    mov byte ptr [enemy_blocked+bx], 0
     mov al, [candidate_x]
     mov [enemy_px+bx], al
     shr al, 1
@@ -1842,6 +1890,23 @@ enemy_pixel_next_other:
     mov [enemy_row+bx], al
     ret
 enemy_pixel_collision:
+    inc byte ptr [enemy_blocked+bx]
+    mov al, [enemy_blocked+bx]
+    and al, 3
+    jz enemy_collision_replan
+    /* Alternating detours prevent endless battles with an impassable tile. */
+    mov al, [enemy_dir+bx]
+    test bl,1
+    jnz enemy_collision_turn_left
+    inc al
+    jmp enemy_collision_assign
+ enemy_collision_turn_left:
+    add al,3
+ enemy_collision_assign:
+    and al,3
+    mov [enemy_dir+bx],al
+    ret
+ enemy_collision_replan:
     call choose_enemy_turn
     ret
 
@@ -2330,7 +2395,9 @@ keyboard_irq:
     cmp al, 0x39
     je irq_fire
     test bl, 0x80
-    jnz irq_ack
+    jz irq_is_make
+    jmp irq_ack
+irq_is_make:
     cmp al, 0x01
     jne irq_not_esc
     or byte ptr [pending_commands], 1
@@ -2359,6 +2426,11 @@ irq_no_pgdn:
     or byte ptr [pending_commands], 128
     jmp irq_ack
 irq_not_palette:
+    cmp al, 0x0f             /* TAB toggles autopilot; A stays WASD-left */
+    jne irq_not_auto
+    mov byte ptr [auto_toggle_pending], 1
+    jmp irq_ack
+irq_not_auto:
     cmp al, 0x32
     jne irq_ack
     or byte ptr [pending_commands], 8
@@ -2383,6 +2455,7 @@ irq_fire:
 irq_set_held:
     test bl, 0x80
     jnz irq_released
+    mov byte ptr [auto_mode],0 /* any manual movement/fire takes over */
     or [held_keys], ah
     jmp irq_ack
 irq_released:
@@ -2408,7 +2481,15 @@ poll_controls:
     cli
     mov al, [pending_commands]
     mov byte ptr [pending_commands], 0
+    mov ah, [auto_toggle_pending]
+    mov byte ptr [auto_toggle_pending], 0
     popf
+    test ah, 1
+    jz controls_no_auto_toggle
+    xor byte ptr [auto_mode],1
+    mov byte ptr [held_keys],0
+    call draw_mode_indicator
+controls_no_auto_toggle:
     test al, 1
     jz controls_not_exit
     jmp exit_game
@@ -3614,6 +3695,34 @@ hud_score_loop:
     pop ax
     ret
 
+/* Fixed 4x8px HUD glyphs: AUTO or MAN. Player input immediately takes
+ * over without changing game balance; TAB returns to computer control. */
+draw_mode_indicator:
+    push ax
+    push bx
+    push cx
+    push si
+    push di
+    mov bx, offset tactical_auto_glyphs
+    cmp byte ptr [auto_mode], 0
+    jne mode_hud_selected
+    mov bx, offset tactical_manual_glyphs
+mode_hud_selected:
+    mov di, 4225             /* x260, y104; inside the 112px sidebar */
+    mov cx, 4
+mode_hud_glyph:
+    mov si,[bx]
+    call draw_hud_glyph
+    add bx,2
+    add di,2
+    loop mode_hud_glyph
+    pop di
+    pop si
+    pop cx
+    pop bx
+    pop ax
+    ret
+
 cursor_at:
     mov ah, 2
     xor bh, bh
@@ -3641,6 +3750,7 @@ printed:
 /* Repeatable built-in headless emulator logic regression. */
 smoke_test:
     mov byte ptr [test_mode], 1
+    mov byte ptr [auto_mode], 0
     /* Verify real B800: CGA sidebar data, not just generated source assets. */
     mov byte ptr [test_phase], 10
     push es
@@ -4161,9 +4271,99 @@ smoke_campaign_35:
     cmp cx, es:[6748]
     jne smoke_buffer_bad
     pop es
-    jmp smoke_pass
+    jmp smoke_tactics_v11
 smoke_buffer_bad:
     pop es
+    jmp smoke_fail
+/* v0.11 tactical smoke: demo defaults, manual override, P1 threat reaction,
+ * enemy roles, shared last known position and friendly fire suppression. */
+smoke_tactics_v11:
+    mov byte ptr [test_phase], 34
+    mov byte ptr [auto_mode], 1
+    mov byte ptr [game_state], 0
+    mov byte ptr [held_keys], 0
+    mov byte ptr [pending_commands], 0
+    mov byte ptr [auto_toggle_pending], 1
+    call poll_controls
+    cmp byte ptr [auto_mode], 0
+    je 1f
+    jmp smoke_fail
+1:
+    mov byte ptr [test_phase], 35
+    mov byte ptr [auto_toggle_pending], 1
+    call poll_controls
+    cmp byte ptr [auto_mode], 1
+    je 1f
+    jmp smoke_fail
+1:
+    mov byte ptr [test_phase], 36
+    mov byte ptr [game_tick], 4
+    mov byte ptr [player_px], 112
+    mov byte ptr [player_py], 144
+    mov byte ptr [shot_active], 1
+    mov byte ptr [shot_dir], 2
+    mov byte ptr [shot_px], 112
+    mov byte ptr [shot_py], 120
+    call tactical_find_threat
+    jc 1f
+    jmp smoke_fail
+1:
+    cmp al, 1
+    je 1f
+    jmp smoke_fail
+1:
+    mov byte ptr [test_phase], 37
+    mov byte ptr [bullet_active], 0
+    mov byte ptr [enemy_active], 1
+    mov byte ptr [enemy_px], 80
+    mov byte ptr [enemy_py], 80
+    xor bx,bx
+    call tactical_enemy_turn
+    cmp byte ptr [enemy_dir], 1
+    je 1f
+    jmp smoke_fail
+1:
+    mov byte ptr [test_phase], 38
+    call tactical_report_player
+    cmp byte ptr [squad_target_x], 112
+    je 1f
+    jmp smoke_fail
+1:
+    cmp byte ptr [squad_alert], 96
+    je 1f
+    jmp smoke_fail
+1:
+    mov byte ptr [test_phase], 39
+    mov byte ptr [enemy_active+1], 1
+    mov byte ptr [enemy_px+1], 80
+    mov byte ptr [enemy_py+1], 110
+    mov byte ptr [enemy_dir], 2
+    xor bx,bx
+    call tactical_safe_fire
+    jnc 1f
+    jmp smoke_fail
+1:
+    /* Phase 40: autonomous 32-frame gameplay progression, actual smooth
+       projectile path, background composition and enemy squad updates. */
+    mov byte ptr [test_phase], 40
+    mov byte ptr [test_mode],0
+    call reset_campaign
+    mov byte ptr [auto_mode],1
+    mov cx,32
+smoke_autoplay_tick:
+    push cx
+    call game_tick_step
+    call render_frame
+    pop cx
+    loop smoke_autoplay_tick
+    cmp byte ptr [game_tick],32
+    je 1f
+    jmp smoke_fail
+1:
+    cmp byte ptr [player_px],112
+    jne smoke_pass
+    cmp byte ptr [player_py],168
+    jne smoke_pass
     jmp smoke_fail
 test_failed_jump:
     jmp smoke_fail
@@ -4178,6 +4378,8 @@ smoke_fail:
     mov al, [test_phase]
     mov ah, 0x4c
     int 0x21
+
+.include "src/dos/tactics.inc"
 
 .section .data
 kills_by_type: .space 4
@@ -4277,6 +4479,8 @@ victory_string: .asciz "STAGE CLEAR"
 game_over_string: .asciz "GAME OVER"
 next_string: .asciz "SPACE - NEXT"
 restart_string: .asciz "R - RESTART"
+tactical_auto_glyphs: .word hud_a_char, hud_u_char, hud_t_char, hud_o_char
+tactical_manual_glyphs: .word hud_m_char, hud_a_char, hud_n_char, hud_blank_icon
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
 shot_substeps: .byte 0
