@@ -92,6 +92,16 @@ tactical_player_decide:
     mov al, [tactical_heading]
     add al, 3
     and al, 3
+    call tactical_player_path_open
+    jnc tactical_player_apply
+    mov al, [tactical_heading]
+    add al, 2
+    and al, 3
+    call tactical_player_path_open
+    jnc tactical_player_apply
+    /* No passable heading. Avoid queuing impossible movement. */
+    mov byte ptr [held_keys],0
+    jmp tactical_player_leave
  tactical_player_apply:
     xor ah, ah
     mov si, ax
@@ -124,17 +134,26 @@ tactical_player_decide:
  tactical_player_done:
     ret
 
-/* AL = desired heading; carry=blocked; preserve AL & DX. */
+/* Six-pixel advance lookahead for the defending AUTO tank. This avoids
+ * committing to a lane when the second/third step is already blocked. */
 tactical_player_path_open:
     push ax
+    push cx
     push dx
     mov dl, [player_px]
     mov dh, [player_py]
+    mov cl, 6
+ tactical_player_probe_loop:
     call step_pixel
     jc tactical_player_path_done
     call rect_passable
+    jc tactical_player_path_done
+    dec cl
+    jnz tactical_player_probe_loop
+    clc
  tactical_player_path_done:
     pop dx
+    pop cx
     pop ax
     ret
 
@@ -259,6 +278,10 @@ tactical_enemy_turn:
     mov byte ptr [enemy_hold+bx], 0
     call tactical_enemy_evade
     jnc tactical_enemy_plan
+    /* Emergency dodge must itself be traversable. Otherwise continue
+       planning; running into a wall wastes the entire dodge window. */
+    call tactical_enemy_probe6
+    jc tactical_enemy_plan
     jmp tactical_enemy_assign
 tactical_enemy_plan:
     cmp bx, 0
@@ -314,7 +337,8 @@ tactical_enemy_plan:
     cmp al, 128
     ja tactical_goal_path
     mov al, 2
-    cmp byte ptr [enemy_py+bx], dh
+    mov ah, [player_py]
+    cmp byte ptr [enemy_py+bx], ah
     jb tactical_ambush_hold
     mov al, 0
     jmp tactical_ambush_hold
@@ -325,31 +349,121 @@ tactical_enemy_plan:
     cmp al, 12
     ja tactical_goal_path
     mov al, 1
-    cmp byte ptr [enemy_px+bx], dl
+    mov ah, [player_px]
+    cmp byte ptr [enemy_px+bx], ah
     jb tactical_ambush_hold
     mov al, 3
  tactical_ambush_hold:
     mov byte ptr [enemy_hold+bx], 20
     jmp tactical_enemy_assign
  tactical_goal_path:
-    /* Make a directional plan with an intentional lane destination. */
-    mov al, [enemy_px+bx]
-    sub al, dl
-    add al, 10
-    cmp al, 20
-    jbe tactical_goal_vertical
-    mov al, 3
-    cmp byte ptr [enemy_px+bx], dl
-    ja tactical_enemy_assign
-    mov al, 1
+    /* v0.12: bounded local planning instead of x-then-y chasing. Four
+       candidate headings, each projected six pixels; rank reachable
+       headings by Manhattan distance to role waypoint. The inertia and
+       reverse penalties avoid oscillation at walls and teammates. */
+    call tactical_route_choose
     jmp tactical_enemy_assign
- tactical_goal_vertical:
-    mov al, 2
-    cmp byte ptr [enemy_py+bx], dh
-    jb tactical_enemy_assign
-    mov al, 0
  tactical_enemy_assign:
     mov [enemy_dir+bx],al
+    pop dx
+    pop cx
+    pop ax
+    ret
+
+/* The route evaluator is bounded: 4 directions x 6 pixel samples.
+ * Runs once per enemy AI decision (normally every 32 ticks), not per frame.
+ * BX: enemy index, DL/DH: waypoint. Returns best legal direction in AL.
+ * 8086: uses only 8-bit axes and a 16-bit Manhattan score. No search heap.
+ */
+tactical_route_choose:
+    push bx
+    push cx
+    push dx
+    push si
+    mov [tactical_goal_x], dl
+    mov [tactical_goal_y], dh
+    mov word ptr [tactical_best_score], 0xffff
+    mov al, [enemy_dir+bx]
+    mov [tactical_best_dir], al
+    xor si, si
+ tactical_route_next:
+    mov ax, si
+    call tactical_enemy_probe6
+    jc tactical_route_skip
+    /* |nextX-goalX| + |nextY-goalY|. */
+    mov al, [tactical_probe_x]
+    sub al, [tactical_goal_x]
+    jnc tactical_x_abs
+    neg al
+ tactical_x_abs:
+    xor ah, ah
+    mov cx, ax
+    mov al, [tactical_probe_y]
+    sub al, [tactical_goal_y]
+    jnc tactical_y_abs
+    neg al
+ tactical_y_abs:
+    xor ah, ah
+    add ax, cx
+    /* Hysteresis: continuing is preferred if equally good, reversing
+       without a reason is costly (prevents wall-corner ping-pong). */
+    mov cl, [enemy_dir+bx]
+    cmp cl, 0xff
+    je tactical_score_ready
+    cmp si, cx
+    jne tactical_score_turn
+    cmp ax, 4
+    jb tactical_score_ready
+    sub ax, 4
+    jmp tactical_score_ready
+ tactical_score_turn:
+    add cl, 2
+    and cl, 3
+    cmp si, cx
+    jne tactical_score_ready
+    add ax, 18
+ tactical_score_ready:
+    cmp ax, [tactical_best_score]
+    jae tactical_route_skip
+    mov [tactical_best_score], ax
+    mov ax, si
+    mov [tactical_best_dir], al
+ tactical_route_skip:
+    inc si
+    cmp si, 4
+    jb tactical_route_next
+    mov al, [tactical_best_dir]
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    ret
+
+/* Candidate direction AL, enemy BX; 6 pixel clearance, top-left sprite
+ * hull from the actual CGA collision engine. CF=0 clear, CF=1 obstructed.
+ * AX/DX and CX preserved, collision-probe coordinates saved on success.
+ */
+tactical_enemy_probe6:
+    push ax
+    push cx
+    push dx
+    mov dl, [enemy_px+bx]
+    mov dh, [enemy_py+bx]
+    mov cl, 6
+ tactical_probe_next:
+    call step_pixel
+    jc tactical_probe_blocked
+    call rect_passable
+    jc tactical_probe_blocked
+    dec cl
+    jnz tactical_probe_next
+    mov [tactical_probe_x], dl
+    mov [tactical_probe_y], dh
+    clc
+    jmp tactical_probe_finish
+ tactical_probe_blocked:
+    stc
+ tactical_probe_finish:
     pop dx
     pop cx
     pop ax
@@ -483,6 +597,13 @@ squad_target_y: .byte 168
 enemy_hold: .space 4
 enemy_blocked: .space 4
 tactical_heading: .byte 0
+/* v0.12 route selection scratch: tiny bounded, per-decision only. */
+tactical_goal_x: .byte 0
+tactical_goal_y: .byte 0
+tactical_probe_x: .byte 0
+tactical_probe_y: .byte 0
+tactical_best_dir: .byte 0
+tactical_best_score: .word 0xffff
 tactical_fire_request: .byte 0
 tactical_key_bits: .byte 1,2,4,8
 .section .text

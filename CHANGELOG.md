@@ -1,3 +1,13 @@
+## v0.12 — local tactical route planning and ambush corrections (2026-11-09)
+
+- Bounded six-pixel lookahead scores four possible headings for each active enemy.
+- Enemy plans keep squad roles and last-known opponent position, but avoid obvious dead-end turns and wall-adjacent oscillation.
+- Emergency dodge checks for an actually open escape path.
+- Corrected ambush barrel direction to aim at the player, rather than the flank waypoint.
+- Extended real-mode DOS regression with blocked/open corridor test.
+- No FPU, heap or 286+ instructions; XT 4.77 MHz cycle timing still needs 86Box tests.
+- Every part remains original project code/assets.
+
 ## v0.11 — Tactical Director and CGA materials (2026-11-09)
 
 - Autoplay begins immediately, with a low-cost 8088 player defender that

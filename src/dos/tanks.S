@@ -1,4 +1,4 @@
-/* XT Battle City v0.11: original CGA tile arcade for DOS, 8086/8088.
+/* XT Battle City v0.12: original CGA tile arcade for DOS, 8086/8088.
  * Gameplay: 20-enemy waves, 4 tank classes, segmented bricks, 6 pickups,
  * destructible bricks, lives, headquarters, score and stage transitions.
  * 16x12 CGA cells, 16x16 battlefield. Original artwork and stage layouts.
@@ -4361,10 +4361,52 @@ smoke_autoplay_tick:
     jmp smoke_fail
 1:
     cmp byte ptr [player_px],112
-    jne smoke_pass
+    jne smoke_tactical_path_tests
     cmp byte ptr [player_py],168
-    jne smoke_pass
+    jne smoke_tactical_path_tests
     jmp smoke_fail
+smoke_tactical_path_tests:
+    /* Route probe: should pursue goal east along a clear corridor. */
+    mov byte ptr [test_phase],41
+    mov byte ptr [enemy_px],16
+    mov byte ptr [enemy_py],12
+    mov byte ptr [enemy_dir],1
+    xor bx,bx
+    mov dl,200
+    mov dh,12
+    call tactical_route_choose
+    cmp al,1
+    je 1f
+    jmp smoke_fail
+1:
+    /* Steel placed just ahead: east must now be rejected. */
+    mov byte ptr [test_phase],42
+    mov byte ptr [level_data+18],'T'
+    mov al,1
+    call tactical_enemy_probe6
+    jc 1f
+    jmp smoke_fail
+1:
+    mov dl,200
+    mov dh,12
+    call tactical_route_choose
+    cmp al,1
+    jne 1f
+    jmp smoke_fail
+1:
+    /* Restore map; clean corridor must again permit progress east. */
+    mov byte ptr [test_phase],43
+    mov byte ptr [level_data+18],'.'
+    mov al,1
+    call tactical_enemy_probe6
+    jnc 1f
+    jmp smoke_fail
+1:
+    cmp byte ptr [tactical_probe_x],22
+    je 1f
+    jmp smoke_fail
+1:
+    jmp smoke_pass
 test_failed_jump:
     jmp smoke_fail
 smoke_pass:

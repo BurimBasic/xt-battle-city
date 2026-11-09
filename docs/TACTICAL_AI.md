@@ -51,3 +51,18 @@ an already-flying shell.
   tactical scenarios, but **do not certify smooth 4.77MHz hardware timing**.
 * Real multi-minute demo observations and player evaluation are required before
   claiming the AI is consistently capable or fair.
+
+## v0.12 bounded lookahead (six pixels)
+
+On each strategic decision an enemy samples its four headings using the real
+12x10-pixel collision hull, six pixels into the future. For headings with
+clearance the score is Manhattan distance to role waypoint, with a small
+inertia bias and reversal penalty; the best candidate is selected. A blocked
+emergency dodge falls back to ordinary planning. Ambush aim is calculated
+against the player's actual coordinates (the flank waypoint remains only
+for navigation). This is a tiny local planner rather than full-path A*.
+
+The planner never runs every frame and has a strict per-decision upper bound:
+4 candidates x 6 step/probe calls. CI verifies that DOS /TEST reaches
+blocked and free lookahead corridors. Benchmark on 86Box 8088/4.77MHz
+before claiming stable hardware speed.
