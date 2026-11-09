@@ -97,6 +97,18 @@ normal_start:
     jmp trace_run
 .endif
 normal_play:
+    /* The opening doctrine changes across runs, not only between stages. */
+    mov ah,0
+    int 0x1a
+    xor word ptr [rng_state],dx
+    call random_byte
+    and al,3
+    mov [squad_doctrine],al
+    mov byte ptr [squad_phase],0
+    cmp al,1
+    jne normal_play_doctrine_ready
+    mov byte ptr [squad_phase],1
+normal_play_doctrine_ready:
     call render_frame
     call install_keyboard
     mov ah, 0
@@ -137,6 +149,7 @@ main_loop_play:
     call game_tick_step
     call render_frame
     call draw_mode_indicator
+    call draw_bonus_indicator
     cmp byte ptr [game_state], 2
     jne no_end_overlay
     call game_over_hud
@@ -216,6 +229,7 @@ marker_next:
     mov byte ptr [player_upgrade], 0
     mov byte ptr [bonus_active], 0
     mov byte ptr [bonus_timer], 0
+    mov byte ptr [bonus_flash_ticks], 0
     mov byte ptr [freeze_ticks], 0
     mov byte ptr [hq_shield], 0
     mov byte ptr [slide_ticks], 0
@@ -397,6 +411,7 @@ refresh_screen:
     call draw_hud
     call render_frame
     call draw_mode_indicator
+    call draw_bonus_indicator
     ret
 exit_game:
     call restore_keyboard
@@ -645,6 +660,9 @@ bonus_can_collect:
     jne bonus_pickup_done
     mov byte ptr [bonus_active], 0
     mov byte ptr [bonus_timer], 0
+    mov al,[bonus_type]
+    mov [bonus_flash_type],al
+    mov byte ptr [bonus_flash_ticks],112
     mov ax, 880
     call sound_play
     mov al, [bonus_type]
@@ -798,6 +816,10 @@ draw_hq_wall:
 tick_powerups:
     push ax
     push dx
+    cmp byte ptr [bonus_flash_ticks],0
+    je tick_bonus_flash_done
+    dec byte ptr [bonus_flash_ticks]
+tick_bonus_flash_done:
     cmp byte ptr [bonus_active], 0
     je tick_no_bonus
     dec byte ptr [bonus_timer]
@@ -2113,12 +2135,14 @@ smooth_bullet_enemy_check:
     mov al, [bullet_px]
     add al, 8
     sub al, [enemy_px+bx]
-    cmp al, 16
+    add al, 2           /* includes both tread edges */
+    cmp al, 20
     jae smooth_bullet_enemy_next
     mov al, [bullet_py]
     add al, 6
     sub al, [enemy_py+bx]
-    cmp al, 12
+    add al, 2
+    cmp al, 16
     jae smooth_bullet_enemy_next
     cmp byte ptr [enemy_hp+bx], 1
     jbe smooth_enemy_destroyed
@@ -3747,6 +3771,30 @@ hud_score_loop:
 
 /* Fixed 4x8px HUD glyphs: AUTO or MAN. Player input immediately takes
  * over without changing game balance; TAB returns to computer control. */
+/* Flash the exact collected bonus icon, never a generic number/star. */
+draw_bonus_indicator:
+    push ax
+    push bx
+    push si
+    push di
+    mov di,3911           /* x284,y96, between score and TAB-AUTO */
+    mov si,offset hud_blank_icon
+    cmp byte ptr [bonus_flash_ticks],0
+    je bonus_hud_paint
+    test byte ptr [game_tick],8
+    jnz bonus_hud_paint
+    xor bx,bx
+    mov bl,[bonus_flash_type]
+    shl bx,1
+    mov si,[hud_bonus_ptrs+bx]
+bonus_hud_paint:
+    call draw_hud_glyph
+    pop di
+    pop si
+    pop bx
+    pop ax
+    ret
+
 draw_mode_indicator:
     push ax
     push bx
@@ -4813,6 +4861,8 @@ bonus_row: .byte 0
 bonus_type: .byte 0
 bonus_timer: .byte 0
 bonus_sequence: .byte 0
+bonus_flash_type: .byte 0
+bonus_flash_ticks: .byte 0
 bonus_columns: .byte 2, 10, 4, 8, 1, 11
 hq_wall_indices: .word 230, 232, 246, 248
 hq_wall_columns: .byte 6, 8, 6, 8
@@ -4889,6 +4939,18 @@ power_sprite_ptrs:
 armor_sprite_ptrs:
     .word sprite_armor_up, sprite_armor_right, sprite_armor_down, sprite_armor_left
 hud_remaining: .byte 20
+/* Bonus HUD: star, helmet, grenade, shovel, clock, extra life. */
+hud_bonus_ptrs: .word hud_star_icon, hud_bonus_helmet, hud_bonus_grenade, hud_bonus_shovel, hud_bonus_clock, hud_bonus_life
+hud_bonus_helmet:
+    .byte 0xf0, 0x0f, 0xc0, 0x03, 0x0f, 0xf0, 0x0f, 0xf0, 0x00, 0x00, 0xc0, 0x03, 0xf0, 0x0f, 0xff, 0xff
+hud_bonus_grenade:
+    .byte 0xfc, 0x3f, 0xc0, 0x0f, 0xf0, 0x3f, 0xc0, 0x03, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x03, 0xf0, 0x0f
+hud_bonus_shovel:
+    .byte 0xff, 0xc3, 0xff, 0x03, 0xfc, 0x3f, 0xc0, 0xff, 0xf3, 0xff, 0xf3, 0xff, 0xc0, 0xff, 0xc0, 0xff
+hud_bonus_clock:
+    .byte 0xf0, 0x0f, 0xcf, 0xf3, 0x3f, 0x3c, 0x3f, 0x3c, 0x3f, 0x0c, 0x3f, 0xfc, 0xcf, 0xf3, 0xf0, 0x0f
+hud_bonus_life:
+    .byte 0xc3, 0xc3, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x03, 0xf0, 0x0f, 0xfc, 0x3f, 0xff, 0xff
 tally_ptrs:
     .word tally1, tally2, tally3, tally4
 tally1: .asciz "100 PTS   x00"
