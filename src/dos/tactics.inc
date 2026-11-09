@@ -26,6 +26,13 @@ tactical_player_decide:
     jc 1f
     jmp tactical_patrol
 1:
+    /* First leave the HQ brick pocket and occupy the defensive line.
+       The first auto orders must not try horizontal pursuit behind walls. */
+    cmp byte ptr [player_py],136
+    jbe tactical_defense_position_ready
+    mov al,0
+    jmp tactical_player_steer
+tactical_defense_position_ready:
     /* Defensive doctrine: hold a useful lane near the HQ until there is
        a genuine breach, instead of chasing every distant enemy. */
     cmp byte ptr [enemy_py+bx],112
