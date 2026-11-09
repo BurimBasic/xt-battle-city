@@ -4693,9 +4693,11 @@ smoke_tactical_path_tests:
     mov byte ptr [enemy_active+1],0
     mov byte ptr [enemy_active+2],0
     mov byte ptr [enemy_active+3],0
-    mov byte ptr [enemy_px],112
-    mov byte ptr [enemy_py],96
-    mov byte ptr [player_px],112
+    /* x112/y96 lies inside the stage's steel tile: an impossible hit.
+       Exercise a truly open, tread-aligned firing lane at x96 instead. */
+    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_py],104
+    mov byte ptr [player_px],96
     mov byte ptr [player_py],136
     mov byte ptr [game_tick],4
     mov byte ptr [auto_mode],1
@@ -4785,6 +4787,90 @@ smoke_bonus_replay:
     call tactical_player_tick
     cmp byte ptr [held_keys],1
     je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 59: chasing a pickup must NOT suppress a clear shot. */
+    mov byte ptr [test_phase],59
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_py],88
+    mov byte ptr [player_px],96
+    mov byte ptr [player_py],136
+    mov byte ptr [player_col],6
+    mov byte ptr [player_row],11
+    mov byte ptr [bullet_active],0
+    mov byte ptr [bonus_col],7
+    mov byte ptr [bonus_row],10
+    mov byte ptr [bonus_active],1
+    call strategy_bonus_spawn
+    mov byte ptr [game_tick],4
+    mov byte ptr [auto_mode],1
+    call tactical_player_tick
+    cmp byte ptr [held_keys],0
+    jne 9f
+    jmp smoke_extra_fail
+9:
+    call tactical_player_autofire
+    cmp byte ptr [bullet_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bullet_dir],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 60: steel between aligned tanks must invalidate a fake shot. */
+    mov byte ptr [test_phase],60
+    call reset_campaign
+    mov byte ptr [player_px],112
+    mov byte ptr [player_py],136
+    mov byte ptr [enemy_px],112
+    mov byte ptr [enemy_py],80
+    xor bx,bx
+    call tactical_player_aim_if_aligned
+    jnc 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 61: the neighboring open x96 lane is actually fireable. */
+    mov byte ptr [test_phase],61
+    mov byte ptr [player_px],96
+    mov byte ptr [enemy_px],96
+    call tactical_player_aim_if_aligned
+    jc 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 62: collected helmet is drawn at x264, not the old x284. */
+    mov byte ptr [test_phase],62
+    mov byte ptr [bonus_flash_type],1
+    mov byte ptr [bonus_flash_ticks],112
+    mov byte ptr [game_tick],0
+    call draw_bonus_indicator
+    push es
+    mov ax,0xb800
+    mov es,ax
+    mov ax,[hud_bonus_helmet]
+    cmp word ptr es:[3906],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    pop es
+    /* Phase 63: an enemy at HQ rows blocks the bonus excursion. */
+    mov byte ptr [test_phase],63
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_px],112
+    mov byte ptr [enemy_py],144
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_col],2
+    mov byte ptr [bonus_row],10
+    call strategy_bonus_spawn
+    call strategy_bonus_heading
+    jnc 9f
     jmp smoke_extra_fail
 9:
     jmp smoke_pass
