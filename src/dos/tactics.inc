@@ -119,8 +119,8 @@ tactical_defense_position_ready:
     /* Keep the intercept column near HQ; chasing a side-lane decoy can
        leave the entire base unguarded. Expand only in a real breach. */
     mov dl,[enemy_px+bx]
-    cmp byte ptr [enemy_py+bx],152
-    jae tactical_seek_compare
+    /* Always keep an emergency blocking position in the central
+       corridor: a flank tank at y159 is NOT worth leaving x208 open. */
     cmp dl,80
     jae tactical_seek_clip_right
     mov dl,80
@@ -131,6 +131,21 @@ tactical_defense_position_ready:
  tactical_seek_compare:
     cmp dl,[player_px]
     ja tactical_seek_right
+    jb tactical_seek_left
+    /* We are at our intercept column. Follow the threat vertically only
+       within the line in front of the HQ; don't oscillate left/right. */
+    cmp byte ptr [enemy_py+bx],128
+    jb tactical_seek_move_up
+    cmp byte ptr [player_py],140
+    jae tactical_player_guard
+    mov al,2
+    jmp tactical_player_steer
+ tactical_seek_move_up:
+    cmp byte ptr [player_py],108
+    jbe tactical_player_guard
+    mov al,0
+    jmp tactical_player_steer
+ tactical_seek_left:
     mov al,3
     jmp tactical_player_steer
  tactical_seek_right:
@@ -401,52 +416,48 @@ tactical_player_path_open:
     ret
 
 /* Pick nearest objective threatening our headquarters, priority by y. */
+/* Threat score: horizontal distance from the base matters MORE than
+ * absolute depth. Outer wing decoys used to pull AUTO all the way to x208,
+ * leaving a central breacher to kill HQ. Small target inertia only. */
 tactical_find_target:
+    push ax
     push cx
     push dx
-    /* Keep the same enemy until destroyed; switch if a new one penetrates
-       more than 32 pixels deeper into our defensive zone. */
-    xor bx,bx
-    mov bl,[tactical_player_target]
-    cmp bl,4
-    jae tactical_find_search
-    cmp byte ptr [enemy_active+bx],0
-    je tactical_find_search
-    mov dl,[enemy_py+bx]
-    add dl,32
-    jnc tactical_find_priority_scan
-    mov dl,255
- tactical_find_priority_scan:
-    xor bx,bx
- tactical_find_priority_loop:
-    cmp byte ptr [enemy_active+bx],0
-    je tactical_find_priority_next
-    cmp byte ptr [enemy_py+bx],dl
-    ja tactical_find_search
- tactical_find_priority_next:
-    inc bx
-    cmp bx,4
-    jb tactical_find_priority_loop
-    xor bx,bx
-    mov bl,[tactical_player_target]
-    stc
-    jmp tactical_find_ret
- tactical_find_search:
     xor bx,bx
     mov cl,0xff
     mov ch,0
+ tactical_find_priority_scan:
  tactical_find_next:
     cmp byte ptr [enemy_active+bx],0
     je tactical_find_skip
     mov al,[enemy_py+bx]
-    cmp byte ptr [enemy_px+bx],64
+    cmp byte ptr [enemy_px+bx],80
     jb tactical_target_wide
-    cmp byte ptr [enemy_px+bx],176
-    jbe tactical_target_scored
+    cmp byte ptr [enemy_px+bx],160
+    ja tactical_target_wide
+    add al,64                  /* center HQ corridor */
+    jnc tactical_target_sticky
+    mov al,255
+    jmp tactical_target_sticky
  tactical_target_wide:
+    cmp byte ptr [enemy_px+bx],64
+    jb tactical_target_outer
+    cmp byte ptr [enemy_px+bx],176
+    ja tactical_target_outer
+    add al,12                  /* nearby flanks, less dangerous */
+    jnc tactical_target_sticky
+    mov al,255
+    jmp tactical_target_sticky
+ tactical_target_outer:
     sub al,24
-    jnc tactical_target_scored
+    jnc tactical_target_sticky
     xor al,al
+ tactical_target_sticky:
+    cmp bl,[tactical_player_target]
+    jne tactical_target_scored
+    add al,8                   /* modest persistence, not blind fixation */
+    jnc tactical_target_scored
+    mov al,255
  tactical_target_scored:
     cmp al,ch
     jb tactical_find_skip
@@ -469,6 +480,7 @@ tactical_find_target:
  tactical_find_ret:
     pop dx
     pop cx
+    pop ax
     ret
 
 /* Return CF, AL perpendicular escape heading if an approaching enemy shell
