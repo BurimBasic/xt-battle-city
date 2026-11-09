@@ -49,7 +49,7 @@ tactical_target_not_aligned:
 tactical_defense_position_ready:
     /* Defensive doctrine: hold a useful lane near the HQ until there is
        a genuine breach, instead of chasing every distant enemy. */
-    cmp byte ptr [enemy_py+bx],112
+    cmp byte ptr [enemy_py+bx],96
     jae tactical_player_engage
     cmp byte ptr [player_py],136
     jbe tactical_patrol
@@ -57,8 +57,8 @@ tactical_defense_position_ready:
     /* BX = persistent enemy objective, selected by HQ threat. */
     mov al, [enemy_px+bx]
     sub al, [player_px]
-    add al, 8
-    cmp al, 16
+    add al, 9            /* projectile reaches outer treads */
+    cmp al, 19
     ja tactical_player_try_row
     mov al, 0
     mov dl, [enemy_py+bx]
@@ -71,8 +71,8 @@ tactical_defense_position_ready:
  tactical_player_try_row:
     mov al, [enemy_py+bx]
     sub al, [player_py]
-    add al, 6
-    cmp al, 12
+    add al, 7
+    cmp al, 15
     ja tactical_player_seek_column
     mov al, 3
     mov dl, [enemy_px+bx]
@@ -98,6 +98,14 @@ tactical_defense_position_ready:
     mov al,3
     jmp tactical_player_steer
  tactical_player_seek_unrestricted:
+    /* Outer raiders are not worth abandoning the HQ until they breach. */
+    cmp byte ptr [enemy_py+bx],136
+    jae tactical_seek_flank_breach
+    cmp byte ptr [enemy_px+bx],64
+    jb tactical_player_guard
+    cmp byte ptr [enemy_px+bx],176
+    ja tactical_player_guard
+ tactical_seek_flank_breach:
     mov al, [enemy_px+bx]
     cmp al, [player_px]
     ja tactical_seek_right
@@ -192,8 +200,8 @@ tactical_defense_position_ready:
 tactical_player_aim_if_aligned:
     mov al,[enemy_px+bx]
     sub al,[player_px]
-    add al,8
-    cmp al,16
+    add al,9            /* same width as physics collision */
+    cmp al,19
     ja tactical_aim_row
     /* Long-range axis alignment should not immobilize our defender:
        shoot from an actual effective position, advance while distant. */
@@ -213,8 +221,8 @@ tactical_player_aim_if_aligned:
  tactical_aim_row:
     mov al,[enemy_py+bx]
     sub al,[player_py]
-    add al,6
-    cmp al,12
+    add al,7
+    cmp al,15
     ja tactical_aim_fail
     mov al,[enemy_px+bx]
     sub al,[player_px]
@@ -296,6 +304,15 @@ tactical_find_target:
     cmp byte ptr [enemy_active+bx],0
     je tactical_find_skip
     mov al,[enemy_py+bx]
+    cmp byte ptr [enemy_px+bx],64
+    jb tactical_target_wide
+    cmp byte ptr [enemy_px+bx],176
+    jbe tactical_target_scored
+ tactical_target_wide:
+    sub al,24
+    jnc tactical_target_scored
+    xor al,al
+ tactical_target_scored:
     cmp al,ch
     jb tactical_find_skip
     mov ch,al
@@ -346,7 +363,7 @@ tactical_find_threat:
     mov al, [shot_py+bx]
     sub al, [player_py]
  tactical_threat_vertical_range:
-    cmp al, 48
+    cmp al, 72
     ja tactical_threat_next
     mov al, 1
     cmp byte ptr [player_px], 210
@@ -368,13 +385,22 @@ tactical_find_threat:
     mov al, [shot_px+bx]
     sub al, [player_px]
  tactical_threat_horizontal_range:
-    cmp al, 48
+    cmp al, 72
     ja tactical_threat_next
     mov al, 0
     cmp byte ptr [player_py], 15
     ja tactical_threat_found
     mov al, 2
  tactical_threat_found:
+    /* Never commit to an impossible dodge. Try both perpendicular sides. */
+    mov [tactical_heading],al
+    call tactical_player_path_open
+    jnc tactical_threat_escape
+    mov al,[tactical_heading]
+    xor al,2
+    call tactical_player_path_open
+    jc tactical_threat_next
+ tactical_threat_escape:
     stc
     jmp tactical_threat_done
  tactical_threat_next:
@@ -463,6 +489,10 @@ tactical_enemy_plan:
     jmp tactical_goal_ready
  tactical_hunter_patrol:
     mov dl,112
+    cmp byte ptr [squad_doctrine],3
+    jne tactical_hunter_patrol_ready
+    mov dl,192          /* denial doctrine screens right-side passage */
+ tactical_hunter_patrol_ready:
     mov dh,132
  tactical_goal_ready:
     /* Flankers first travel to rally points. Once both are there (or the
