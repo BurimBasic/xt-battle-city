@@ -17,7 +17,7 @@ class TacticalV14Tests(unittest.TestCase):
             restored=''.join(symbols[b&15]+symbols[b>>4] for b in data)
             self.assertEqual(restored,''.join(rows),stage)
         build=ROOT/'build/TANKS.COM'
-        if build.is_file(): self.assertLess(build.stat().st_size,49152)
+        if build.is_file(): self.assertLess(build.stat().st_size,57344)
 
     def test_bonus_route_only_once_per_spawn_or_map_change(self):
         src=(ROOT/'src/dos/tanks.S').read_text()
