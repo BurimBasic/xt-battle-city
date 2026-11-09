@@ -195,6 +195,15 @@ tactical_player_aim_if_aligned:
     add al,8
     cmp al,16
     ja tactical_aim_row
+    /* Long-range axis alignment should not immobilize our defender:
+       shoot from an actual effective position, advance while distant. */
+    mov al,[enemy_py+bx]
+    sub al,[player_py]
+    jnc tactical_aim_vertical_abs
+    neg al
+ tactical_aim_vertical_abs:
+    cmp al,96
+    ja tactical_aim_fail
     mov al,2
     mov ah,[enemy_py+bx]
     cmp ah,[player_py]
@@ -206,6 +215,13 @@ tactical_player_aim_if_aligned:
     sub al,[player_py]
     add al,6
     cmp al,12
+    ja tactical_aim_fail
+    mov al,[enemy_px+bx]
+    sub al,[player_px]
+    jnc tactical_aim_horizontal_abs
+    neg al
+ tactical_aim_horizontal_abs:
+    cmp al,96
     ja tactical_aim_fail
     mov al,1
     mov ah,[enemy_px+bx]
