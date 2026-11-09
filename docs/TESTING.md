@@ -66,7 +66,7 @@ For visual play, start `TANKS.COM` without arguments. While playing, send arrow 
 
 Build `make clean all && make test` with GNU binutils and run `TANKS.COM /TEST` in DOSBox-X using a `.BAT` script that checks `ERRORLEVEL` **immediately** after TANKS returns; later DOS shell commands may overwrite it. Test stages now include two-step brick damage, six bonus effects (direct/star/helmet/clock/life/grenade, shovel protection/restore), player and enemy bullet cancellation, forest/ice traversal and stage-9 selection, and max-level star/steel destruction. The integrated test reports a nonzero errorlevel encoding the first failed phase.
 
-This checks gameplay branches and memory access in emulation, **not** correct 4.77MHz timing or actual Poisk-1 hardware. Mouse-free input and visual fidelity still require manual gameplay. PC Speaker may not be audible over headless sessions, and AdLib has not been implemented.
+This checks gameplay branches and memory access in emulation, **not** correct 4.77MHz timing or actual Poisk-1 hardware. Mouse-free input and visual fidelity still require manual gameplay. PC Speaker may not be audible over headless sessions, while optional AdLib OPL2 detection and short FM effects are now implemented and smoke-tested in DOSBox-X; physical hardware testing is still pending.
 
 New regressions also verify that the dedicated four-type tally displays two-digit counts correctly. `P` pauses the tick loop without discarding player/enemy state; `M` toggles PC Speaker. Manual RDP checks should include both hotkeys, stage completion and restore from pause. Avoid declaring a successful visual test from a headless `/TEST` alone.
 
