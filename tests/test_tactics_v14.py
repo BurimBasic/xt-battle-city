@@ -26,7 +26,7 @@ class TacticalV14Tests(unittest.TestCase):
         self.assertIn('call strategy_bonus_spawn',src)
         self.assertIn('strategy_bonus_heading:',nav)
         self.assertIn('route_bonus: .space 256',nav)
-        self.assertIn('cmp byte ptr [enemy_py+bx],120',nav)
+        self.assertIn('cmp byte ptr [enemy_py+bx],140',nav)
         self.assertIn('call strategy_bonus_heading',ai)
         self.assertIn('mov byte ptr [test_phase],53',src)
 

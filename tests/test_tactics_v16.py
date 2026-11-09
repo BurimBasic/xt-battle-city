@@ -21,7 +21,7 @@ class CongestionTests(unittest.TestCase):
         self.assertIn('mov byte ptr [test_phase],57',T)
         self.assertIn('call tactical_enemy_turn',T)
     def test_player_moves_to_forward_sentry(self):
-        self.assertIn('cmp byte ptr [player_py],112',A)
+        self.assertIn('cmp byte ptr [player_py],120',A)
         self.assertIn('mov byte ptr [test_phase],58',T)
         self.assertIn('tactical_player_guard:',A)
 

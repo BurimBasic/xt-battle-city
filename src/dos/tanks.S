@@ -565,6 +565,12 @@ game_tick_step:
     dec byte ptr [squad_alert]
  game_tick_no_alert:
     call move_player_smooth
+    /* Autopilot shoots independently of navigation objectives and keeps
+       aiming even when traveling directly toward a power-up. */
+    cmp byte ptr [auto_mode],0
+    je game_tick_no_autofire
+    call tactical_player_autofire
+ game_tick_no_autofire:
     call sound_tick
     call tick_explosion
     call tick_powerups
@@ -3777,7 +3783,7 @@ draw_bonus_indicator:
     push bx
     push si
     push di
-    mov di,3911           /* x284,y96, between score and TAB-AUTO */
+    mov di,3906           /* x264,y96: left aligned, below score */
     mov si,offset hud_blank_icon
     cmp byte ptr [bonus_flash_ticks],0
     je bonus_hud_paint
@@ -4687,9 +4693,11 @@ smoke_tactical_path_tests:
     mov byte ptr [enemy_active+1],0
     mov byte ptr [enemy_active+2],0
     mov byte ptr [enemy_active+3],0
-    mov byte ptr [enemy_px],112
-    mov byte ptr [enemy_py],96
-    mov byte ptr [player_px],112
+    /* x112/y96 lies inside the stage's steel tile: an impossible hit.
+       Exercise a truly open, tread-aligned firing lane at x96 instead. */
+    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_py],104
+    mov byte ptr [player_px],96
     mov byte ptr [player_py],136
     mov byte ptr [game_tick],4
     mov byte ptr [auto_mode],1
@@ -4781,6 +4789,129 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
+    /* Phase 59: chasing a pickup must NOT suppress a clear shot. */
+    mov byte ptr [test_phase],59
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_py],88
+    mov byte ptr [player_px],96
+    mov byte ptr [player_py],136
+    mov byte ptr [player_col],6
+    mov byte ptr [player_row],11
+    mov byte ptr [bullet_active],0
+    mov byte ptr [bonus_col],7
+    mov byte ptr [bonus_row],10
+    mov byte ptr [bonus_active],1
+    call strategy_bonus_spawn
+    mov byte ptr [game_tick],4
+    mov byte ptr [auto_mode],1
+    call tactical_player_tick
+    cmp byte ptr [held_keys],0
+    jne 9f
+    jmp smoke_extra_fail
+9:
+    call tactical_player_autofire
+    cmp byte ptr [bullet_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bullet_dir],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 60: steel between aligned tanks must invalidate a fake shot. */
+    mov byte ptr [test_phase],60
+    call reset_campaign
+    mov byte ptr [player_px],112
+    mov byte ptr [player_py],136
+    mov byte ptr [enemy_px],112
+    mov byte ptr [enemy_py],80
+    xor bx,bx
+    call tactical_player_aim_if_aligned
+    jnc 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 61: the neighboring open x96 lane is actually fireable. */
+    mov byte ptr [test_phase],61
+    mov byte ptr [player_px],96
+    mov byte ptr [enemy_px],96
+    call tactical_player_aim_if_aligned
+    jc 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 62: collected helmet is drawn at x264, not the old x284. */
+    mov byte ptr [test_phase],62
+    mov byte ptr [bonus_flash_type],1
+    mov byte ptr [bonus_flash_ticks],112
+    mov byte ptr [game_tick],0
+    call draw_bonus_indicator
+    push es
+    mov ax,0xb800
+    mov es,ax
+    mov ax,[hud_bonus_helmet]
+    cmp word ptr es:[3906],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    pop es
+    /* Phase 63: an enemy at HQ rows blocks the bonus excursion. */
+    mov byte ptr [test_phase],63
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_px],112
+    mov byte ptr [enemy_py],144
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_col],2
+    mov byte ptr [bonus_row],10
+    call strategy_bonus_spawn
+    call strategy_bonus_heading
+    jnc 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 64: an outer-wing decoy at y172 must NOT distract from
+       a true HQ-corridor attacker at y120. */
+    mov byte ptr [test_phase],64
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],1
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],128
+    mov byte ptr [enemy_py],120
+    mov byte ptr [enemy_px+1],208
+    mov byte ptr [enemy_py+1],172
+    call tactical_find_target
+    jc 9f
+    jmp smoke_extra_fail
+9:
+    cmp bx,0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 65: at the edge of the defensive corridor choose a vertical
+       interception instead of oscillating outside x144. */
+    mov byte ptr [test_phase],65
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],208
+    mov byte ptr [enemy_py],160
+    mov byte ptr [player_px],144
+    mov byte ptr [player_py],120
+    mov byte ptr [game_tick],4
+    mov byte ptr [auto_mode],1
+    call tactical_player_tick
+    cmp byte ptr [held_keys],4
+    je 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
@@ -4802,13 +4933,15 @@ smoke_fail:
 /* Deterministic real-mode trace, not an AI simulator or source-only test. */
 trace_run:
     mov byte ptr [trace_count],0
-    mov cx,384
+    mov cx,2048
 trace_tick:
     push cx
     call game_tick_step
-    call render_frame
     test byte ptr [game_tick],15
     jnz trace_no_sample
+    /* Only paint diagnostic frames every 16 ticks: 128 timed snapshots
+       cover the full first-stage assault without a large emulator cost. */
+    call render_frame
     call trace_record
 trace_no_sample:
     pop cx
@@ -4855,7 +4988,7 @@ trace_record:
     push di
     xor bx,bx
     mov bl,[trace_count]
-    cmp bl,24
+    cmp bl,128
     jae trace_record_done
     shl bx,1
     shl bx,1
@@ -4908,9 +5041,9 @@ trace_record_done:
 
 .section .data
 .ifdef TRACE_BUILD
-trace_filename: .asciz "V13TRACE.BIN"
+trace_filename: .asciz "V16TRACE.BIN"
 trace_count: .byte 0
-trace_buffer: .space 384
+trace_buffer: .space 2048
 .endif
 kills_by_type: .space 4
 stage: .byte 1
