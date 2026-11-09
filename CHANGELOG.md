@@ -1,3 +1,17 @@
+## v0.17 — laser, allied AUTO tank, triple fire, guided missiles and enemy frenzy (2026-11-09)
+
+- Five new CGA bonus pickup symbols and sidebar icons, eleven power-ups total. The pre-existing clock remains the freeze-enemies bonus.
+- Instant laser hits by sweeping the existing pixel projectile engine within one tick. A short alternating white/cyan trail renders over the actual impact trajectory.
+- Temporary companion tank has the original player's chassis with a distinct shield outline, independently seeks/fires at enemies using spare projectile slots and can be destroyed.
+- Three concurrent friendly bullets (one primary and two extra); primary and extra projectiles can home toward the nearest live enemy and visibly flash.
+- Frenzy effect instructs enemy tanks to target other enemy tanks; existing true friendly-fire collision/hit rules remain live.
+- Grenade kills animate up to four separate explosion FX instead of silently hiding enemies.
+- Sidebar shows the bonus glyph and a 2-digit remaining-seconds countdown for timed effects; permanent upgrades and instantaneous pickups show no misleading expiry.
+- Expanded bonus order retains original defensive aids early in stage 1 before rotating through the new effects.
+- Shipping DOS program budget is now **56 KiB** (previously 48 KiB); no 286 instructions or floating point; actual 8088 cycle costs and base Poisk-1 memory still require measurements.
+- CI and DOS real-mode /TEST regression include phases 66–71 for instant laser, capped bullet pool, guidance, ally fire, enemy-to-enemy intent and animated grenade victims.
+- SLOW1 diagnostic /TRACE still cleared stage 1 in the 2048-tick simulation (20/20 enemies, HQ intact). One replay is not multi-seed gameplay certification.
+
 ## v0.16 — HQ-first AUTO and bonus-time combat (2026-11-09)
 
 - Separated AUTO firing from navigation: a clear shot is taken even while moving to a pickup.
