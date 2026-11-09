@@ -18,6 +18,8 @@ jobs:
         run: make test
       - name: Build diagnostic 2048-tick first-stage trace
         run: make build/TANKS-TRACE.COM
+      - name: Build 384-frame no-delay performance benchmark
+        run: make build/TANKS-PERF.COM
       - name: Verify compact 8086 programs
         run: |
           test "$(wc -c < build/XTINFO.COM)" -lt 16384
@@ -28,6 +30,7 @@ jobs:
           path: |
             build/TANKS.COM
             build/TANKS-TRACE.COM
+            build/TANKS-PERF.COM
             build/XTINFO.COM
       - uses: actions/upload-artifact@v4
         with:
