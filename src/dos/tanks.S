@@ -3080,6 +3080,41 @@ old_player_done:
     call mark_dirty_rect
 old_bullet_done:
     mov byte ptr [paint_bullet_valid], 0
+    xor bx,bx
+old_extra_loop:
+    cmp byte ptr [paint_extra_valid+bx],0
+    je old_extra_next
+    mov dl,[paint_extra_x+bx]
+    mov dh,[paint_extra_y+bx]
+    push bx
+    call mark_dirty_rect
+    pop bx
+old_extra_next:
+    mov byte ptr [paint_extra_valid+bx],0
+    inc bx
+    cmp bx,2
+    jb old_extra_loop
+    cmp byte ptr [paint_ally_valid],0
+    je old_ally_done
+    mov dl,[paint_ally_x]
+    mov dh,[paint_ally_y]
+    call mark_dirty_rect
+old_ally_done:
+    mov byte ptr [paint_ally_valid],0
+    xor bx,bx
+old_grenade_loop:
+    cmp byte ptr [paint_grenade_valid+bx],0
+    je old_grenade_next
+    mov dl,[paint_grenade_x+bx]
+    mov dh,[paint_grenade_y+bx]
+    push bx
+    call mark_dirty_rect
+    pop bx
+old_grenade_next:
+    mov byte ptr [paint_grenade_valid+bx],0
+    inc bx
+    cmp bx,4
+    jb old_grenade_loop
     cmp byte ptr [paint_bonus_valid], 0
     je old_bonus_done
     mov dl, [paint_bonus_x]
@@ -3426,6 +3461,20 @@ paint_enemy_next:
     jae paint_enemy_finished
     jmp paint_enemy_loop
 paint_enemy_finished:
+    /* Attack-oriented allied AUTO tank: same chassis with a bright halo. */
+    cmp byte ptr [ally_ticks],0
+    je paint_ally_done
+    mov dl,[ally_px]
+    mov dh,[ally_py]
+    mov [paint_ally_x],dl
+    mov [paint_ally_y],dh
+    mov byte ptr [paint_ally_valid],1
+    xor bx,bx
+    mov bl,[ally_dir]
+    shl bx,1
+    mov si,[smooth_shield_ptrs+bx]
+    call draw_smooth_sprite
+paint_ally_done:
     /* Player's tank. */
     mov dl, [player_px]
     mov dh, [player_py]
@@ -3468,6 +3517,29 @@ paint_player_smooth:
     mov si, offset smooth_bullet
     call draw_smooth_sprite
 paint_no_bullet:
+    xor bx,bx
+paint_extra_loop:
+    cmp byte ptr [extra_active+bx],0
+    je paint_extra_next
+    mov dl,[extra_px+bx]
+    mov dh,[extra_py+bx]
+    mov [paint_extra_x+bx],dl
+    mov [paint_extra_y+bx],dh
+    mov byte ptr [paint_extra_valid+bx],1
+    mov si,offset smooth_bullet
+    cmp byte ptr [extra_homing+bx],0
+    je paint_extra_visible
+    test byte ptr [game_tick],4
+    jz paint_extra_visible
+    mov si,offset smooth_enemy_bullet
+paint_extra_visible:
+    push bx
+    call draw_smooth_sprite
+    pop bx
+paint_extra_next:
+    inc bx
+    cmp bx,2
+    jb paint_extra_loop
     xor bx, bx
 paint_shot_loop:
     cmp byte ptr [shot_active+bx], 0
@@ -3504,6 +3576,8 @@ paint_explosion_valid_frame:
     mov si, [smooth_explosion_ptrs+bx]
     call draw_smooth_sprite
 paint_explosion_done:
+    call grenade17_fx_paint
+    call laser17_paint
     /* One composed transfer after ALL actors. Never expose a partially
        erased sprite in CGA memory between the restore and paint passes. */
     call commit_dirty_tiles
@@ -3874,22 +3948,49 @@ hud_score_loop:
 draw_bonus_indicator:
     push ax
     push bx
+    push dx
     push si
     push di
-    mov di,3906           /* x264,y96: left aligned, below score */
+    mov di,3906       /* bonus icon x264, countdown x284..299 */
     mov si,offset hud_blank_icon
     cmp byte ptr [bonus_flash_ticks],0
-    je bonus_hud_paint
+    je bonus_hud_icon
     test byte ptr [game_tick],8
-    jnz bonus_hud_paint
+    jnz bonus_hud_icon
     xor bx,bx
     mov bl,[bonus_flash_type]
     shl bx,1
     mov si,[hud_bonus_ptrs+bx]
-bonus_hud_paint:
+bonus_hud_icon:
     call draw_hud_glyph
+    mov si,offset hud_blank_icon
+    mov di,3911
+    cmp byte ptr [bonus_flash_ticks],0
+    jne bonus_hud_time
+    call draw_hud_glyph
+    mov di,3913
+    call draw_hud_glyph
+    jmp bonus_hud_finish
+bonus_hud_time:
+    /* BIOS ticks divided by 18. Countdown is rounded up in seconds. */
+    mov al,[bonus_flash_ticks]
+    add al,17
+    xor ah,ah
+    mov bl,18
+    div bl
+    xor ah,ah
+    mov bl,10
+    div bl
+    mov bh,ah
+    mov di,3911
+    call draw_hud_digit
+    mov al,bh
+    mov di,3913
+    call draw_hud_digit
+bonus_hud_finish:
     pop di
     pop si
+    pop dx
     pop bx
     pop ax
     ret
@@ -5230,6 +5331,17 @@ armor_sprite_ptrs:
 hud_remaining: .byte 20
 /* Bonus HUD: star, helmet, grenade, shovel, clock, extra life. */
 hud_bonus_ptrs: .word hud_star_icon, hud_bonus_helmet, hud_bonus_grenade, hud_bonus_shovel, hud_bonus_clock, hud_bonus_life
+    .word hud_bonus_laser, hud_bonus_ally, hud_bonus_triple, hud_bonus_homing, hud_bonus_frenzy
+hud_bonus_laser:
+    .byte 0xfc, 0x3f, 0xfc, 0x3f, 0xc0, 0x03, 0x00, 0x00, 0xfc, 0x3f, 0xc3, 0xc3, 0x0f, 0xf0, 0xff, 0xff
+hud_bonus_ally:
+    .byte 0x0f, 0xf0, 0x00, 0x00, 0xf0, 0x0f, 0x00, 0x00, 0x0c, 0x30, 0x0f, 0xf0, 0xc0, 0x03, 0xff, 0xff
+hud_bonus_triple:
+    .byte 0x0c, 0x30, 0x0c, 0x30, 0x0c, 0x30, 0x0c, 0x30, 0xcf, 0x3c, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
+hud_bonus_homing:
+    .byte 0xc0, 0x03, 0x0f, 0xf0, 0x0c, 0x30, 0x0c, 0x30, 0x0c, 0x30, 0x0f, 0xf0, 0xc0, 0x03, 0xff, 0xff
+hud_bonus_frenzy:
+    .byte 0x0c, 0x30, 0xc0, 0x03, 0xf0, 0x0f, 0x00, 0x00, 0xc3, 0xc3, 0x0f, 0xf0, 0x3f, 0xfc, 0xff, 0xff
 hud_bonus_helmet:
     .byte 0xf0, 0x0f, 0xc0, 0x03, 0x0f, 0xf0, 0x0f, 0xf0, 0x00, 0x00, 0xc0, 0x03, 0xf0, 0x0f, 0xff, 0xff
 hud_bonus_grenade:
