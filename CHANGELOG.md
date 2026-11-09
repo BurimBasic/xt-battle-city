@@ -1,3 +1,15 @@
+## v0.16 — HQ-first AUTO and bonus-time combat (2026-11-09)
+
+- Separated AUTO firing from navigation: a clear shot is taken even while moving to a pickup.
+- Check the actual projectile lane before committing to fire; steel and the HQ block shots, but chippable bricks do not.
+- Move the collected-bonus glyph from x284 to x264 while keeping the original six distinct icons.
+- Hold the first stage's viable x96 sentry lane instead of x112 behind steel.
+- Prioritize central HQ breachers over distant flank decoys; stay within a bounded interception corridor and avoid edge jitter.
+- Increase emergency sensitivity: any enemy near the final base rows vetoes the bonus route.
+- Embedded DOS /TEST now reaches phase 65; CI includes 73 Python tests, map checks, 8086 ISA audit and strict 48 KiB cap.
+- SLOW1 DOSBox-X validation: 2048-tick /TRACE produced a win on stage 1 with 20/20 enemies destroyed and the HQ intact; a prior iteration lost around tick 272, prompting the central-threat scoring fix.
+- Installed directly at C:\\XT-Battle-City\\run\\TANKS.COM; old v0.15 retained for rollback. Extended multi-seed gameplay validation and real 8088 timing are still pending.
+
 ## v0.15 — defender fire/dodge, squad diversity, bonus HUD, anti-stall (2026-11-09)
 
 - Player shells now score edge/tread overlaps, and AUTO aims within the same physical collision margins.
