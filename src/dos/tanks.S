@@ -424,7 +424,9 @@ kb_not_a:
     ret
 kb_not_ally:
     cmp al, 'D'
-    jne kb_return
+    je 1f
+    jmp kb_return
+1:
     jmp right_key
 kb_return:
     ret
@@ -2576,11 +2578,17 @@ keyboard_irq:
     and al, 0x7f
     xor ah, ah
     cmp al, 0x48
-    je irq_up
+    jne 1f
+    jmp irq_up
+1:
     cmp al, 0x11
-    je irq_up
+    jne 1f
+    jmp irq_up
+1:
     cmp al, 0x4d
-    je irq_right
+    jne 1f
+    jmp irq_right
+1:
     cmp al, 0x20
     je irq_right
     cmp al, 0x50
