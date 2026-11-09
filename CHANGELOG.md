@@ -1,3 +1,15 @@
+## v0.18 — lighter classic CGA artwork and readable sidebar (2026-11-10)
+
+- Redrew water as two thin wave ribbons with dark space, replacing thick sawtooth bands. Ice is a clean cyan sheet with broad asymmetric white crystalline facets.
+- Replaced unreadable rounded cyan forest clusters with a pair of recognizable miniature pine-tree silhouettes.
+- Narrowed the right bonus border from x13 to x12, keeping all eleven symbols centered; in the last 27 ticks, only the border flashes while the symbol remains visible. No bonus duration/gameplay changes.
+- Player shield now flashes at a four-tick phase while the underlying tank is always rendered; the aggressive ally keeps its distinct halo.
+- AUTO is centered in the 64px right HUD strip. Added compact four-line white-on-black CGA signature: TANKS / ©1982 / BASIC / V0.18. The five-glyph version table is the single place to update each subsequent release.
+- All new sprites and glyphs are original CGA 2bpp artwork inspired by limited-palette, silhouette-first 1980s game art principles; no third-party ROM sprite bytes copied.
+- CI: 87 Python tests, 35 original maps, asset regeneration, legal 8086 ISA, 55,992-byte binary (under 56 KiB).
+- SLOW1 DOSBox-X: embedded /TEST phases 1–74 PASS; 2048-tick AUTO first-stage replay 20/20 defeated / STAGE CLEAR / base survives at approximately tick 1024.
+- Installed directly in C:\\XT-Battle-City\\run\\TANKS.COM (sha256 1F93A6739AD2E3C4E2A14DEFA3C846A1320F72D30C6D69EFF56876F34AF29817); previous v0.17 backed up. Quality/fps on physical 4.77-MHz 8088 remains to be tested.
+
 ## v0.17 — laser, allied AUTO tank, triple fire, guided missiles and enemy frenzy (2026-11-09)
 
 - Five new CGA bonus pickup symbols and sidebar icons, eleven power-ups total. The pre-existing clock remains the freeze-enemies bonus.
