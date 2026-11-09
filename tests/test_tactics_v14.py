@@ -35,6 +35,8 @@ class TacticalV14Tests(unittest.TestCase):
         ai=(ROOT/'src/dos/tactics.inc').read_text()
         self.assertIn('mov byte ptr [test_phase],52',src)
         self.assertIn('mov byte ptr [test_phase],54',src)
+        self.assertIn('mov byte ptr [test_phase],55',src)
+        self.assertIn('smoke_bonus_replay:',src)
         self.assertIn('tactical_player_aim_if_aligned:',ai)
         self.assertIn('mov byte ptr [enemy_active+si],0',src)
         self.assertIn('inc byte ptr [enemy_killed]',src)

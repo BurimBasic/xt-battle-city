@@ -4645,6 +4645,33 @@ smoke_tactical_path_tests:
     je 9f
     jmp smoke_extra_fail
 9:
+    /* Phase 55: the defender must actually collect a reachable pickup
+       within a bounded autonomous gameplay replay, not just plan to. */
+    mov byte ptr [test_phase],55
+    call reset_campaign
+    mov byte ptr [enemy_spawned],20
+    mov byte ptr [freeze_ticks],120
+    mov byte ptr [bonus_col],7
+    mov byte ptr [bonus_row],10
+    mov byte ptr [bonus_type],1
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_timer],180
+    mov byte ptr [auto_mode],1
+    call strategy_bonus_spawn
+    mov cx,64
+smoke_bonus_replay:
+    push cx
+    call game_tick_step
+    pop cx
+    loop smoke_bonus_replay
+    cmp byte ptr [bonus_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [player_shield],0
+    jne 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
