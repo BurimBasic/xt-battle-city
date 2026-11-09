@@ -162,6 +162,7 @@ no_stage_overlay:
 
 /* State: 0 playing, 1 won stage, 2 lost. */
 reset_campaign:
+    mov byte ptr [ally_stock],1   /* one free V summon per campaign */
     mov byte ptr [stage], 1
     mov byte ptr [lives], 3
     mov word ptr [score], 0
@@ -235,7 +236,7 @@ marker_next:
     mov byte ptr [homing_ticks], 0
     mov byte ptr [frenzy_ticks], 0
     mov byte ptr [laser_flash_ticks], 0
-    mov byte ptr [ally_ticks], 0
+    mov word ptr [ally_ticks], 0
     mov byte ptr [extra_active], 0
     mov byte ptr [extra_active+1], 0
     mov byte ptr [freeze_ticks], 0
@@ -246,6 +247,7 @@ marker_next:
     mov byte ptr [manual_keys], 0
     mov byte ptr [pending_commands], 0
     mov byte ptr [auto_toggle_pending], 0
+    mov byte ptr [ally_call_pending],0
     mov byte ptr [player_px], 112
     mov byte ptr [player_py], 168
     mov byte ptr [paint_player_valid], 0
@@ -407,6 +409,11 @@ kb_not_s:
     jne kb_not_a
     jmp left_key
 kb_not_a:
+    cmp al,'V'
+    jne kb_not_ally
+    call ally20_try_call
+    ret
+kb_not_ally:
     cmp al, 'D'
     jne kb_return
     jmp right_key
@@ -597,6 +604,7 @@ game_tick_step:
     call grenade17_fx_tick
     call tick_powerups
     call bonus17_tick
+    call ally20_pickup
     call slide_player_smooth
     cmp byte ptr [player_shield], 0
     je tick_no_shield
@@ -704,6 +712,16 @@ bonus_can_collect:
     je 1f
     jmp bonus_pickup_done
 1:
+    call bonus20_apply
+bonus_pickup_done:
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+/* Shared pickup applies equally to main tank and autonomous companion. */
+bonus20_apply:
     mov byte ptr [bonus_active], 0
     mov byte ptr [bonus_timer], 0
     mov al,[bonus_type]
@@ -716,44 +734,44 @@ bonus_can_collect:
     jne pickup_not_star
     cmp byte ptr [player_upgrade], 3
     jb 1f
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 1:
     inc byte ptr [player_upgrade]
     call draw_hud
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 pickup_not_star:
     cmp al, 1
     jne pickup_not_helmet
     mov byte ptr [player_shield], 150
     mov byte ptr [bonus_flash_ticks],150
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 pickup_not_helmet:
     cmp al, 2
     jne pickup_not_grenade
     call grenade_all_enemies
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 pickup_not_grenade:
     cmp al, 3
     jne pickup_not_shovel
     call protect_hq
     mov byte ptr [bonus_flash_ticks],160
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 pickup_not_shovel:
     cmp al, 4
     jne pickup_not_clock
     mov byte ptr [freeze_ticks], 120
     mov byte ptr [bonus_flash_ticks],120
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 pickup_not_clock:
     cmp al,5
     jne pickup_not_life
     cmp byte ptr [lives], 9
     jb 1f
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 1:
     inc byte ptr [lives]
     call draw_hud
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 pickup_not_life:
     cmp al,6
     jne pickup_not_laser
@@ -762,8 +780,8 @@ pickup_not_life:
 pickup_not_laser:
     cmp al,7
     jne pickup_not_ally
-    call ally17_spawn
-    jmp bonus17_timed
+    call ally20_collect
+    jmp bonus20_applied
 pickup_not_ally:
     cmp al,8
     jne pickup_not_triple
@@ -778,11 +796,7 @@ pickup_not_homing:
     mov byte ptr [frenzy_ticks],180
 bonus17_timed:
     mov byte ptr [bonus_flash_ticks],180
-bonus_pickup_done:
-    pop dx
-    pop cx
-    pop bx
-    pop ax
+bonus20_applied:
     ret
 
 grenade_all_enemies:
@@ -2388,7 +2402,7 @@ smooth_player_dead:
     jmp smooth_shot_out
 smooth_shot_no_player:
     /* Ally is an independent target: enemy shots can destroy it. */
-    cmp byte ptr [ally_ticks],0
+    cmp word ptr [ally_ticks],0
     je smooth_shot_no_ally
     mov al,[shot_px+bx]
     sub al,[ally_px]
@@ -2400,7 +2414,7 @@ smooth_shot_no_player:
     add al,6
     cmp al,12
     jae smooth_shot_no_ally
-    mov byte ptr [ally_ticks],0
+    mov word ptr [ally_ticks],0
     mov dl,[ally_px]
     mov dh,[ally_py]
     call spawn_explosion
@@ -2596,6 +2610,11 @@ irq_no_pgup:
     or byte ptr [pending_commands], 64
     jmp irq_ack
 irq_no_pgdn:
+    cmp al,0x2f              /* V = call attacking AUTO companion */
+    jne irq_not_ally
+    or byte ptr [ally_call_pending],1
+    jmp irq_ack
+irq_not_ally:
     cmp al, 0x2e             /* C: cycle CGA palette */
     jne irq_not_palette
     or byte ptr [pending_commands], 128
@@ -2674,7 +2693,13 @@ poll_controls:
     mov byte ptr [pending_commands], 0
     mov ah, [auto_toggle_pending]
     mov byte ptr [auto_toggle_pending], 0
+    mov dl,[ally_call_pending]
+    mov byte ptr [ally_call_pending],0
     popf
+    test dl,1
+    jz controls_no_ally_call
+    call ally20_try_call
+controls_no_ally_call:
     test ah, 1
     jz controls_no_auto_toggle
     xor byte ptr [auto_mode],1
@@ -3479,7 +3504,7 @@ paint_enemy_next:
     jmp paint_enemy_loop
 paint_enemy_finished:
     /* Attack-oriented allied AUTO tank: same chassis with a bright halo. */
-    cmp byte ptr [ally_ticks],0
+    cmp word ptr [ally_ticks],0
     je paint_ally_done
     mov dl,[ally_px]
     mov dh,[ally_py]
@@ -5572,6 +5597,7 @@ trace_record_done:
 .include "src/dos/tactics.inc"
 .include "src/dos/strategy_v13.inc"
 .include "src/dos/bonuses_v17.inc"
+.include "src/dos/ally_v20.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -5593,6 +5619,8 @@ bonus_flash_type: .byte 0
 bonus_flash_ticks: .byte 0
 bonus_columns: .byte 2, 10, 4, 8, 1, 11, 6, 12, 5, 9, 3
 bonus_drop_order: .byte 0, 1, 2, 6, 7, 4, 8, 9, 10, 3, 5
+ally_stock: .byte 1        /* reserve V calls: max nine */
+ally_call_pending: .byte 0 /* keyboard ISR, distinct from movement keys */
 hq_wall_indices: .word 230, 232, 246, 248
 hq_wall_columns: .byte 6, 8, 6, 8
 hq_wall_rows: .byte 14, 14, 15, 15
@@ -5707,7 +5735,7 @@ tactical_auto_glyphs: .word hud_blank_icon, hud_blank_icon, hud_a_char, hud_u_ch
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_a_char, hud_s_char, hud_i_char, hud_c_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_1, hud_digit_9
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_0
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
