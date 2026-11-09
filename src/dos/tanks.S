@@ -83,6 +83,7 @@ check_smoke_test:
     jne normal_start
     jmp smoke_test
 normal_start:
+.ifdef TRACE_BUILD
     /* TANKS.COM /TRACE: reproduce 128 real simulation frames on DOS,
        save eight 16-byte squad snapshots for offline tactical inspection. */
     cmp byte ptr [0x80],7
@@ -94,6 +95,7 @@ normal_start:
     cmp byte ptr [0x84],'R'
     jne normal_play
     jmp trace_run
+.endif
 normal_play:
     call render_frame
     call install_keyboard
@@ -4566,10 +4568,11 @@ smoke_fail:
     mov ah, 0x4c
     int 0x21
 
+.ifdef TRACE_BUILD
 /* Deterministic real-mode trace, not an AI simulator or source-only test. */
 trace_run:
     mov byte ptr [trace_count],0
-    mov cx,128
+    mov cx,384
 trace_tick:
     push cx
     call game_tick_step
@@ -4622,7 +4625,7 @@ trace_record:
     push di
     xor bx,bx
     mov bl,[trace_count]
-    cmp bl,8
+    cmp bl,24
     jae trace_record_done
     shl bx,1
     shl bx,1
@@ -4668,14 +4671,17 @@ trace_record_done:
     pop bx
     pop ax
     ret
+.endif
 
 .include "src/dos/tactics.inc"
 .include "src/dos/strategy_v13.inc"
 
 .section .data
+.ifdef TRACE_BUILD
 trace_filename: .asciz "V13TRACE.BIN"
 trace_count: .byte 0
-trace_buffer: .space 128
+trace_buffer: .space 384
+.endif
 kills_by_type: .space 4
 stage: .byte 1
 /* Six original effects in a new arrangement; all durations are BIOS ticks. */

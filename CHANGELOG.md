@@ -1,3 +1,9 @@
+## v0.13.0 — release stabilization (2026-11-09)
+
+- Reinstated strict 48 KiB shipping DOS binary limit; extracted 384-tick diagnostic trace into optional `TANKS-TRACE.COM` instead of inflating the release.
+- Preserved `TANKS.COM /TEST` with the improved real-mode autopilot/keyboard regressions.
+- Added explicit release-size assertions and kept original CI size gate intact.
+
 ## v0.13 — global tactical routes, coordinated HQ assault and manual keyboard fix (2026-11-09)
 
 - Compute three cached reverse-BFS distance fields (HQ, left staging, right staging) on each 16×16 map; rebuild after destroyed walls.

@@ -12,7 +12,7 @@
 
 - Fields: 3×256 bytes, plus one reused 256-byte BFS queue (1024 bytes total). Built at level load; only rebuilt after terrain is actually destroyed (deferred to a strategy tick).
 - Player decisions remain every four BIOS ticks; four enemy route queries are at most one per 32 ticks plus an occasional blocked-path response.
-- The full release remains under the existing 57,344-byte 8086 DOS `.COM` cap; no FPU or 286+ opcodes.
+- The full release remains under the original 49,152-byte (48 KiB) 8086 DOS `.COM` cap; no FPU or 286+ opcodes.
 - Real 8088/4.77MHz frametime has **not** been profiled in 86Box. DOSBox-X smoke tests verify functional execution, not cycle timing or strategic quality over a full 35-stage campaign.
 
 ## What is not yet implemented
@@ -25,3 +25,10 @@ This is a real global BFS + simple squad operation, **not** a chess-style minima
 - `TANKS.COM /TEST` — real-mode tests through phases 44–51, including human takeover from left-moving AUTO, global flow fields, HQ aim, squad assault timeout, ally fire safety.
 - Run `tools/dosbox_smoke.ps1` on SLOW1 using both audio/no-audio emulated configurations.
 - Visually verify `TAB-AUTO` in manual mode and that a human pressing RIGHT no longer inherits AUTO LEFT after release.
+
+### Repeatable 384-tick tactical replay
+
+The shipping `TANKS.COM` is under the stricter original 48 KiB binary budget and **does not contain** the DOS replay recorder.
+Build a separate diagnostic-only `TANKS-TRACE.COM` using `make build/TANKS-TRACE.COM`. Run `TANKS-TRACE.COM /TRACE` in DOSBox-X; the program records 24 consecutive 16-byte snapshots in `V13TRACE.BIN` (384 bytes) at 16-tick intervals, then exits. Parse with `python tools/analyze_trace.py V13TRACE.BIN`. The trace build consumes additional code and conventional RAM; do not benchmark its speed as if it were the shipping release.
+
+The trace confirms **which** units moved and **when** the squad changed phase, not whether they demonstrated optimal strategy. Longer repeatable simulations and human observation are required before accepting more ambitious coordination claims.
