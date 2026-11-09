@@ -565,6 +565,12 @@ game_tick_step:
     dec byte ptr [squad_alert]
  game_tick_no_alert:
     call move_player_smooth
+    /* Autopilot shoots independently of navigation objectives and keeps
+       aiming even when traveling directly toward a power-up. */
+    cmp byte ptr [auto_mode],0
+    je game_tick_no_autofire
+    call tactical_player_autofire
+ game_tick_no_autofire:
     call sound_tick
     call tick_explosion
     call tick_powerups
@@ -3777,7 +3783,7 @@ draw_bonus_indicator:
     push bx
     push si
     push di
-    mov di,3911           /* x284,y96, between score and TAB-AUTO */
+    mov di,3906           /* x264,y96: left aligned, below score */
     mov si,offset hud_blank_icon
     cmp byte ptr [bonus_flash_ticks],0
     je bonus_hud_paint
