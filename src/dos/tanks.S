@@ -5116,6 +5116,113 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
+    /* Phase 66: a laser hits a live enemy in the same tick. */
+    mov byte ptr [test_phase],66
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_hp],1
+    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_py],88
+    mov byte ptr [player_px],96
+    mov byte ptr [player_py],136
+    mov byte ptr [bullet_px],96
+    mov byte ptr [bullet_py],136
+    mov byte ptr [bullet_dir],0
+    mov byte ptr [bullet_active],1
+    call laser17_fire
+    cmp byte ptr [enemy_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 67: triple shots never allocate a fourth projectile. */
+    mov byte ptr [test_phase],67
+    call reset_campaign
+    mov byte ptr [multi_ticks],180
+    mov byte ptr [bullet_active],1
+    mov byte ptr [player_dir],0
+    call do_fire
+    call do_fire
+    cmp byte ptr [extra_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [extra_active+1],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 68: homing chooses the closest enemy's direction. */
+    mov byte ptr [test_phase],68
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],144
+    mov byte ptr [enemy_py],120
+    mov byte ptr [bullet_px],96
+    mov byte ptr [bullet_py],120
+    mov byte ptr [bullet_dir],0
+    call extra17_home_direction
+    cmp byte ptr [bullet_dir],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 69: an AI ally acquires an enemy and opens fire. */
+    mov byte ptr [test_phase],69
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_py],88
+    mov byte ptr [player_px],96
+    mov byte ptr [player_py],136
+    call ally17_spawn
+    call ally17_tick
+    cmp byte ptr [extra_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 70: enemy frenzy actively targets an allied enemy. */
+    mov byte ptr [test_phase],70
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],1
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],64
+    mov byte ptr [enemy_py],64
+    mov byte ptr [enemy_px+1],64
+    mov byte ptr [enemy_py+1],96
+    xor bx,bx
+    call frenzy17_target
+    jc 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [enemy_dir],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 71: grenade leaves visible FX actors for every victim. */
+    mov byte ptr [test_phase],71
+    call reset_campaign
+    call grenade_all_enemies
+    cmp byte ptr [grenade_fx_ticks],12
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [grenade_fx_ticks+1],12
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [grenade_fx_ticks+2],12
+    je 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
