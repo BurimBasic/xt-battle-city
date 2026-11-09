@@ -24,3 +24,16 @@ jobs:
           path: |
             build/TANKS.COM
             build/XTINFO.COM
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xt-battle-city-source-snapshot
+          path: |
+            src/
+            tools/
+            tests/
+            assets/
+            docs/
+            Makefile
+            README.md
+            CHANGELOG.md
+          retention-days: 7
