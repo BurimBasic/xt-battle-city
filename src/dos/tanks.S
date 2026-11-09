@@ -4720,6 +4720,58 @@ smoke_bonus_replay:
     jne 9f
     jmp smoke_extra_fail
 9:
+    /* Phase 56: six-pixel path probe rejects a teammate in the lane,
+       but accepts reverse escape (row 10 is open in map 1). */
+    mov byte ptr [test_phase],56
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],1
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],80
+    mov byte ptr [enemy_py],120
+    mov byte ptr [enemy_px+1],96
+    mov byte ptr [enemy_py+1],120
+    xor bx,bx
+    mov al,1
+    call tactical_enemy_probe6
+    jc 9f
+    jmp smoke_extra_fail
+9:
+    mov al,3
+    call tactical_enemy_probe6
+    jnc 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 57: repeated physical blockage must force retreat,
+       not another command into the neighboring tank's hull. */
+    mov byte ptr [test_phase],57
+    mov byte ptr [enemy_blocked],6
+    mov byte ptr [enemy_dir],1
+    call tactical_enemy_turn
+    cmp byte ptr [enemy_dir],3
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 58: AUTO should establish a forward sentry line when
+       an opponent is far away and the HQ corridor is still quiet. */
+    mov byte ptr [test_phase],58
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],112
+    mov byte ptr [enemy_py],16
+    mov byte ptr [player_px],112
+    mov byte ptr [player_py],136
+    mov byte ptr [game_tick],4
+    mov byte ptr [auto_mode],1
+    call tactical_player_tick
+    cmp byte ptr [held_keys],1
+    je 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
