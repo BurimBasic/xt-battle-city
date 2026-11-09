@@ -557,7 +557,7 @@ laser17_paint_go:
     push si
     mov dl,[laser_start_x]
     mov dh,[laser_start_y]
-    mov cl,28
+    mov cx,28
 laser17_paint_next:
     push cx
     push dx
