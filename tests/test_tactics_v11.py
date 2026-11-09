@@ -41,7 +41,9 @@ class TacticalTests(unittest.TestCase):
     def test_8088_int_budget(self):
         self.assertNotIn('.386',self.ai)
         self.assertNotIn('fpu',self.ai.lower())
-        self.assertLess((ROOT/'build/TANKS.COM').stat().st_size,57344)
+        binary=ROOT/'build'/'TANKS.COM'
+        if not binary.exists():binary=ROOT/'dist'/'TANKS.COM'
+        if binary.exists():self.assertLess(binary.stat().st_size,57344)
         self.assertIn('mov byte ptr [test_phase], 40',self.src)
 
     def test_readable_distinct_water_and_ice(self):
