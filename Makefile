@@ -35,7 +35,7 @@ test: all
 	$(PYTHON) tools/validate_map.py assets/maps/level*.map
 	$(PYTHON) tools/build_cga_assets.py --check
 	$(PYTHON) tools/check_8086.py build/tanks.o
-	@test "$(wc -c < build/TANKS.COM)" -lt 57344
+	@test "$$(wc -c < build/TANKS.COM)" -lt 57344
 
 clean:
 	rm -rf build
