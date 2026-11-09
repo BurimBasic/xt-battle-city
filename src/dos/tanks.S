@@ -230,6 +230,14 @@ marker_next:
     mov byte ptr [bonus_active], 0
     mov byte ptr [bonus_timer], 0
     mov byte ptr [bonus_flash_ticks], 0
+    mov byte ptr [laser_ticks], 0
+    mov byte ptr [multi_ticks], 0
+    mov byte ptr [homing_ticks], 0
+    mov byte ptr [frenzy_ticks], 0
+    mov byte ptr [laser_flash_ticks], 0
+    mov byte ptr [ally_ticks], 0
+    mov byte ptr [extra_active], 0
+    mov byte ptr [extra_active+1], 0
     mov byte ptr [freeze_ticks], 0
     mov byte ptr [hq_shield], 0
     mov byte ptr [slide_ticks], 0
@@ -242,7 +250,17 @@ marker_next:
     mov byte ptr [player_py], 168
     mov byte ptr [paint_player_valid], 0
     mov byte ptr [paint_bullet_valid], 0
+    mov byte ptr [paint_extra_valid], 0
+    mov byte ptr [paint_extra_valid+1], 0
+    mov byte ptr [paint_ally_valid], 0
     mov byte ptr [paint_bonus_valid], 0
+    mov di,offset grenade_fx_ticks
+    mov cx,4
+    xor al,al
+    rep stosb
+    mov di,offset paint_grenade_valid
+    mov cx,4
+    rep stosb
     mov di, offset paint_enemy_valid
     mov cx, 4
     xor al, al
@@ -573,7 +591,9 @@ game_tick_step:
  game_tick_no_autofire:
     call sound_tick
     call tick_explosion
+    call grenade17_fx_tick
     call tick_powerups
+    call bonus17_tick
     call slide_player_smooth
     cmp byte ptr [player_shield], 0
     je tick_no_shield
@@ -584,6 +604,7 @@ game_tick_step:
     call draw_cell
 tick_no_shield:
     call advance_bullet_smooth
+    call extra17_advance
     cmp byte ptr [freeze_ticks], 0
     jne tick_frozen
     call update_enemy_shots_smooth
@@ -615,7 +636,12 @@ maybe_drop_bonus:
     jnz bonus_drop_done
     xor bx, bx
     mov bl, [bonus_sequence]
-    mov [bonus_type], bl
+    mov al,[bonus_drop_order+bx]
+    cmp byte ptr [test_mode],0
+    je bonus_live_order
+    xor al,al
+bonus_live_order:
+    mov [bonus_type],al
     mov dl, [bonus_columns+bx]
     mov dh, 10
     call get_tile
@@ -636,7 +662,7 @@ bonus_drop_ready:
     /* Plan the bonus route once on spawn, never per video frame. */
     call strategy_bonus_spawn
     inc byte ptr [bonus_sequence]
-    cmp byte ptr [bonus_sequence], 6
+    cmp byte ptr [bonus_sequence], 11
     jb bonus_cycle_valid
     mov byte ptr [bonus_sequence], 0
 bonus_cycle_valid:
@@ -683,6 +709,7 @@ pickup_not_star:
     cmp al, 1
     jne pickup_not_helmet
     mov byte ptr [player_shield], 150
+    mov byte ptr [bonus_flash_ticks],150
     jmp bonus_pickup_done
 pickup_not_helmet:
     cmp al, 2
@@ -693,17 +720,46 @@ pickup_not_grenade:
     cmp al, 3
     jne pickup_not_shovel
     call protect_hq
+    mov byte ptr [bonus_flash_ticks],160
     jmp bonus_pickup_done
 pickup_not_shovel:
     cmp al, 4
     jne pickup_not_clock
     mov byte ptr [freeze_ticks], 120
+    mov byte ptr [bonus_flash_ticks],120
     jmp bonus_pickup_done
 pickup_not_clock:
+    cmp al,5
+    jne pickup_not_life
     cmp byte ptr [lives], 9
     jae bonus_pickup_done
     inc byte ptr [lives]
     call draw_hud
+    jmp bonus_pickup_done
+pickup_not_life:
+    cmp al,6
+    jne pickup_not_laser
+    mov byte ptr [laser_ticks],180
+    jmp bonus17_timed
+pickup_not_laser:
+    cmp al,7
+    jne pickup_not_ally
+    call ally17_spawn
+    jmp bonus17_timed
+pickup_not_ally:
+    cmp al,8
+    jne pickup_not_triple
+    mov byte ptr [multi_ticks],180
+    jmp bonus17_timed
+pickup_not_triple:
+    cmp al,9
+    jne pickup_not_homing
+    mov byte ptr [homing_ticks],180
+    jmp bonus17_timed
+pickup_not_homing:
+    mov byte ptr [frenzy_ticks],180
+bonus17_timed:
+    mov byte ptr [bonus_flash_ticks],180
 bonus_pickup_done:
     pop dx
     pop cx
@@ -719,6 +775,11 @@ grenade_all_enemies:
 grenade_next:
     cmp byte ptr [enemy_active+bx], 0
     je grenade_skip
+    mov al,[enemy_px+bx]
+    mov [grenade_fx_x+bx],al
+    mov al,[enemy_py+bx]
+    mov [grenade_fx_y+bx],al
+    mov byte ptr [grenade_fx_ticks+bx],12
     mov byte ptr [enemy_active+bx], 0
     mov byte ptr [shot_active+bx], 0
     inc byte ptr [enemy_killed]
@@ -1282,6 +1343,12 @@ enemy_fire_loop:
     je enemy_fire_next
     cmp byte ptr [shot_active+bx], 0
     jne enemy_fire_next
+    cmp byte ptr [frenzy_ticks],0
+    je enemy_fire_normal
+    call frenzy17_target
+    jnc enemy_fire_normal
+    jmp enemy_fire_now
+enemy_fire_normal:
     call tactical_safe_fire
     jnc enemy_fire_next
     cmp byte ptr [enemy_hold+bx], 0
@@ -1318,7 +1385,10 @@ enemy_fire_next:
 /* Player projectile: one at a time, one cell per two simulated frames. */
 do_fire:
     cmp byte ptr [bullet_active], 0
-    jne fire_done
+    je fire_primary
+    call extra17_player_fire
+    jmp fire_done
+fire_primary:
     mov al, [player_col]
     mov [bullet_col], al
     mov al, [player_row]
@@ -1339,6 +1409,9 @@ fire_smooth_init:
     mov [bullet_px], al
     mov al, [player_py]
     mov [bullet_py], al
+    cmp byte ptr [laser_ticks],0
+    je fire_done
+    call laser17_fire
 fire_done:
     ret
 advance_bullet:
@@ -2294,6 +2367,25 @@ smooth_player_dead:
     mov byte ptr [game_state], 2
     jmp smooth_shot_out
 smooth_shot_no_player:
+    /* Ally is an independent target: enemy shots can destroy it. */
+    cmp byte ptr [ally_ticks],0
+    je smooth_shot_no_ally
+    mov al,[shot_px+bx]
+    sub al,[ally_px]
+    add al,8
+    cmp al,16
+    jae smooth_shot_no_ally
+    mov al,[shot_py+bx]
+    sub al,[ally_py]
+    add al,6
+    cmp al,12
+    jae smooth_shot_no_ally
+    mov byte ptr [ally_ticks],0
+    mov dl,[ally_px]
+    mov dh,[ally_py]
+    call spawn_explosion
+    jmp smooth_shot_out
+smooth_shot_no_ally:
     dec byte ptr [shot_substeps]
     jz 1f
     jmp smooth_shot_substep
@@ -3434,6 +3526,7 @@ smooth_fast_ptrs: .word smooth_fast_up, smooth_fast_right, smooth_fast_down, smo
 smooth_power_ptrs: .word smooth_power_up, smooth_power_right, smooth_power_down, smooth_power_left
 smooth_armor_ptrs: .word smooth_armor_up, smooth_armor_right, smooth_armor_down, smooth_armor_left
 smooth_bonus_ptrs: .word smooth_bonus_star, smooth_bonus_helmet, smooth_bonus_grenade, smooth_bonus_shovel, smooth_bonus_clock, smooth_bonus_life
+    .word smooth_bonus_laser, smooth_bonus_ally, smooth_bonus_triple, smooth_bonus_homing, smooth_bonus_frenzy
 smooth_tread_ptrs:
     .word smooth_tread_0_0, smooth_tread_0_1, smooth_tread_1_0, smooth_tread_1_1
     .word smooth_tread_2_0, smooth_tread_2_1, smooth_tread_3_0, smooth_tread_3_1
@@ -5038,6 +5131,7 @@ trace_record_done:
 
 .include "src/dos/tactics.inc"
 .include "src/dos/strategy_v13.inc"
+.include "src/dos/bonuses_v17.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -5057,7 +5151,8 @@ bonus_timer: .byte 0
 bonus_sequence: .byte 0
 bonus_flash_type: .byte 0
 bonus_flash_ticks: .byte 0
-bonus_columns: .byte 2, 10, 4, 8, 1, 11
+bonus_columns: .byte 2, 10, 4, 8, 1, 11, 6, 12, 5, 9, 3
+bonus_drop_order: .byte 6, 7, 8, 9, 10, 0, 1, 2, 3, 4, 5
 hq_wall_indices: .word 230, 232, 246, 248
 hq_wall_columns: .byte 6, 8, 6, 8
 hq_wall_rows: .byte 14, 14, 15, 15
