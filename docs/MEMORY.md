@@ -29,3 +29,15 @@
 ## v0.6 CGA pixel sprite footprint
 
 The DOS `.COM` grows to approximately 29KiB because 32 moving sprite patterns include four shifted 12x10-byte alpha/color variants each (~15KiB). This is deliberate to reduce runtime pixel-shift work on 8088. There is no full-screen offscreen buffer. The current original Poisk-1 96KiB budget is still **an unverified design goal**, not a verified compatibility claim. Its native backend may need tighter sprite compression/decompression and must be measured separately.
+
+## v0.17 CGA/DOS shipping budget
+
+Five new smooth pickup sprites and the tactical power-up engine increased the
+shipping DOS .COM ceiling from **48 KiB** to **56 KiB** (57,344 bytes, strictly
+below). The new maximum remains compatible with the real-mode 64-KiB code/data/
+stack segment only when the observed program-end offset and the additional
+4-KiB stack are verified; the framebuffer lives in a separate DOS block when
+available. The limit applies to `TANKS.COM`, not to the trace-only diagnostic.
+This change does **not** prove operation at 4.77-MHz 8088 or within the
+stock Poisk-1 runtime budget; those remain separate acceptance gates.
+
