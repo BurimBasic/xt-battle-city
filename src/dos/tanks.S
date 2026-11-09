@@ -5370,7 +5370,7 @@ bonus_sequence: .byte 0
 bonus_flash_type: .byte 0
 bonus_flash_ticks: .byte 0
 bonus_columns: .byte 2, 10, 4, 8, 1, 11, 6, 12, 5, 9, 3
-bonus_drop_order: .byte 6, 7, 8, 9, 10, 0, 1, 2, 3, 4, 5
+bonus_drop_order: .byte 0, 1, 2, 6, 7, 4, 8, 9, 10, 3, 5
 hq_wall_indices: .word 230, 232, 246, 248
 hq_wall_columns: .byte 6, 8, 6, 8
 hq_wall_rows: .byte 14, 14, 15, 15
