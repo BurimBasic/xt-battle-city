@@ -4894,13 +4894,15 @@ smoke_fail:
 /* Deterministic real-mode trace, not an AI simulator or source-only test. */
 trace_run:
     mov byte ptr [trace_count],0
-    mov cx,384
+    mov cx,2048
 trace_tick:
     push cx
     call game_tick_step
-    call render_frame
     test byte ptr [game_tick],15
     jnz trace_no_sample
+    /* Only paint diagnostic frames every 16 ticks: 128 timed snapshots
+       cover the full first-stage assault without a large emulator cost. */
+    call render_frame
     call trace_record
 trace_no_sample:
     pop cx
@@ -4947,7 +4949,7 @@ trace_record:
     push di
     xor bx,bx
     mov bl,[trace_count]
-    cmp bl,24
+    cmp bl,128
     jae trace_record_done
     shl bx,1
     shl bx,1
@@ -5000,9 +5002,9 @@ trace_record_done:
 
 .section .data
 .ifdef TRACE_BUILD
-trace_filename: .asciz "V13TRACE.BIN"
+trace_filename: .asciz "V16TRACE.BIN"
 trace_count: .byte 0
-trace_buffer: .space 384
+trace_buffer: .space 2048
 .endif
 kills_by_type: .space 4
 stage: .byte 1
