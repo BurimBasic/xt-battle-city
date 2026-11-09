@@ -2944,13 +2944,19 @@ pixel_is_blocked:
     shr al, 1
     shr al, 1
     mov [probe_col], al
-    mov al, dh
-    xor ah, ah
-    mov bl, 12
-    div bl
-    mov [probe_row], al
-    mov [probe_yrem], ah
-    mov dl, [probe_col]
+    /* Lookup y/12 and y%12: DIV is especially costly on an 8088. */
+    xor bx,bx
+    mov bl,dh
+    mov al,[pixel_y_tile_lookup+bx]
+    mov ah,al
+    and ah,15
+    mov [probe_yrem],ah
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov [probe_row],al
+    mov dl,[probe_col]
     mov dh, [probe_row]
     call get_tile
     cmp al, '.'
@@ -3033,54 +3039,66 @@ rect_failed:
 mark_dirty_rect:
     push ax
     push bx
-    push cx
     push dx
     push si
-    mov al, dl
-    shr al, 1
-    shr al, 1
-    shr al, 1
-    shr al, 1
-    mov [rect_x0], al
-    mov al, dl
-    add al, 15
-    shr al, 1
-    shr al, 1
-    shr al, 1
-    shr al, 1
-    mov [rect_x1], al
-    mov al, dh
-    xor ah, ah
-    mov bl, 12
-    div bl
-    mov [rect_y0], al
-    mov al, dh
-    add al, 11
-    xor ah, ah
-    div bl
-    mov [rect_y1], al
-    mov dh, [rect_y0]
+    mov al,dl
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov [rect_x0],al
+    mov al,dl
+    add al,15
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov [rect_x1],al
+    xor bx,bx
+    mov bl,dh
+    mov al,[pixel_y_tile_lookup+bx]
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov [rect_y0],al
+    add bl,11
+    mov al,[pixel_y_tile_lookup+bx]
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov [rect_y1],al
+    mov dh,[rect_y0]
 mark_rect_row:
-    mov dl, [rect_x0]
+    /* Compute row*16 once, then mark only the 1–2 touched columns. */
+    xor bx,bx
+    mov bl,dh
+    shl bx,1
+    shl bx,1
+    shl bx,1
+    shl bx,1
+    mov dl,[rect_x0]
 mark_rect_col:
-    cmp dl, 16
+    cmp dl,16
     jae mark_rect_next_col
-    cmp dh, 16
+    cmp dh,16
     jae mark_rect_next_col
-    call get_tile
-    sub si, offset level_data
-    mov byte ptr [dirty_tiles+si], 1
-    mov byte ptr [upload_tiles+si], 1
+    mov si,bx
+    xor ah,ah
+    mov al,dl
+    add si,ax
+    mov byte ptr [dirty_tiles+si],1
+    mov byte ptr [upload_tiles+si],1
 mark_rect_next_col:
     inc dl
-    cmp dl, [rect_x1]
+    cmp dl,[rect_x1]
     jbe mark_rect_col
     inc dh
-    cmp dh, [rect_y1]
+    cmp dh,[rect_y1]
     jbe mark_rect_row
     pop si
     pop dx
-    pop cx
     pop bx
     pop ax
     ret
@@ -3171,25 +3189,31 @@ old_shot_done:
     ret
 
 flush_dirty:
-    xor dx, dx
-flush_row:
-    xor dl, dl
-flush_col:
+    /* 256 fast byte checks, no 256 get_tile calls per video frame. */
+    push ax
     push dx
-    call get_tile
-    sub si, offset level_data
-    cmp byte ptr [dirty_tiles+si], 0
-    je flush_skip
-    mov byte ptr [dirty_tiles+si], 0
+    push si
+    xor si,si
+flush_scan:
+    cmp byte ptr [dirty_tiles+si],0
+    je flush_scan_next
+    mov byte ptr [dirty_tiles+si],0
+    mov ax,si
+    mov dl,al
+    and dl,15
+    shr ax,1
+    shr ax,1
+    shr ax,1
+    shr ax,1
+    mov dh,al
     call draw_static_cell
-flush_skip:
+flush_scan_next:
+    inc si
+    cmp si,256
+    jb flush_scan
+    pop si
     pop dx
-    inc dl
-    cmp dl, 16
-    jb flush_col
-    inc dh
-    cmp dh, 16
-    jb flush_row
+    pop ax
     ret
 
 /* ===== Anti-flicker shadow composition / tile commits =====
@@ -3218,49 +3242,32 @@ present_all_done:
 
 commit_dirty_tiles:
     push ax
-    push bx
-    push cx
     push dx
     push si
-    push di
-    push es
-    mov ax, [frame_seg]
-    cmp ax, 0xb800
+    mov ax,[frame_seg]
+    cmp ax,0xb800
     je commit_done
-    xor dx, dx
-commit_row:
-    xor dl, dl
-commit_col:
-    xor ax, ax
-    mov al, dh
-    shl ax, 1
-    shl ax, 1
-    shl ax, 1
-    shl ax, 1
-    xor bx, bx
-    mov bl, dl
-    add ax, bx
-    mov bx, ax
-    cmp byte ptr [upload_tiles+bx], 0
-    je commit_skip
-    mov byte ptr [upload_tiles+bx], 0
-    push dx
+    xor si,si
+commit_scan:
+    cmp byte ptr [upload_tiles+si],0
+    je commit_next
+    mov byte ptr [upload_tiles+si],0
+    mov ax,si
+    mov dl,al
+    and dl,15
+    shr ax,1
+    shr ax,1
+    shr ax,1
+    shr ax,1
+    mov dh,al
     call copy_tile_to_cga
-    pop dx
-commit_skip:
-    inc dl
-    cmp dl, 16
-    jb commit_col
-    inc dh
-    cmp dh, 16
-    jb commit_row
+commit_next:
+    inc si
+    cmp si,256
+    jb commit_scan
 commit_done:
-    pop es
-    pop di
     pop si
     pop dx
-    pop cx
-    pop bx
     pop ax
     ret
 
@@ -5674,6 +5681,26 @@ rect_y1: .byte 0
 scan_x: .byte 0
 scan_y: .byte 0
 scan_bank: .word 0
+/* y in 0..191; byte: high nibble tile row, low nibble y%12.
+   Out-of-range y in 192..255 is clamped to row 15 for sprite restores. */
+.p2align 1
+pixel_y_tile_lookup:
+.set y_lookup,0
+.rept 256
+    .if y_lookup < 192
+        .byte (((y_lookup / 12) << 4) | (y_lookup % 12))
+    .else
+        .byte 0xf0
+    .endif
+    .set y_lookup,y_lookup+1
+.endr
+.p2align 1
+cga_scanline_offsets:
+.set scan_lookup,0
+.rept 192
+    .word ((scan_lookup / 2) * 80 + (scan_lookup & 1) * 8192)
+    .set scan_lookup,scan_lookup+1
+.endr
 dirty_tiles: .space 256
 upload_tiles: .space 256
 frame_seg: .word 0xb800
