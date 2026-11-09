@@ -331,7 +331,7 @@ def generate(map_path):
     lines.append('    .if (level_end - level_template) != 169')
     lines.append('    .error "Level must have exactly 169 cells"')
     lines.append('    .endif')
-    for stage in range(2, 10):
+    for stage in range(2, 36):
         staged = get_map(ROOT / 'assets' / 'maps' / f'level{stage:02}.map')
         lines.append(f'level{stage}_template:')
         for row in staged:
@@ -339,7 +339,7 @@ def generate(map_path):
     lines.append('stage_ptrs:')
     lines.append('    .word ' + ', '.join(
         'level_template' if i == 1 else f'level{i}_template'
-        for i in range(1,10)))
+        for i in range(1,36)))
     for name, rows in SPRITES.items():
         lines.append('sprite_' + name + ':')
         data = pack(rows)

@@ -1,3 +1,11 @@
+## v0.7 — 35-stage campaign and stage navigation (2026-11-09)
+- Extended the original project campaign from 9 to 35 distinct new maps without copying NES layouts.
+- Stage path safety: two-tile winding center corridor, safe P/HQ and enemy spawn positions.
+- Stage-aware opponent class mix, with more power/armor enemies in later stages.
+- Page Up / Page Down during Pause/results to start adjacent stages for QA.
+- DOS /TEST stage-35 landmark and wrapping checks, Python campaign connectivity checks.
+- 86Box 8088 timing and native Poisk-1 remain not verified.
+
 # Журнал изменений
 
 ## 2026-11-08 — initialization

@@ -27,10 +27,10 @@ class GameplayWave5(unittest.TestCase):
         self.assertEqual(a.SPRITES['brick_mask_10'][2][:8], '.' * 8)
         self.assertNotEqual(a.SPRITES['brick_mask_10'][2][8:], '.' * 8)
 
-    def test_nine_independent_levels_and_two_new_terrains(self):
+    def test_thirty_five_independent_levels_and_two_new_terrains(self):
         seen = set()
         terrain = set()
-        for n in range(1, 10):
+        for n in range(1, 36):
             rows = a.get_map(ROOT / 'assets' / 'maps' / f'level{n:02}.map')
             self.assertEqual(len(rows), 13)
             self.assertTrue(all(len(row) == 13 for row in rows))
@@ -39,12 +39,12 @@ class GameplayWave5(unittest.TestCase):
             self.assertEqual(rows[12][6], 'B')
             seen.add(tuple(rows))
             terrain.update(''.join(rows))
-        self.assertEqual(len(seen), 9)
+        self.assertEqual(len(seen), 35)
         self.assertIn('F', terrain)
         self.assertIn('I', terrain)
         generated = a.generate(ROOT / 'assets' / 'maps' / 'level01.map')
         self.assertIn('stage_ptrs:', generated)
-        self.assertIn('level9_template', generated)
+        self.assertIn('level35_template', generated)
 
     def test_8088_safe_core_effect_entrypoints(self):
         src = (ROOT / 'src' / 'dos' / 'tanks.S').read_text(encoding='utf-8')
@@ -53,7 +53,7 @@ class GameplayWave5(unittest.TestCase):
                      'tick_powerups:', 'sound_play:', 'sound_tick:',
                      'slide_player:', 'bullet_vs_shot_loop:', 'shot_no_bullet_collision:'):
             self.assertIn(name, src)
-        self.assertIn('cmp byte ptr [stage], 9', src)
+        self.assertIn('cmp byte ptr [stage], 35', src)
         self.assertIn('mov byte ptr [test_phase], 19', src)
 
     def test_stage_results_are_separate_and_count_types(self):

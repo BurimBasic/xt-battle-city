@@ -1,4 +1,4 @@
-/* XT Battle City v0.6: original CGA tile arcade for DOS, 8086/8088.
+/* XT Battle City v0.7: original CGA tile arcade for DOS, 8086/8088.
  * Gameplay: 20-enemy waves, 4 tank classes, segmented bricks, 6 pickups,
  * destructible bricks, lives, headquarters, score and stage transitions.
  * 16x12 CGA cells, 13x13 battlefield. Original artwork and stage layouts.
@@ -831,8 +831,24 @@ spawn_ready:
     mul bl
     pop bx
     mov [enemy_py+bx], al
+    /* Later stages gradually favor power and armor tanks. */
     mov al, [enemy_spawned]
+    mov ah, [stage]
+    dec ah
+    add al, ah
     and al, 3
+    cmp byte ptr [stage], 12
+    jb spawn_class_ready
+    cmp al, 0
+    jne spawn_class_harder
+    mov al, 2
+spawn_class_harder:
+    cmp byte ptr [stage], 24
+    jb spawn_class_ready
+    cmp al, 1
+    jne spawn_class_ready
+    mov al, 3
+spawn_class_ready:
     mov [enemy_type+bx], al
     mov byte ptr [enemy_hp+bx], 1
     cmp al, 3
@@ -2057,6 +2073,17 @@ irq_not_restart:
     jne irq_not_pause
     or byte ptr [pending_commands], 4
 irq_not_pause:
+    /* Stage-switch keys are only acted on while paused or at results. */
+    cmp al, 0x49
+    jne irq_no_pgup
+    or byte ptr [pending_commands], 32
+    jmp irq_ack
+irq_no_pgup:
+    cmp al, 0x51
+    jne irq_no_pgdn
+    or byte ptr [pending_commands], 64
+    jmp irq_ack
+irq_no_pgdn:
     cmp al, 0x32
     jne irq_ack
     or byte ptr [pending_commands], 8
@@ -2135,12 +2162,38 @@ controls_pause_now:
     mov byte ptr [game_state], 3
     call pause_hud
 controls_not_pause:
+    /* Stage QA: Page Up / Down on PAUSED, STAGE CLEAR, or GAME OVER. */
+    test bl, 96
+    jz controls_no_stage_jump
+    cmp byte ptr [game_state], 3
+    je controls_stage_jump
+    cmp byte ptr [game_state], 1
+    je controls_stage_jump
+    cmp byte ptr [game_state], 2
+    jne controls_no_stage_jump
+controls_stage_jump:
+    test bl, 32
+    jz controls_stage_back
+    inc byte ptr [stage]
+    cmp byte ptr [stage], 35
+    jbe controls_stage_apply
+    mov byte ptr [stage], 1
+    jmp controls_stage_apply
+controls_stage_back:
+    dec byte ptr [stage]
+    jnz controls_stage_apply
+    mov byte ptr [stage], 35
+controls_stage_apply:
+    call load_stage
+    call refresh_screen
+    ret
+controls_no_stage_jump:
     test bl, 16
     jz controls_done
     cmp byte ptr [game_state], 1
     jne controls_fire
     inc byte ptr [stage]
-    cmp byte ptr [stage], 9
+    cmp byte ptr [stage], 35
     jbe controls_next_stage
     mov byte ptr [stage], 1
 controls_next_stage:
@@ -3499,6 +3552,31 @@ smooth_regression_loop:
     pop cx
     loop smooth_regression_loop
     cmp byte ptr [game_tick], 8
+    je 1f
+    jmp smoke_fail
+1:
+    jmp smoke_campaign_35
+smoke_campaign_35:
+    mov byte ptr [test_phase], 28
+    mov byte ptr [stage], 35
+    call load_stage
+    cmp byte ptr [level_data+26], 'F'
+    je 1f
+    jmp smoke_fail
+1:
+    /* Last -> first via PgUp on pause. */
+    mov byte ptr [game_state], 3
+    mov byte ptr [pending_commands], 32
+    call poll_controls
+    cmp byte ptr [stage], 1
+    je 1f
+    jmp smoke_fail
+1:
+    /* First -> last via PgDn on pause. */
+    mov byte ptr [game_state], 3
+    mov byte ptr [pending_commands], 64
+    call poll_controls
+    cmp byte ptr [stage], 35
     je 1f
     jmp smoke_fail
 1:
