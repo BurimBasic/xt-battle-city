@@ -5332,6 +5332,48 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
+    /* Phase 72: the centered AUTO marker starts after TWO blank glyphs. */
+    mov byte ptr [test_phase],72
+    mov byte ptr [auto_mode],1
+    call draw_mode_indicator
+    push es
+    mov ax,0xb800
+    mov es,ax
+    mov ax,[hud_a_char]
+    cmp word ptr es:[4228],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    pop es
+    /* Phase 73: copyright signature paints as WHITE on the black CGA
+       bottom-right field. Also check changing version V0.18. */
+    mov byte ptr [test_phase],73
+    call draw_branding
+    push es
+    mov ax,0xb800
+    mov es,ax
+    mov ax,[hud_t_char]
+    not ax
+    cmp word ptr es:[6467],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    mov ax,[hud_v_char]
+    not ax
+    cmp word ptr es:[7427],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    pop es
+    /* Phase 74: right edge moves from x13 to x12 and never covers x13. */
+    mov byte ptr [test_phase],74
+    cmp byte ptr [sprite_bonus_star+7],0xc0
+    je 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
