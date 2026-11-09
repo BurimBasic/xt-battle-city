@@ -4070,61 +4070,88 @@ draw_bonus_indicator:
     push dx
     push si
     push di
-    mov di,3906       /* bonus icon x264, countdown x284..299 */
+    /* 64px right HUD row (y96):
+       bonus at x256 | seconds x272-287 | reserve V x N at x296-319. */
     mov si,offset hud_blank_icon
+    mov di,3906          /* separator x264 */
+    call draw_hud_glyph
+    mov di,3912          /* separator x288 */
+    call draw_hud_glyph
+    mov di,3904          /* icon starts at FAR LEFT edge */
+    cmp word ptr [ally_ticks],0
+    jne bonus20_ally_icon
     cmp byte ptr [bonus_flash_ticks],0
-    je bonus_hud_icon
+    je bonus20_icon_draw
     test byte ptr [game_tick],8
-    jnz bonus_hud_icon
+    jnz bonus20_icon_draw
     xor bx,bx
     mov bl,[bonus_flash_type]
     shl bx,1
     mov si,[hud_bonus_ptrs+bx]
-bonus_hud_icon:
-    call draw_hud_glyph
+    jmp bonus20_icon_draw
+bonus20_ally_icon:
+    /* Active ally always overrides old pickup pictogram. */
+    test byte ptr [game_tick],8
+    jnz bonus20_icon_hidden
+    mov si,offset hud_bonus_ally
+    jmp bonus20_icon_draw
+bonus20_icon_hidden:
     mov si,offset hud_blank_icon
-    mov di,3911
+bonus20_icon_draw:
+    call draw_hud_glyph
+    /* Always clear both digit glyphs so an expired timer leaves no 88. */
+    mov si,offset hud_blank_icon
+    mov di,3908
+    call draw_hud_glyph
+    mov di,3910
+    call draw_hud_glyph
+    cmp word ptr [ally_ticks],0
+    jne bonus20_timer_ally
     cmp byte ptr [bonus_flash_ticks],0
-    jne bonus_hud_time
-    call draw_hud_glyph
-    mov di,3913
-    call draw_hud_glyph
-    jmp bonus_hud_finish
-bonus_hud_time:
-    /* Permanent upgrades, instant grenade and extra life have no
-       expiry: show the icon briefly but never a false countdown. */
+    je bonus20_timer_done
     mov al,[bonus_flash_type]
     cmp al,0
-    je bonus_hud_time_static
+    je bonus20_timer_done
     cmp al,2
-    je bonus_hud_time_static
+    je bonus20_timer_done
     cmp al,5
-    je bonus_hud_time_static
-    jmp bonus_hud_time_digits
-bonus_hud_time_static:
-    mov si,offset hud_blank_icon
-    mov di,3911
-    call draw_hud_glyph
-    mov di,3913
-    call draw_hud_glyph
-    jmp bonus_hud_finish
-bonus_hud_time_digits:
-    /* BIOS ticks divided by 18. Countdown is rounded up in seconds. */
-    mov al,[bonus_flash_ticks]
-    add al,17
+    je bonus20_timer_done
+    cmp al,7          /* unused stock bonus never has a countdown */
+    je bonus20_timer_done
     xor ah,ah
+    mov al,[bonus_flash_ticks]
+    jmp bonus20_timer_convert
+bonus20_timer_ally:
+    mov ax,[ally_ticks]  /* 270 ticks = 15 seconds, cannot fit a byte */
+bonus20_timer_convert:
+    add ax,17
     mov bl,18
     div bl
     xor ah,ah
     mov bl,10
     div bl
     mov bh,ah
-    mov di,3911
+    mov di,3908         /* x272 tens */
     call draw_hud_digit
     mov al,bh
-    mov di,3913
+    mov di,3910         /* x280 ones */
     call draw_hud_digit
-bonus_hud_finish:
+bonus20_timer_done:
+    mov di,3914         /* x296 V */
+    mov si,offset hud_v_char
+    cmp byte ptr [ally_life_flash],0
+    je bonus20_v_draw
+    test byte ptr [game_tick],2
+    jz bonus20_v_draw
+    mov si,offset hud_blank_icon
+bonus20_v_draw:
+    call draw_hud_glyph
+    mov di,3916         /* x304 x */
+    mov si,offset hud_x_char
+    call draw_hud_glyph
+    mov di,3918         /* x312 available calls */
+    mov al,[ally_stock]
+    call draw_hud_digit
     pop di
     pop si
     pop dx
