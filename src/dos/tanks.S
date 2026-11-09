@@ -148,7 +148,7 @@ main_loop_auto_restart:
 main_loop_play:
     call game_tick_step
     call render_frame
-    call draw_mode_indicator
+    /* The AUTO/MAN label changes only on a key event, not per tick. */
     call draw_bonus_indicator
     cmp byte ptr [game_state], 2
     jne no_end_overlay
@@ -423,6 +423,9 @@ refresh_screen:
     mov ax, 0x0b00
     mov bx, 0x0101
     int 0x10
+    /* BIOS video reinitialization resets 3D9h. Restore the user choice
+       from RAM after every stage/reset; never use a DOS settings file. */
+    call apply_cga_palette
     call draw_map
     call present_full_field
     call draw_sidebar_background
@@ -3643,17 +3646,18 @@ smooth_explosion_ptrs: .word smooth_explosion_0, smooth_explosion_1, smooth_expl
 
 /* Return AL tile and SI writable address, DL/DH grid 0..15. */
 get_tile:
-    push bx
-    xor ax, ax
-    mov al, dh
-    mov bl, 16
-    mul bl
-    add al, dl
-    adc ah, 0
-    mov si, offset level_data
-    add si, ax
-    mov al, [si]
-    pop bx
+    /* Row*16 via four shifts; avoid 8088 MUL for every tile lookup. */
+    xor ax,ax
+    mov al,dh
+    shl ax,1
+    shl ax,1
+    shl ax,1
+    shl ax,1
+    add al,dl
+    adc ah,0
+    mov si,offset level_data
+    add si,ax
+    mov al,[si]
     ret
 
 draw_map:
@@ -3883,7 +3887,7 @@ draw_branding:
     push di
     push si
     mov bx,offset brand_tanks_glyphs
-    mov di,6467             /* x268, y160 */
+    mov di,6147             /* x268,y152: blank 8px title separator */
     call draw_brand_row
     mov bx,offset brand_copyright_glyphs
     mov di,6787             /* x268, y168 */
@@ -5636,7 +5640,7 @@ tactical_auto_glyphs: .word hud_blank_icon, hud_blank_icon, hud_a_char, hud_u_ch
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_a_char, hud_s_char, hud_i_char, hud_c_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_1, hud_digit_8
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_1, hud_digit_9
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
