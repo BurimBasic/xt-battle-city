@@ -367,12 +367,16 @@ bonus_route_check_threat:
 bonus_route_threat_loop:
     cmp byte ptr [enemy_active+bx],0
     je bonus_route_next_threat
-    cmp byte ptr [enemy_py+bx],120
+    /* Any tank in the final HQ rows vetoes the pickup excursion.
+       Central attackers trigger the alarm earlier, around row 9. */
+    cmp byte ptr [enemy_py+bx],140
+    jae bonus_route_fail
+    cmp byte ptr [enemy_py+bx],104
     jb bonus_route_next_threat
     mov al,[enemy_px+bx]
-    cmp al,64
+    cmp al,72
     jb bonus_route_next_threat
-    cmp al,176
+    cmp al,168
     ja bonus_route_next_threat
     jmp bonus_route_fail
 bonus_route_next_threat:
