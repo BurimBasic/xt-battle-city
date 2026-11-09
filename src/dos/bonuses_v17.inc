@@ -232,6 +232,8 @@ extra17_home_done:
 laser17_fire:
     push ax
     push cx
+    mov al,[bullet_dir]
+    mov [laser_dir],al
     mov al,[player_px]
     mov [laser_start_x],al
     mov al,[player_py]
@@ -510,6 +512,9 @@ grenade17_fx_paint_loop:
     je grenade17_fx_paint_next
     mov dl,[grenade_fx_x+bx]
     mov dh,[grenade_fx_y+bx]
+    mov [paint_grenade_x+bx],dl
+    mov [paint_grenade_y+bx],dh
+    mov byte ptr [paint_grenade_valid+bx],1
     push bx
     mov al,12
     sub al,[grenade_fx_ticks+bx]
@@ -531,12 +536,76 @@ grenade17_fx_paint_next:
     jb grenade17_fx_paint_loop
     ret
 
+/* Draw a 2-tick white/cyan beam at 8px intervals along the actual
+ * same-tick traced shell path. Each sprite marks its old tiles dirty so
+ * the next offscreen composition restores the map without ghosting. */
+laser17_paint:
+    cmp byte ptr [laser_flash_ticks],0
+    jne laser17_paint_go
+    ret
+laser17_paint_go:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    mov dl,[laser_start_x]
+    mov dh,[laser_start_y]
+    mov cl,28
+laser17_paint_next:
+    push cx
+    push dx
+    mov si,offset smooth_bullet
+    test byte ptr [game_tick],1
+    jz laser17_paint_sprite
+    mov si,offset smooth_enemy_bullet
+laser17_paint_sprite:
+    call draw_smooth_sprite
+    pop dx
+    pop cx
+    mov al,[laser_dir]
+    cmp al,0
+    jne laser17_paint_right
+    cmp dh,[laser_end_y]
+    jbe laser17_paint_done
+    sub dh,8
+    jmp laser17_paint_advance
+laser17_paint_right:
+    cmp al,1
+    jne laser17_paint_down
+    cmp dl,[laser_end_x]
+    jae laser17_paint_done
+    add dl,8
+    jmp laser17_paint_advance
+laser17_paint_down:
+    cmp al,2
+    jne laser17_paint_left
+    cmp dh,[laser_end_y]
+    jae laser17_paint_done
+    add dh,8
+    jmp laser17_paint_advance
+laser17_paint_left:
+    cmp dl,[laser_end_x]
+    jbe laser17_paint_done
+    sub dl,8
+laser17_paint_advance:
+    dec cl
+    jnz laser17_paint_next
+laser17_paint_done:
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
 .section .data
 laser_ticks: .byte 0
 multi_ticks: .byte 0
 homing_ticks: .byte 0
 frenzy_ticks: .byte 0
 laser_flash_ticks: .byte 0
+laser_dir: .byte 0
 laser_start_x: .byte 0
 laser_start_y: .byte 0
 laser_end_x: .byte 0
