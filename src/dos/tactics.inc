@@ -51,9 +51,15 @@ tactical_defense_position_ready:
        a genuine breach, instead of chasing every distant enemy. */
     cmp byte ptr [enemy_py+bx],96
     jae tactical_player_engage
-    cmp byte ptr [player_py],136
-    ja tactical_player_engage
+    /* During a quiet opening establish a forward firing line, and then
+       engage a reachable raider rather than watching a frozen screen. */
+    cmp byte ptr [player_py],112
+    jbe 1f
     jmp tactical_patrol
+1:
+    cmp byte ptr [enemy_py+bx],16
+    jae tactical_player_engage
+    jmp tactical_player_guard
  tactical_player_engage:
     /* BX = persistent enemy objective, selected by HQ threat. */
     mov al, [enemy_px+bx]
@@ -116,9 +122,9 @@ tactical_defense_position_ready:
     mov al, 1
     jmp tactical_player_steer
  tactical_patrol:
-    /* If the upper field is quiet, take a fixed protective line instead
-       of bouncing through the map. No movement once in position. */
-    cmp byte ptr [player_py],136
+    /* Active forward sentry, close enough to fire at a stalled attacker.
+       HQ emergency and incoming shells still preempt this position. */
+    cmp byte ptr [player_py],112
     jbe tactical_player_guard
     mov al,0
     jmp tactical_player_steer
@@ -435,6 +441,16 @@ tactical_enemy_turn:
     push cx
     push dx
     mov byte ptr [enemy_hold+bx], 0
+    /* Priority one: a tank failing to move must yield a corridor.  The
+       actual collision probe prevents backing into a teammate or wall. */
+    cmp byte ptr [enemy_blocked+bx],6
+    jb tactical_enemy_not_jammed
+    mov al,[enemy_dir+bx]
+    xor al,2
+    call tactical_enemy_probe6
+    jc tactical_enemy_not_jammed
+    jmp tactical_enemy_assign
+ tactical_enemy_not_jammed:
     call tactical_enemy_evade
     jnc tactical_enemy_plan
     /* Emergency dodge must itself be traversable. Otherwise continue
@@ -647,6 +663,7 @@ tactical_enemy_probe6:
     push ax
     push cx
     push dx
+    push si
     mov dl, [enemy_px+bx]
     mov dh, [enemy_py+bx]
     mov cl, 6
@@ -657,6 +674,40 @@ tactical_enemy_probe6:
     jc tactical_probe_blocked
     dec cl
     jnz tactical_probe_next
+    /* The old probe saw only tiles: four tanks could select the same
+       impassable lane forever. Compare predicted hull against live bodies. */
+    xor si,si
+ tactical_probe_actor:
+    cmp si,bx
+    je tactical_probe_other
+    cmp byte ptr [enemy_active+si],0
+    je tactical_probe_other
+    mov al,dl
+    sub al,[enemy_px+si]
+    add al,15
+    cmp al,30
+    ja tactical_probe_other
+    mov al,dh
+    sub al,[enemy_py+si]
+    add al,11
+    cmp al,22
+    jbe tactical_probe_blocked
+ tactical_probe_other:
+    inc si
+    cmp si,4
+    jb tactical_probe_actor
+    /* Also avoid futile pursuit straight through the defending tank. */
+    mov al,dl
+    sub al,[player_px]
+    add al,15
+    cmp al,30
+    ja tactical_probe_clear
+    mov al,dh
+    sub al,[player_py]
+    add al,11
+    cmp al,22
+    jbe tactical_probe_blocked
+ tactical_probe_clear:
     mov [tactical_probe_x], dl
     mov [tactical_probe_y], dh
     clc
@@ -664,6 +715,7 @@ tactical_enemy_probe6:
  tactical_probe_blocked:
     stc
  tactical_probe_finish:
+    pop si
     pop dx
     pop cx
     pop ax
