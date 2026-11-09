@@ -4474,6 +4474,14 @@ smoke_autoplay_tick:
     jne smoke_tactical_path_tests
     jmp smoke_fail
 smoke_tactical_path_tests:
+    /* Isolate route geometry from the preceding live squad simulation.
+       Dynamic actor occupancy is tested explicitly in phase 56. */
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [player_px],200
+    mov byte ptr [player_py],160
     /* Route probe: should pursue goal east along a clear corridor. */
     mov byte ptr [test_phase],41
     mov byte ptr [enemy_px],16
