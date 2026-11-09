@@ -47,3 +47,31 @@ Bonuses are centered 7×6 glyphs inside a white-framed 16×12 box. Shields are s
 Independent reading: [pixel-art fundamentals](https://github.com/claude-dev-suite/claude-dev-suite/blob/main/skills/gamedev/2d-art/pixel-art-fundamentals/SKILL.md), [small-sprite readability](https://github.com/fenre/skills/blob/main/game-graphics/pixel-art-reference.md), [CGA technical reference](https://www.minuszerodegrees.net/oa/OA%20-%20IBM%20Color%20Graphics%20Monitor%20Adapter%20%28CGA%29.pdf).
 
 ![Actual v0.10 palette atlas generated from sprite bytes](preview-art-v10.png)
+
+
+## v0.18 CGA material refresh (Namco/Konami-era visual principles, original artwork)
+
+The former forest sprite used two large cyan rounded masses, visually ambiguous
+as rings/bushes at native 320×200. Replaced it with two tiered pine silhouettes
+that can be recognized without color. Water now has two sparse continuous wave
+ribbons and dark channels, rather than three heavy sawtooth strips. Ice keeps its
+hard-edged white border but uses two large white diagonal facets against a cyan
+slab. Each material keeps one distinct geometric motif at 16×12 and exactly
+four CGA palette indexes — no gradients, aliasing, or borrowed ROM assets.
+
+* Pickup borders occupy x=2..12, one pixel narrower on the right (previous x=13).
+  The 7×6 symbol is anchored independently to the tile center. Only the border
+  is suppressed in alternating four-tick phases for the last 27 BIOS ticks;
+  the symbol remains visible. The erase mask uses opaque black index 0,
+  while '.' retains transparent sprite semantics.
+* The protective shield toggles every four ticks, but always renders the
+  unshielded player body and tracks. The ally keeps its own halo silhouette.
+* The right AUTO label is centered by two blank 8px glyphs on each side.
+  The bottom-right white-on-black 8×8 copyright signature is drawn once
+  after sidebar initialization, not per frame, at y160..191.
+* The brand version is in the brand_version_glyphs table in tanks.S.
+  ©1982 BASIC is this project's display signature, not an attribution
+  of Namco's 1985 Battle City source or assets.
+* Retro reference: top-down, flat/unlit and limited palette layouts of
+  the 1985 Namco Battle City; large silhouette readable environmental blocks
+  as commonly seen in mid-1980s MSX/Famicom games. All pixels authored here.
