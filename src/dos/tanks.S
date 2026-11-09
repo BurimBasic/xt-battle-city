@@ -383,7 +383,9 @@ kb_next_level:
     ret
 kb_not_won:
     cmp byte ptr [game_state], 0
-    jne kb_return
+    je 1f
+    jmp kb_return
+1:
     cmp al, ' '
     jne kb_not_shoot
     call do_fire
