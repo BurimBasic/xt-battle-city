@@ -1,3 +1,13 @@
+## v0.10 — CGA silhouette and material readability (2026-11-09)
+- Redesigned player and four enemy classes as silhouette-first original 12×12 cores, keeping a visible turret/muzzle and two physically separated tracks.
+- Removed all cyan/green ornamentation from brick; dark mortar, staggered courses and deliberate white highlight strips remain recognizable under all four CGA palette settings.
+- Redrew steel as a riveted plate, water as flowing horizontal wave crests, forest as foliage clusters, and ice as a faceted diagonal crack; each texture has its own non-color visual signature.
+- Redrew and optically centered all six pickup pictograms, including a miniature tank for the extra life.
+- Replaced shield's sparse dots with a symmetric protective outer arc that preserves all tank pixels.
+- Added six automated v0.10 art-readability regressions, 4-palette atlas preview and pixel-size visual proof. Fixed `make assets` always to regenerate instead of colliding with the `assets/` directory.
+- Same 8088 runtime renderer and atlas dimensions, no additional CPU drawing work; ~47KB DOS binary. Existing anti-flicker buffer is unchanged.
+- Remaining gates: manual long-session game review, 86Box 8088/4.77MHz timing and native Poisk-1 hardware backend.
+
 ## v0.9 — CGA art and anti-flicker engine (2026-11-09)
 - New 16KB conventional-RAM frame-composition buffer on DOS/XT, with safe direct-VRAM fallback when allocation fails.
 - Compositing occurs off-screen; only completed dirty tiles are transferred into B800 CGA VRAM, avoiding the old visible clear-before-draw flicker.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate v0.9 8086-compatible CGA 2bpp art (16x12 tiles).
+"""Generate v0.10 8086-compatible CGA 2bpp art (16x12 tiles).
 
 Each pixel: 0 black, 1 cyan, 2 magenta, 3 white in CGA mode 4 palette 1.
 The original tank/level art is kept in this file as ASCII source.
@@ -23,77 +23,80 @@ EMPTY = sprite(*(['.'*16] * 12))
 # Material hierarchy: clean silhouette / medium details / sparing highlights.
 # Favor 2-4 pixel clusters instead of dithering and isolated checkerboard noise.
 def brick_tile():
+    """Three staggered courses; never use green/cyan highlights on red bricks."""
     g=[['2']*16 for _ in range(12)]
     for y in range(12):
         course=y//4
-        seam_offset=4 if course%2 else 0
+        offset=4 if course%2 else 0
         for x in range(16):
-            if y%4 == 3 or (x-seam_offset)%8 == 0:
-                g[y][x]='.'                  # mortar is an actual dark gap
-            elif y%4 == 0 and (x-seam_offset)%8 in (2,3,4,5):
-                g[y][x]='3'                  # short reflected top edge
-            elif y%4 == 2 and (x-seam_offset)%8 in (5,6,7):
-                g[y][x]='1'                  # deep underside, 3px cluster
+            joint=(x-offset)%8
+            if y%4==3 or joint==0:
+                g[y][x]='.'        # deep mortar; outline survives palette swap
+            elif y%4==0 and 2<=joint<=5:
+                g[y][x]='3'        # a SINGLE continuous light edge
     return sprite(*(''.join(row) for row in g))
 BRICK=brick_tile()
 
 def steel_tile():
+    """Riveted, recessed steel plate, not two green 'eyes'."""
     g=[['1']*16 for _ in range(12)]
     for y in range(12):
         for x in range(16):
-            if y in (0,11) or x in (0,15):g[y][x]='3'
-            elif y in (1,10) or x in (1,14):g[y][x]='.'
-            elif y in (2,9):g[y][x]='1'
-            else:g[y][x]='3' if 4<=x<=11 else '1'
-    # Discrete corner studs and inset dark metallic face.
-    for x,y in ((3,3),(12,3),(3,8),(12,8)):
-        g[y][x]='3'
-    for y in range(4,8):
-        for x in range(5,11):g[y][x]='1'
-    for x in range(6,10):g[4][x]='3'
+            if x in (0,15) or y in (0,11): g[y][x]='3'
+            elif x in (1,14) or y in (1,10): g[y][x]='.'
+            elif x in (2,13) or y in (2,9): g[y][x]='3'
+            else: g[y][x]='1'
+    for x,y in ((4,4),(11,4),(4,7),(11,7)):
+        g[y][x]='.'                  # four fixed recessed rivets
+    for x in range(6,10):
+        g[5][x]='3'
+        g[6][x]='3'
     return sprite(*(''.join(row) for row in g))
 STEEL=steel_tile()
 
+# Each material has one large, stable visual motif, not procedural pixel noise.
+# Water = three horizontal wave crests; evergreen = three rounded bushes;
+# ice = bright faceted surface with a diagonal fracture. No shared motifs.
 WATER=sprite(
  '1111111111111111',
  '1111111111111111',
- '111..3333..11111',
- '11...........111',
+ '1111.3333.111111',
+ '11...1111...1111',
  '1111111111111111',
  '1111111111111111',
- '111111..3333..11',
- '11111..........1',
+ '11111111.3333.11',
+ '111111....1111..',
  '1111111111111111',
  '1111111111111111',
- '11..3333..111111',
- '1..........11111')
+ '11.3333.11111111',
+ '..111111..111111')
 
 FOREST=sprite(
- '..11...111...11.',
- '.1111.11111.1111',
- '.1331.11331.1331',
+ '..111....111....',
+ '.11111..11111...',
+ '111111111111111.',
  '1111111111111111',
- '1111.11111.11111',
- '.111..111..1111.',
- '..11.11111..11..',
- '.1111113311.111.',
- '1111111111111111',
- '1111.1111.11111.',
- '.11..1111..1111.',
- '..1...11...11...')
+ '.11111111111111.',
+ '..1111..11111...',
+ '...33....33.....',
+ '..1111..1111....',
+ '.111111111111...',
+ '11111111111111..',
+ '.111111111111...',
+ '..1111..1111....')
 
 ICE=sprite(
  '3333333333333333',
- '3311111111111133',
  '3111111111111113',
- '311111...1111113',
- '311111.33.111113',
- '311111..3.111113',
- '3111111.3.111113',
- '3111111..1111113',
  '3111111111111113',
- '3111.333...11113',
- '33111......11133',
+ '31111.1111111113',
+ '311111.111111113',
+ '3111111.11111113',
+ '31111111.1111113',
+ '311111111.111113',
+ '3111111111.11113',
+ '31111111111.1113',
+ '3111111111111113',
  '3333333333333333')
 
 # Each wall tracks four independent quadrants. Fourteen intermediate shapes
@@ -108,28 +111,27 @@ def brick_mask_sprite(mask):
 
 # New assets drawn as original pixel glyphs, not copied from the NES ROM.
 BONUS_LETTERS = {
-    'star': ('.3.3.', '33333', '.333.', '33333', '.333.', '3...3', '.....'),
-    'helmet': ('.333.', '3...3', '3...3', '33333', '3...3', '3...3', '.....'),
-    'grenade': ('..3..', '.333.', '33333', '.333.', '33333', '.3.3.', '3...3'),
-    'shovel': ('33333', '..3..', '..3..', '..3..', '..3..', '.333.', '.333.'),
-    'clock': ('.333.', '3...3', '3.3.3', '3.33.', '3...3', '3...3', '.333.'),
-    'life': ('..3..', '..3..', '33333', '..3..', '..3..', '.....', '.....'),
+    # Eight-column symbols at 7x6, readable as icons at native CGA size.
+    # Each icon has an intentionally different silhouette.
+    'star':    ('...3...', '.3.3.3.', '..333..', '3333333', '..333..', '.3...3.'),
+    'helmet':  ('..333..', '.33333.', '33...33', '3333333', '3.3.3.3', '.......'),
+    'grenade': ('..333..', '.33333.', '3333333', '33.3.33', '.33333.', '..3.3..'),
+    'shovel':  ('3333333', '...3...', '...3...', '...3...', '..333..', '..333..'),
+    'clock':   ('..333..', '.3...3.', '3..3..3', '3..33.3', '.3...3.', '..333..'),
+    'life':    ('...3...', '...3...', '33.3.33', '3333333', '33.3.33', '33.3.33'),
 }
 def bonus_sprite(kind):
-    # Each icon is optically centered by the bounding box of nonempty pixels;
-    # frame and backing stay consistent across all six pickups.
+    # Clean white square border and a 7x6 centered high-contrast pictogram.
     g=[['.']*16 for _ in range(12)]
     for y in range(1,11):
-        for x in range(1,15):
-            if y in (1,10) or x in (1,14):g[y][x]='3'
-            elif y in (2,9) or x in (2,13):g[y][x]='2'
+        for x in range(2,14):
+            if x in (2,13) or y in (1,10):g[y][x]='3'
     glyph=BONUS_LETTERS[kind]
-    occupied=[(x,y) for y,row in enumerate(glyph) for x,ch in enumerate(row) if ch != '.']
+    occupied=[(x,y) for y,row in enumerate(glyph) for x,ch in enumerate(row) if ch!='.']
     minx=min(x for x,y in occupied);maxx=max(x for x,y in occupied)
     miny=min(y for x,y in occupied);maxy=max(y for x,y in occupied)
-    width=maxx-minx+1;height=maxy-miny+1
-    x0=(16-width)//2-minx
-    y0=(12-height)//2-miny
+    x0=(15-minx-maxx)//2
+    y0=(11-miny-maxy)//2
     for x,y in occupied:
         g[y+y0][x+x0]='3'
     return sprite(*(''.join(row) for row in g))
@@ -143,49 +145,64 @@ BASE = sprite(
 # Hand-authored geometry rather than recolored copies. Readable at native
 # 320x200, not merely when enlarged: two tracks, a distinct turret, a muzzle.
 def tank_up_geometry(kind='player'):
-    body,edge,metal,accent={
-        'player':('1','3','3','2'),
-        'basic': ('2','3','3','1'),
-        'fast':  ('2','3','1','3'),
-        'power': ('2','1','3','3'),
-        'armor': ('3','2','2','1'),
+    """Hand-tuned 12x12 tank silhouettes. Readable as silhouettes at 1:1.
+
+    Common language: connected tracks, front-facing long gun, large turret,
+    broad chassis. Type, not noisy recolouring, controls each footprint.
+    """
+    body, highlight, turret = {
+        'player': ('3','1','3'),
+        'basic':  ('2','3','3'),
+        'fast':   ('2','3','1'),
+        'power':  ('2','3','3'),
+        'armor':  ('3','2','1'),
     }[kind]
     g=[['.']*12 for _ in range(12)]
-    # Tracks: thicker on armour, narrower on speed chassis.
+    def paint(y,x0,x1,c):
+        if 0<=y<12:
+            for x in range(max(0,x0),min(12,x1+1)):g[y][x]=c
+    track=(0,1,10,11) if kind=='armor' else (1,2,9,10)
     for y in range(2,11):
-        for x in ((0,1,10,11) if kind=='armor' else (1,2,9,10)):
-            g[y][x]=edge if (y%3!=1) else body
-    for y in range(3,11):
-        for x in range(3,9):g[y][x]=body
-    for x in range(4,8):
-        g[3][x]=edge
-        g[10][x]=edge
-    # Short muzzle/solid barrel; faster tank has a slender snout.
-    barrel=(5,) if kind=='fast' else (5,6)
-    for y in range(0,5):
-        for x in barrel:g[y][x]=metal
-    for y in range(5,9):
-        for x in range(4,8):g[y][x]=metal
-    for x in range(5,7):g[6][x]=accent
-    # Highly recognizable variant-specific details.
+        for x in track:g[y][x]=body
+    # Strong paired track silhouettes: treads remain recognizable in all palettes.
+    for y in (2,5,8,10):
+        for x in track:g[y][x]=highlight
+    # Centered chassis bridges tracks at two structural cross-members.
+    for y in range(4,11):paint(y,4,7,body)
+    # Black channels separate left/right tracks from the center chassis.
+    for y in (4,10):paint(y,2,9,body)
+    # Fixed, opaque roof and a distinct round/square turret, not random dots.
+    for y in (5,6,7):paint(y,4,7,turret)
+    paint(5,5,6,highlight)
+    paint(7,5,6,body)
+    # Long centered cannon makes heading instantly visible.
+    for y in range(0,5):paint(y,5,6,turret)
+    # Class-specific outline, no frame-by-frame palette differences.
     if kind=='player':
-        for x in (3,8):g[6][x]='3'
-        for x in (4,7):g[9][x]='3'
+        paint(8,4,7,highlight)
+        paint(9,3,8,body)
+        paint(9,5,6,turret)
     elif kind=='basic':
-        for x in (3,8):g[6][x]='1'
-        g[8][5]=g[8][6]='1'
+        paint(8,5,6,highlight)
+        paint(10,2,3,'.')
+        paint(10,8,9,'.')
     elif kind=='fast':
-        for y in (4,7,10):
-            g[y][2]='3';g[y][9]='3'
-        g[7][4]=g[7][7]='.'
+        # Longer needle gun and narrower body: light scout.
+        paint(0,5,5,highlight)
+        for y in (7,9):g[y][3]=g[y][8]='.'
+        paint(8,5,6,highlight)
     elif kind=='power':
-        for y in (1,2):g[y][4]=g[y][7]='3'
-        g[8][4]=g[8][7]='3'
-        for x in range(4,8):g[9][x]='3'
-    else:  # heavy armour, broad shoulders and square turret
-        for x in (2,3,8,9):g[4][x]='3';g[9][x]='3'
-        for x in (4,7):g[5][x]='1';g[8][x]='1'
-        g[6][5]=g[6][6]='1'
+        # Wide barrel and squared-off shoulder armor.
+        paint(1,4,7,turret)
+        for y in (4,8):
+            g[y][3]=g[y][8]=highlight
+        paint(9,4,7,highlight)
+    else:
+        # Wide armored tank; broad rectangular turret and thickened shoulders.
+        paint(4,2,9,highlight)
+        for y in range(5,9):
+            g[y][3]=g[y][8]=highlight
+        paint(8,4,7,turret)
     return sprite(*('..'+''.join(row)+'..' for row in g))
 
 TANK_UP=tank_up_geometry('player')
@@ -209,14 +226,13 @@ POWER_UP,POWER_RIGHT,POWER_DOWN,POWER_LEFT=directions(tank_up_geometry('power'))
 ARMOR_UP,ARMOR_RIGHT,ARMOR_DOWN,ARMOR_LEFT=directions(tank_up_geometry('armor'))
 
 def track_overlay(direction,phase):
-    # Sparse, coherent 2-frame tread movement, no confetti pixels.
-    g=[['.']*12 for _ in range(12)]
+    """Two synchronized travelling bars per track, not white pixel confetti."""
+    core=[['.']*12 for _ in range(12)]
     for y in range(2,11):
         if (y+phase*2)%4 in (0,1):
-            for x in (1,10):g[y][x]='3'
-    for x in (1,10):g[2][x]='3';g[10][x]='3'
-    for _ in range(direction):g=rotate_grid(g)
-    return padded(g)
+            for x in (1,10):core[y][x]='3'
+    for _ in range(direction):core=rotate_grid(core)
+    return padded(core)
 TRACK_SPRITES={f'tread_{d}_{phase}':track_overlay(d,phase)
                for d in range(4) for phase in range(2)}
 
@@ -240,14 +256,14 @@ def explosion_sprite(frame):
 EXPLOSIONS={f'explosion_{i}':explosion_sprite(i) for i in range(4)}
 
 def shield_sprite(art):
-    # Tank remains unchanged; separate outer halo with open corners.
+    """Complete symmetric protective bubble outside tank. Never overwrite tank."""
     g=[list(row) for row in art]
-    for x in range(4,12):
-        if x%2==0:g[0][x]='3';g[11][x]='3'
-    for y in range(2,10):
-        if y%2==0:g[y][0]='3';g[y][15]='3'
-    for x,y in ((2,1),(13,1),(2,10),(13,10)):
-        g[y][x]='2'
+    halo=[]
+    for x in range(3,13):halo.extend([(x,0),(x,11)])
+    for y in range(2,10):halo.extend([(0,y),(15,y)])
+    halo.extend([(1,1),(14,1),(1,10),(14,10)])
+    for x,y in halo:
+        if g[y][x]=='.':g[y][x]='3'
     return sprite(*(''.join(row) for row in g))
 
 ENEMY_BULLET = sprite(

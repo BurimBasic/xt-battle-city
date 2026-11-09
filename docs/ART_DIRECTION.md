@@ -34,3 +34,16 @@ CGA source reference: [IBM CGA Technical Reference](https://www.minuszerodegrees
 Pixel-art cluster principles: [Pixel Art Simplification (Rivals Workshop)](https://www.rivalslib.com/workshop_guide/art/simplification.html).
 
 ![Tile/sprite design proof rendered from source glyphs](preview-art-v09.png)
+
+
+## v0.10 visual acceptance
+
+At native 320×200 size, player, basic, fast, power and armored tanks must remain recognizably tanks through **tracks/chassis/turret/muzzle**, not a bag of sparkles. They use distinct chassis/gun proportions; four palette combinations should preserve the hierarchy even when hues change. The 12×12 artwork core is pre-rotated into four directions; there is no runtime resampling and no blurred sprites.
+
+Textures have intentionally different **forms**: brick is staggered courses, steel is a riveted machine plate, water is transverse wave crests, forest is grouped foliage, ice is a single diagonal crack. Unrelated decorative highlight colors are forbidden on brick.
+
+Bonuses are centered 7×6 glyphs inside a white-framed 16×12 box. Shields are separate outer arcs with no overwrite of the underlying tank silhouette. All art lives in `tools/build_cga_assets.py`; regenerate with `make assets` then `make test`. Test native-size as well as zoomed-up pixel art and all four palette settings. The CGA pipeline requires exactly four 2bpp colors; do not introduce RGB gradients, anti-aliasing or expensive new CPU work.
+
+Independent reading: [pixel-art fundamentals](https://github.com/claude-dev-suite/claude-dev-suite/blob/main/skills/gamedev/2d-art/pixel-art-fundamentals/SKILL.md), [small-sprite readability](https://github.com/fenre/skills/blob/main/game-graphics/pixel-art-reference.md), [CGA technical reference](https://www.minuszerodegrees.net/oa/OA%20-%20IBM%20Color%20Graphics%20Monitor%20Adapter%20%28CGA%29.pdf).
+
+![Actual v0.10 palette atlas generated from sprite bytes](preview-art-v10.png)

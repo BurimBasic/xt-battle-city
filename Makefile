@@ -2,7 +2,7 @@ AS ?= as
 LD ?= ld
 PYTHON ?= python3
 
-.PHONY: all clean test
+.PHONY: all clean test assets
 all: build/XTINFO.COM build/TANKS.COM
 
 build:

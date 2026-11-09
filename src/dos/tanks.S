@@ -1,4 +1,4 @@
-/* XT Battle City v0.9: original CGA tile arcade for DOS, 8086/8088.
+/* XT Battle City v0.10: original CGA tile arcade for DOS, 8086/8088.
  * Gameplay: 20-enemy waves, 4 tank classes, segmented bricks, 6 pickups,
  * destructible bricks, lives, headquarters, score and stage transitions.
  * 16x12 CGA cells, 16x16 battlefield. Original artwork and stage layouts.
