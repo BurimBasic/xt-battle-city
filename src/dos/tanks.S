@@ -5413,6 +5413,30 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
+    /* Phase 78: after laser expires, restore black background pixels
+       without leaving a trail (old sprite-splat regression). */
+    mov byte ptr [test_phase],78
+    mov byte ptr [laser_flash_ticks],0
+    mov byte ptr [bonus_active],0
+    mov byte ptr [enemy_active],0
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [ally_ticks],0
+    mov byte ptr [level_data+98],'.'
+    mov byte ptr [brick_masks+98],0
+    call render_frame
+    push es
+    mov ax,[frame_seg]
+    mov es,ax
+    mov al,es:[3130]     /* y78, x40: first pixel of horizontal beam */
+    and al,0xc0
+    cmp al,0
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    pop es
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
