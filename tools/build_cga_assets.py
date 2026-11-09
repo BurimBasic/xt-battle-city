@@ -14,7 +14,7 @@ def sprite(*rows):
     assert len(rows) == HEIGHT
     for row in rows:
         assert len(row) == WIDTH, (len(row), row)
-        assert set(row) <= set('.123'), row
+        assert set(row) <= set('.0123'), row
     return rows
 
 EMPTY = sprite(*(['.'*16] * 12))
@@ -54,53 +54,51 @@ def steel_tile():
     return sprite(*(''.join(row) for row in g))
 STEEL=steel_tile()
 
-# Each material has one large, stable visual motif, not procedural pixel noise.
-# Water = three horizontal wave crests; evergreen = three rounded bushes;
-# ice = bright faceted surface with a diagonal fracture. No shared motifs.
-# Water is NEGATIVE SPACE with repeatable crests, not a green solid tile.
-# The long horizontal bands and dark current are readable in all CGA palettes.
+# v0.18: compact, independent color-cluster motifs after inspecting
+# original late-80s CGA/MSX/NES compositional principles. No ROM pixels copied.
+# Water: just two sparse undulating lines instead of three thick jagged bands.
 WATER=sprite(
  '................',
- '..1111....1111..',
- '.111111..111111.',
- '11....1111....11',
+ '..11......11....',
+ '.1111....1111...',
+ '11..11..11..11..',
+ '......11......11',
  '................',
- '.....111111.....',
- '..111111111111..',
- '.1111......1111.',
  '................',
- '....1111....1111',
- '..111111..111111',
- '111....1111.....')
+ '....11......11..',
+ '...1111....1111.',
+ '..11..11..11..11',
+ '11......11......',
+ '................')
 
+# Forest: paired evergreen SILHOUETTES, not round blobs / cyan rings.
 FOREST=sprite(
- '..111....111....',
- '.11111..11111...',
- '111111111111111.',
- '1111111111111111',
- '.11111111111111.',
- '..1111..11111...',
- '...33....33.....',
- '..1111..1111....',
- '.111111111111...',
- '11111111111111..',
- '.111111111111...',
- '..1111..1111....')
+ '....1.......1...',
+ '...111.....111..',
+ '..11111...11111.',
+ '....1.......1...',
+ '...111.....111..',
+ '..11111...11111.',
+ '.1111111.1111111',
+ '....3.......3...',
+ '....3.......3...',
+ '................',
+ '................',
+ '................')
 
-# Ice = one large icy slab with HARD triangular fracture. Black cracks and
-# alternating broad faces differentiate it from both rippling water and steel.
+# Ice: clean solid sheet with two asymmetrical faceted white glints.
 ICE=sprite(
  '3333333333333333',
- '3311111111111133',
- '3111111333311113',
- '311111.333311113',
- '31111..333311113',
- '3111...333311113',
- '311...1333111113',
- '31...111.1111113',
- '31..1111..111113',
- '31111111...11113',
- '3311111111111133',
+ '3111111111111113',
+ '3111133311111113',
+ '3111333331111113',
+ '3113333111111113',
+ '3133311111111113',
+ '3111111111111113',
+ '3111111111133113',
+ '3111111111333313',
+ '3111111113333113',
+ '3111111111111113',
  '3333333333333333')
 
 # Each wall tracks four independent quadrants. Fourteen intermediate shapes
@@ -133,8 +131,8 @@ def bonus_sprite(kind):
     # Clean white square border and a 7x6 centered high-contrast pictogram.
     g=[['.']*16 for _ in range(12)]
     for y in range(1,11):
-        for x in range(2,14):
-            if x in (2,13) or y in (1,10):g[y][x]='3'
+        for x in range(2,13):
+            if x in (2,12) or y in (1,10):g[y][x]='3'
     glyph=BONUS_LETTERS[kind]
     occupied=[(x,y) for y,row in enumerate(glyph) for x,ch in enumerate(row) if ch!='.']
     minx=min(x for x,y in occupied);maxx=max(x for x,y in occupied)
@@ -144,6 +142,18 @@ def bonus_sprite(kind):
     for x,y in occupied:
         g[y+y0][x+x0]='3'
     return sprite(*(''.join(row) for row in g))
+
+# Transparent masked overlay that erases only the WHITE perimeter. Pixel
+# value '0' is opaque CGA black; '.' stays transparent, so bonus glyphs
+# remain on screen while the border blinks during its final 27 ticks.
+def bonus_frame_erase():
+    rows=[]
+    for y in range(12):
+        rows.append(''.join('0' if 1<=y<=10 and 2<=x<=12 and
+                         (x in (2,12) or y in (1,10)) else '.'
+                         for x in range(16)))
+    return sprite(*rows)
+BONUS_FRAME_ERASE=bonus_frame_erase()
 
 BASE = sprite(
  '................', '.....333333.....', '....31111113....',
@@ -320,6 +330,7 @@ SPRITES = {
     'enemy_bullet': ENEMY_BULLET,
     **{'brick_mask_'+str(i): brick_mask_sprite(i) for i in range(16)},
     **{'bonus_'+kind: bonus_sprite(kind) for kind in BONUS_LETTERS},
+    'bonus_frame_erase': BONUS_FRAME_ERASE,
     **TRACK_SPRITES,
     **EXPLOSIONS,
 }
@@ -352,6 +363,7 @@ SMOOTH_SPRITES = [
     'bullet','enemy_bullet',
     'bonus_star','bonus_helmet','bonus_grenade','bonus_shovel','bonus_clock','bonus_life',
     'bonus_laser','bonus_ally','bonus_triple','bonus_homing','bonus_frenzy',
+    'bonus_frame_erase',
     *TRACK_SPRITES.keys(),
     *EXPLOSIONS.keys(),
 ]
@@ -410,6 +422,11 @@ HUD_FONT = {
  'm': ('#...#', '##.##', '#.#.#', '#.#.#', '#...#', '#...#', '#...#'),
  'n': ('#...#', '##..#', '##..#', '#.#.#', '#..##', '#..##', '#...#'),
  'b': ('####.', '#...#', '#...#', '####.', '#...#', '#...#', '####.'),
+ 'k': ('#...#', '#..#.', '#.#..', '##...', '#.#..', '#..#.', '#...#'),
+ 'i': ('#####', '..#..', '..#..', '..#..', '..#..', '..#..', '#####'),
+ 'c': ('.###.', '#...#', '#....', '#....', '#....', '#...#', '.###.'),
+ 'v': ('#...#', '#...#', '#...#', '#...#', '#...#', '.#.#.', '..#..'),
+ '.': ('.....', '.....', '.....', '.....', '.....', '.##..', '.##..'),
  '-': ('.....', '.....', '.....', '#####', '.....', '.....', '.....'),
 }
 HUD_TANK = (
@@ -465,6 +482,14 @@ def generate_hud():
         'hud_n_char': hud_font_glyph('n'),
         'hud_b_char': hud_font_glyph('b'),
         'hud_dash_char': hud_font_glyph('-'),
+        'hud_k_char': hud_font_glyph('k'),
+        'hud_i_char': hud_font_glyph('i'),
+        'hud_c_char': hud_font_glyph('c'),
+        'hud_v_char': hud_font_glyph('v'),
+        'hud_dot_char': hud_font_glyph('.'),
+        'hud_copyright_icon': hud_glyph((
+            '..####..', '.#....#.', '#..##..#', '#.#....#',
+            '#.#....#', '#..##..#', '.#....#.', '..####..')),
     }
     for digit in range(10):
         data['hud_digit_'+str(digit)] = hud_font_glyph(str(digit))
