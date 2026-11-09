@@ -583,7 +583,9 @@ laser19_end_y_clamped:
     mov cx,240
 laser19_pixel:
     cmp dh,192
-    jae laser19_finished
+    jb laser19_pixel_in_world
+    jmp laser19_finished
+laser19_pixel_in_world:
     /* (y/12)*16 + (x/16) indexes a 16x16 static map. */
     xor bx,bx
     mov bl,dh
@@ -653,7 +655,8 @@ laser19_left:
     dec dl
 laser19_next:
     dec cx
-    jnz laser19_pixel
+    jz laser19_finished
+    jmp laser19_pixel
 laser19_finished:
     pop es
     pop di
