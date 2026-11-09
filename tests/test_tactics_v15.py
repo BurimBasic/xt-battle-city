@@ -35,7 +35,7 @@ class V15Tests(unittest.TestCase):
         self.assertIn('mov [bonus_flash_type],al',T)
         self.assertIn('mov byte ptr [bonus_flash_ticks],112',T)
         self.assertIn('test byte ptr [game_tick],8',T)
-        self.assertIn('mov di,3906',T)
+        self.assertIn('mov di,3904',T)  # bonus icon now at far-left x256
         self.assertIn('mov di, 4224',T)  # preserve TAB-AUTO
         indicator=T[T.index('draw_bonus_indicator:'):T.index('draw_mode_indicator:')]
         self.assertIn('call draw_hud_digit',indicator)  # countdown seconds
