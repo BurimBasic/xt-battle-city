@@ -705,7 +705,9 @@ bonus_can_collect:
     cmp al, 0
     jne pickup_not_star
     cmp byte ptr [player_upgrade], 3
-    jae bonus_pickup_done
+    jb 1f
+    jmp bonus_pickup_done
+1:
     inc byte ptr [player_upgrade]
     call draw_hud
     jmp bonus_pickup_done
