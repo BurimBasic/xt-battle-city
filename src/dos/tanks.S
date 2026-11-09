@@ -360,7 +360,9 @@ kb_pause:
     cmp byte ptr [game_state], 0
     je kb_pause_begin
     cmp byte ptr [game_state], 3
-    jne kb_return
+    je 1f
+    jmp kb_return
+1:
     mov byte ptr [game_state], 0
     call refresh_screen
     ret
@@ -372,7 +374,9 @@ kb_after_pause:
     cmp byte ptr [game_state], 1
     jne kb_not_won
     cmp al, ' '
-    jne kb_return
+    je 1f
+    jmp kb_return
+1:
     inc byte ptr [stage]
     cmp byte ptr [stage], 9
     jbe kb_next_level
