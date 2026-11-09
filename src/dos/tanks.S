@@ -3995,6 +3995,24 @@ bonus_hud_icon:
     call draw_hud_glyph
     jmp bonus_hud_finish
 bonus_hud_time:
+    /* Permanent upgrades, instant grenade and extra life have no
+       expiry: show the icon briefly but never a false countdown. */
+    mov al,[bonus_flash_type]
+    cmp al,0
+    je bonus_hud_time_static
+    cmp al,2
+    je bonus_hud_time_static
+    cmp al,5
+    je bonus_hud_time_static
+    jmp bonus_hud_time_digits
+bonus_hud_time_static:
+    mov si,offset hud_blank_icon
+    mov di,3911
+    call draw_hud_glyph
+    mov di,3913
+    call draw_hud_glyph
+    jmp bonus_hud_finish
+bonus_hud_time_digits:
     /* BIOS ticks divided by 18. Countdown is rounded up in seconds. */
     mov al,[bonus_flash_ticks]
     add al,17
