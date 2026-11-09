@@ -110,6 +110,7 @@ normal_play:
     mov byte ptr [squad_phase],1
 normal_play_doctrine_ready:
     call render_frame
+    call transition20_open
     call install_keyboard
     mov ah, 0
     int 0x1a
@@ -148,13 +149,20 @@ main_loop_auto_restart:
 main_loop_play:
     call game_tick_step
     call render_frame
-    /* The AUTO/MAN label changes only on a key event, not per tick. */
     call draw_bonus_indicator
-    cmp byte ptr [game_state], 2
-    jne no_end_overlay
+    /* Animate once, AFTER the last frame, BEFORE the result text. */
+    cmp byte ptr [game_state],0
+    je no_stage_overlay
+    cmp byte ptr [transition_done],0
+    jne no_stage_overlay
+    mov byte ptr [transition_done],1
+    call transition20_close
+    cmp byte ptr [game_state],2
+    jne stage_out_clear
     call game_over_hud
-no_end_overlay:
-    cmp byte ptr [game_state], 1
+    jmp no_stage_overlay
+stage_out_clear:
+    cmp byte ptr [game_state],1
     jne no_stage_overlay
     call stage_clear_hud
 no_stage_overlay:
@@ -223,6 +231,7 @@ marker_next:
     mov byte ptr [game_state], 0
     mov byte ptr [demo_timer], 0
     mov byte ptr [game_tick], 0
+    mov byte ptr [transition_done],0
     mov byte ptr [enemy_ai_phase], 0
     mov byte ptr [squad_alert], 0
     mov byte ptr [squad_target_x], 112
@@ -440,6 +449,7 @@ refresh_screen:
     call render_frame
     call draw_mode_indicator
     call draw_bonus_indicator
+    call transition20_open     /* only once per level / restarts */
     ret
 exit_game:
     call restore_keyboard
@@ -1745,7 +1755,7 @@ check_stage_complete:
     cmp byte ptr [enemy_killed], 20
     jne stage_not_done
     mov byte ptr [game_state], 1
-    call stage_clear_hud
+    /* Main loop plays exit animation before the result overlay. */
 stage_not_done:
     ret
 /* Classic-style black-on-blackfield overlay for stage completion/game over.
@@ -5625,6 +5635,7 @@ trace_record_done:
 .include "src/dos/strategy_v13.inc"
 .include "src/dos/bonuses_v17.inc"
 .include "src/dos/ally_v20.inc"
+.include "src/dos/transitions_v20.inc"
 
 .section .data
 .ifdef TRACE_BUILD
