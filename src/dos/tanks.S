@@ -148,7 +148,7 @@ main_loop_auto_restart:
 main_loop_play:
     call game_tick_step
     call render_frame
-    call draw_mode_indicator
+    /* The AUTO/MAN label changes only on a key event, not per tick. */
     call draw_bonus_indicator
     cmp byte ptr [game_state], 2
     jne no_end_overlay
@@ -423,6 +423,9 @@ refresh_screen:
     mov ax, 0x0b00
     mov bx, 0x0101
     int 0x10
+    /* BIOS video reinitialization resets 3D9h. Restore the user choice
+       from RAM after every stage/reset; never use a DOS settings file. */
+    call apply_cga_palette
     call draw_map
     call present_full_field
     call draw_sidebar_background
@@ -2941,13 +2944,19 @@ pixel_is_blocked:
     shr al, 1
     shr al, 1
     mov [probe_col], al
-    mov al, dh
-    xor ah, ah
-    mov bl, 12
-    div bl
-    mov [probe_row], al
-    mov [probe_yrem], ah
-    mov dl, [probe_col]
+    /* Lookup y/12 and y%12: DIV is especially costly on an 8088. */
+    xor bx,bx
+    mov bl,dh
+    mov al,[pixel_y_tile_lookup+bx]
+    mov ah,al
+    and ah,15
+    mov [probe_yrem],ah
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov [probe_row],al
+    mov dl,[probe_col]
     mov dh, [probe_row]
     call get_tile
     cmp al, '.'
@@ -3030,54 +3039,66 @@ rect_failed:
 mark_dirty_rect:
     push ax
     push bx
-    push cx
     push dx
     push si
-    mov al, dl
-    shr al, 1
-    shr al, 1
-    shr al, 1
-    shr al, 1
-    mov [rect_x0], al
-    mov al, dl
-    add al, 15
-    shr al, 1
-    shr al, 1
-    shr al, 1
-    shr al, 1
-    mov [rect_x1], al
-    mov al, dh
-    xor ah, ah
-    mov bl, 12
-    div bl
-    mov [rect_y0], al
-    mov al, dh
-    add al, 11
-    xor ah, ah
-    div bl
-    mov [rect_y1], al
-    mov dh, [rect_y0]
+    mov al,dl
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov [rect_x0],al
+    mov al,dl
+    add al,15
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov [rect_x1],al
+    xor bx,bx
+    mov bl,dh
+    mov al,[pixel_y_tile_lookup+bx]
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov [rect_y0],al
+    add bl,11
+    mov al,[pixel_y_tile_lookup+bx]
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov [rect_y1],al
+    mov dh,[rect_y0]
 mark_rect_row:
-    mov dl, [rect_x0]
+    /* Compute row*16 once, then mark only the 1–2 touched columns. */
+    xor bx,bx
+    mov bl,dh
+    shl bx,1
+    shl bx,1
+    shl bx,1
+    shl bx,1
+    mov dl,[rect_x0]
 mark_rect_col:
-    cmp dl, 16
+    cmp dl,16
     jae mark_rect_next_col
-    cmp dh, 16
+    cmp dh,16
     jae mark_rect_next_col
-    call get_tile
-    sub si, offset level_data
-    mov byte ptr [dirty_tiles+si], 1
-    mov byte ptr [upload_tiles+si], 1
+    mov si,bx
+    xor ah,ah
+    mov al,dl
+    add si,ax
+    mov byte ptr [dirty_tiles+si],1
+    mov byte ptr [upload_tiles+si],1
 mark_rect_next_col:
     inc dl
-    cmp dl, [rect_x1]
+    cmp dl,[rect_x1]
     jbe mark_rect_col
     inc dh
-    cmp dh, [rect_y1]
+    cmp dh,[rect_y1]
     jbe mark_rect_row
     pop si
     pop dx
-    pop cx
     pop bx
     pop ax
     ret
@@ -3168,25 +3189,31 @@ old_shot_done:
     ret
 
 flush_dirty:
-    xor dx, dx
-flush_row:
-    xor dl, dl
-flush_col:
+    /* 256 fast byte checks, no 256 get_tile calls per video frame. */
+    push ax
     push dx
-    call get_tile
-    sub si, offset level_data
-    cmp byte ptr [dirty_tiles+si], 0
-    je flush_skip
-    mov byte ptr [dirty_tiles+si], 0
+    push si
+    xor si,si
+flush_scan:
+    cmp byte ptr [dirty_tiles+si],0
+    je flush_scan_next
+    mov byte ptr [dirty_tiles+si],0
+    mov ax,si
+    mov dl,al
+    and dl,15
+    shr ax,1
+    shr ax,1
+    shr ax,1
+    shr ax,1
+    mov dh,al
     call draw_static_cell
-flush_skip:
+flush_scan_next:
+    inc si
+    cmp si,256
+    jb flush_scan
+    pop si
     pop dx
-    inc dl
-    cmp dl, 16
-    jb flush_col
-    inc dh
-    cmp dh, 16
-    jb flush_row
+    pop ax
     ret
 
 /* ===== Anti-flicker shadow composition / tile commits =====
@@ -3215,49 +3242,32 @@ present_all_done:
 
 commit_dirty_tiles:
     push ax
-    push bx
-    push cx
     push dx
     push si
-    push di
-    push es
-    mov ax, [frame_seg]
-    cmp ax, 0xb800
+    mov ax,[frame_seg]
+    cmp ax,0xb800
     je commit_done
-    xor dx, dx
-commit_row:
-    xor dl, dl
-commit_col:
-    xor ax, ax
-    mov al, dh
-    shl ax, 1
-    shl ax, 1
-    shl ax, 1
-    shl ax, 1
-    xor bx, bx
-    mov bl, dl
-    add ax, bx
-    mov bx, ax
-    cmp byte ptr [upload_tiles+bx], 0
-    je commit_skip
-    mov byte ptr [upload_tiles+bx], 0
-    push dx
+    xor si,si
+commit_scan:
+    cmp byte ptr [upload_tiles+si],0
+    je commit_next
+    mov byte ptr [upload_tiles+si],0
+    mov ax,si
+    mov dl,al
+    and dl,15
+    shr ax,1
+    shr ax,1
+    shr ax,1
+    shr ax,1
+    mov dh,al
     call copy_tile_to_cga
-    pop dx
-commit_skip:
-    inc dl
-    cmp dl, 16
-    jb commit_col
-    inc dh
-    cmp dh, 16
-    jb commit_row
+commit_next:
+    inc si
+    cmp si,256
+    jb commit_scan
 commit_done:
-    pop es
-    pop di
     pop si
     pop dx
-    pop cx
-    pop bx
     pop ax
     ret
 
@@ -3335,35 +3345,17 @@ draw_smooth_sprite:
     call mark_dirty_rect
     mov bp, 12
 smooth_scanline:
-    xor ax, ax
-    mov al, [scan_y]
-    test al, 1
-    jz smooth_even
-    mov word ptr [scan_bank], 0x2000
-    jmp smooth_bank_ready
-smooth_even:
-    mov word ptr [scan_bank], 0
-smooth_bank_ready:
-    shr ax, 1
-    mov bx, ax
-    shl ax, 1
-    shl ax, 1
-    shl ax, 1
-    shl ax, 1
-    shl bx, 1
-    shl bx, 1
-    shl bx, 1
-    shl bx, 1
-    shl bx, 1
-    shl bx, 1
-    add ax, bx                    /* 16*halfY + 64*halfY */
-    add ax, [scan_bank]
-    mov di, ax
-    xor ax, ax
-    mov al, [scan_x]
-    shr ax, 1
-    shr ax, 1
-    add di, ax
+    /* Table removes 10 bit-shifts and two branches for every
+       row of every masked CGA tank/bullet/explosion sprite. */
+    xor bx,bx
+    mov bl,[scan_y]
+    shl bx,1
+    mov di,[cga_scanline_offsets+bx]
+    xor bx,bx
+    mov bl,[scan_x]
+    shr bx,1
+    shr bx,1
+    add di,bx
     mov cx, 5
 smooth_byte:
     mov al, es:[di]
@@ -3643,17 +3635,18 @@ smooth_explosion_ptrs: .word smooth_explosion_0, smooth_explosion_1, smooth_expl
 
 /* Return AL tile and SI writable address, DL/DH grid 0..15. */
 get_tile:
-    push bx
-    xor ax, ax
-    mov al, dh
-    mov bl, 16
-    mul bl
-    add al, dl
-    adc ah, 0
-    mov si, offset level_data
-    add si, ax
-    mov al, [si]
-    pop bx
+    /* Row*16 via four shifts; avoid 8088 MUL for every tile lookup. */
+    xor ax,ax
+    mov al,dh
+    shl ax,1
+    shl ax,1
+    shl ax,1
+    shl ax,1
+    add al,dl
+    adc ah,0
+    mov si,offset level_data
+    add si,ax
+    mov al,[si]
     ret
 
 draw_map:
@@ -3883,7 +3876,7 @@ draw_branding:
     push di
     push si
     mov bx,offset brand_tanks_glyphs
-    mov di,6467             /* x268, y160 */
+    mov di,6147             /* x268,y152: blank 8px title separator */
     call draw_brand_row
     mov bx,offset brand_copyright_glyphs
     mov di,6787             /* x268, y168 */
@@ -5346,8 +5339,8 @@ smoke_bonus_replay:
     jmp smoke_extra_fail
 9:
     pop es
-    /* Phase 73: copyright signature paints as WHITE on the black CGA
-       bottom-right field. Also check changing version V0.18. */
+    /* Phase 73: title now has a blank glyph-height before ©1982; the
+       release version is V0.19. */
     mov byte ptr [test_phase],73
     call draw_branding
     push es
@@ -5355,7 +5348,7 @@ smoke_bonus_replay:
     mov es,ax
     mov ax,[hud_t_char]
     not ax
-    cmp word ptr es:[6467],ax
+    cmp word ptr es:[6147],ax
     je 9f
     pop es
     jmp smoke_extra_fail
@@ -5374,6 +5367,76 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
+    /* Phase 75: retain live CGA palette after BIOS mode reset. The
+       choice is IN RAM ONLY (compatible with cassette-tape booting). */
+    mov byte ptr [test_phase],75
+    mov byte ptr [palette_index],3
+    call refresh_screen
+    cmp byte ptr [palette_index],3
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 76: lookup matches 8088 DIV12 across tile boundaries. */
+    mov byte ptr [test_phase],76
+    cmp byte ptr [pixel_y_tile_lookup],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [pixel_y_tile_lookup+11],0x0b
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [pixel_y_tile_lookup+12],0x10
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [pixel_y_tile_lookup+191],0xfb
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 77: a horizontal laser draws one continuous physical
+       pixel line and marks its tiles for ghost-free next-frame restore. */
+    mov byte ptr [test_phase],77
+    mov byte ptr [laser_start_x],32
+    mov byte ptr [laser_end_x],80
+    mov byte ptr [laser_start_y],72
+    mov byte ptr [laser_end_y],72
+    mov byte ptr [laser_dir],1
+    mov byte ptr [laser_flash_ticks],2
+    mov byte ptr [game_tick],0
+    call laser17_paint
+    cmp byte ptr [dirty_tiles+98],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [dirty_tiles+101],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 78: after laser expires, restore black background pixels
+       without leaving a trail (old sprite-splat regression). */
+    mov byte ptr [test_phase],78
+    mov byte ptr [laser_flash_ticks],0
+    mov byte ptr [bonus_active],0
+    mov byte ptr [enemy_active],0
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [ally_ticks],0
+    mov byte ptr [level_data+98],'.'
+    mov byte ptr [brick_masks+98],0
+    call render_frame
+    push es
+    mov ax,[frame_seg]
+    mov es,ax
+    mov al,es:[3130]     /* y78, x40: first pixel of horizontal beam */
+    and al,0xc0
+    cmp al,0
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    pop es
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
@@ -5395,15 +5458,23 @@ smoke_fail:
 /* Deterministic real-mode trace, not an AI simulator or source-only test. */
 trace_run:
     mov byte ptr [trace_count],0
+.ifdef PERF_BUILD
+    mov cx,384          /* exact 384 full visible frames, no real-time delay */
+.else
     mov cx,2048
+.endif
 trace_tick:
     push cx
     call game_tick_step
+.ifdef PERF_BUILD
+    call render_frame     /* benchmark the real frame workload every tick */
+.endif
     test byte ptr [game_tick],15
     jnz trace_no_sample
-    /* Only paint diagnostic frames every 16 ticks: 128 timed snapshots
-       cover the full first-stage assault without a large emulator cost. */
+.ifndef PERF_BUILD
+    /* Normal trace records 128 snapshots without painting every tick. */
     call render_frame
+.endif
     call trace_record
 trace_no_sample:
     pop cx
@@ -5636,7 +5707,7 @@ tactical_auto_glyphs: .word hud_blank_icon, hud_blank_icon, hud_a_char, hud_u_ch
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_a_char, hud_s_char, hud_i_char, hud_c_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_1, hud_digit_8
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_1, hud_digit_9
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
@@ -5670,6 +5741,26 @@ rect_y1: .byte 0
 scan_x: .byte 0
 scan_y: .byte 0
 scan_bank: .word 0
+/* y in 0..191; byte: high nibble tile row, low nibble y%12.
+   Out-of-range y in 192..255 is clamped to row 15 for sprite restores. */
+.p2align 1
+pixel_y_tile_lookup:
+.set y_lookup,0
+.rept 256
+    .if y_lookup < 192
+        .byte (((y_lookup / 12) << 4) | (y_lookup % 12))
+    .else
+        .byte 0xf0
+    .endif
+    .set y_lookup,y_lookup+1
+.endr
+.p2align 1
+cga_scanline_offsets:
+.set scan_lookup,0
+.rept 192
+    .word ((scan_lookup / 2) * 80 + (scan_lookup & 1) * 8192)
+    .set scan_lookup,scan_lookup+1
+.endr
 dirty_tiles: .space 256
 upload_tiles: .space 256
 frame_seg: .word 0xb800

@@ -36,3 +36,51 @@ For each, report minimum, median, p95 frame time, effective FPS, maximum input l
 - [Hardware-limited CGA graphics techniques](https://github.com/dschmenk/LORES)
 
 Keep all project assets original; do not copy third-party sprite or level data.
+
+
+## v0.19 — measured DOSBox-X CPU work reduction (SLOW1)
+
+A fixed-rate 8086 DOSBox-X run with *identical source-level benchmark harnesses*
+for v0.18 and v0.19. Two internally built diagnostic programs execute exactly
+384 game ticks, call `render_frame` **every tick**, and write the same 24
+16-byte trace snapshots. They are not installed as user-facing games.
+
+| DOSBox-X fixed cycles/ms | v0.18 | v0.19 | Less elapsed time |
+|---|---:|---:|---:|
+| 500 | 28.088 s | 20.033 s | **28.7%** |
+| 240 | 56.123 s | 40.051 s | **28.6%** |
+
+Both traces end with 6 enemies destroyed and the same current game state.
+Reproducibility: see the SLOW1 PowerShell scripts
+`C:\Users\Office20Agent\Office20\tanks-bench-full-v019.ps1`
+and `tanks-run-bench-240.ps1`, with matched independent builds under
+`C:\XT-Battle-City\bench-018\TANKS-PERF.COM` and
+`C:\XT-Battle-City\bench-019\TANKS-PERF.COM`.
+
+An additional 2048-tick replay rendering only every 16th frame changed
+from 52.120/52.062 s to 50.062/50.066 s at cycles/ms 500, approximately
+**4% lower execution time**. This demonstrates that the major win is the
+*renderer*, not a 28% general acceleration in AI/physics. All four replays
+defeated 20/20 enemies and saved the HQ.
+
+The reductions describe **emulated program runtime**, not hardware FPS.
+DOSBox-X's fixed cycle-count number does not reproduce exact 8088 timing;
+the actual IBM XT 4.77MHz target and CGA bus contention still need 86Box
+or hardware benchmarks.
+
+### Speedups: source details
+
+- A packed y/12, y%12 LUT replaces per-corner 8088 8-bit DIV and per-sprite
+  dirty-rect divisions; a separate 192-entry word table gives the interleaved
+  CGA scanline offset without repeated arithmetic inside 12-line sprite loops.
+- Map reads replace MUL by four shifts, while dirty marking, restoration,
+  and updates to VRAM operate on flat 256-byte tile arrays.
+- The AUTO/MAN indicator is painted only on state change, not every 18.2Hz tick.
+- Lasers draw a thin continuous line at actual hit length rather than spawning
+  multiple 16x12 masked projectile sprites. After expiration the normal
+  dirty-tile restoration erases it.
+
+There is no palette settings file or external state dependency. Palette index
+remains in process RAM across every BIOS CGA re-initialization, matching
+cassette and diskless boot requirements. After a full cold start it necessarily
+returns to the built-in default.

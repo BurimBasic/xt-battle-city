@@ -27,6 +27,13 @@ build/tanks-trace.o: src/dos/tanks.S src/dos/cga_assets.inc src/dos/tactics.inc 
 build/TANKS-TRACE.COM: build/tanks-trace.o
 	$(LD) -m elf_i386 -Ttext 0x100 --oformat binary -o $@ $<
 
+# CI-only no-clock 384 full-frame benchmark, never shipped to users.
+build/tanks-perf.o: src/dos/tanks.S src/dos/cga_assets.inc src/dos/tactics.inc src/dos/strategy_v13.inc src/dos/bonuses_v17.inc | build
+	$(AS) --32 --defsym TRACE_BUILD=1 --defsym PERF_BUILD=1 -o $@ $<
+
+build/TANKS-PERF.COM: build/tanks-perf.o
+	$(LD) -m elf_i386 -Ttext 0x100 --oformat binary -o $@ $<
+
 assets:
 	$(PYTHON) tools/build_cga_assets.py
 
