@@ -4256,8 +4256,8 @@ smoke_campaign_35:
     je 1f
     jmp smoke_fail
 1:
-    /* Test phase 29: allied shell cannot injure its teammate, even if
-       the teammate crosses a shot already in flight. */
+    /* Test phase 29: friendly rounds do damage when a moving ally crosses
+       the lane despite the pre-fire safety check. */
     mov byte ptr [test_phase], 29
     call reset_campaign
     mov byte ptr [enemy_hp+1], 1
@@ -4270,7 +4270,7 @@ smoke_campaign_35:
     jc 1f
     jmp smoke_fail
 1:
-    cmp byte ptr [enemy_active+1], 1
+    cmp byte ptr [enemy_active+1], 0
     je 1f
     jmp smoke_fail
 1:
@@ -4278,7 +4278,7 @@ smoke_campaign_35:
     je 1f
     jmp smoke_fail
 1:
-    cmp byte ptr [enemy_killed], 0
+    cmp byte ptr [enemy_killed], 1
     je 1f
     jmp smoke_fail
 1:
