@@ -9,11 +9,11 @@ ALLOWED = set(".#X~TPEBFI")
 def validate(text: str) -> list[str]:
     rows = text.splitlines()
     errors = []
-    if len(rows) != 13:
-        errors.append(f"expected 13 rows, got {len(rows)}")
+    if len(rows) != 16:
+        errors.append(f"expected 16 rows, got {len(rows)}")
     for n, row in enumerate(rows, 1):
-        if len(row) != 13:
-            errors.append(f"row {n}: expected 13 chars, got {len(row)}")
+        if len(row) != 16:
+            errors.append(f"row {n}: expected 16 chars, got {len(row)}")
         extra = set(row) - ALLOWED
         if extra:
             errors.append(f"row {n}: invalid characters {sorted(extra)!r}")

@@ -32,11 +32,11 @@ class GameplayWave5(unittest.TestCase):
         terrain = set()
         for n in range(1, 36):
             rows = a.get_map(ROOT / 'assets' / 'maps' / f'level{n:02}.map')
-            self.assertEqual(len(rows), 13)
-            self.assertTrue(all(len(row) == 13 for row in rows))
-            self.assertEqual(rows[0][0::6], 'EEE')
-            self.assertEqual(rows[11][6], 'P')
-            self.assertEqual(rows[12][6], 'B')
+            self.assertEqual(len(rows), 16)
+            self.assertTrue(all(len(row) == 16 for row in rows))
+            self.assertEqual(''.join(rows[0][i] for i in (1,7,13)), 'EEE')
+            self.assertEqual(rows[14][7], 'P')
+            self.assertEqual(rows[15][7], 'B')
             seen.add(tuple(rows))
             terrain.update(''.join(rows))
         self.assertEqual(len(seen), 35)
@@ -65,9 +65,9 @@ class GameplayWave5(unittest.TestCase):
         self.assertIn('mov byte ptr [test_phase], 20', src)
 
     def test_cga_memory_layout_with_many_sprites(self):
-        self.assertEqual(len(a.SPRITES), 55)
+        self.assertEqual(len(a.SPRITES), 67)
         self.assertLessEqual(len(a.SPRITES) * 48, 4096)
-        self.assertLess(648 + 12*480 + 5*80 + 0x2000 + 4*12+4, 16384)
+        self.assertLess(0 + 15*480 + 5*80 + 0x2000 + 4*12+4, 16384)
 
 
 if __name__ == '__main__':

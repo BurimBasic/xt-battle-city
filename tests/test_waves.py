@@ -14,15 +14,15 @@ class WaveTests(unittest.TestCase):
         self.assertEqual(len({tuple(m) for m in maps}), 9)
         for stage, rows in enumerate(maps, 1):
             with self.subTest(stage=stage):
-                self.assertEqual(rows[0][0], 'E')
-                self.assertEqual(rows[0][6], 'E')
-                self.assertEqual(rows[0][12], 'E')
-                self.assertEqual(rows[11][6], 'P')
-                self.assertEqual(rows[12][6], 'B')
-                self.assertEqual(rows[11][5], '#')
-                self.assertEqual(rows[11][7], '#')
-                self.assertEqual(rows[12][5], '#')
-                self.assertEqual(rows[12][7], '#')
+                self.assertEqual(rows[0][1], 'E')
+                self.assertEqual(rows[0][7], 'E')
+                self.assertEqual(rows[0][13], 'E')
+                self.assertEqual(rows[14][7], 'P')
+                self.assertEqual(rows[15][7], 'B')
+                self.assertEqual(rows[14][6], '#')
+                self.assertEqual(rows[14][8], '#')
+                self.assertEqual(rows[15][6], '#')
+                self.assertEqual(rows[15][8], '#')
 
     def test_usable_enemy_direction_sprites(self):
         for name in ('enemy_up', 'enemy_right', 'enemy', 'enemy_left', 'enemy_bullet', 'fast_down', 'power_down', 'armor_down'):
@@ -51,15 +51,15 @@ class WaveTests(unittest.TestCase):
         lines = sprites.generate_hud()
         self.assertEqual(len(sprites.hud_glyph(sprites.HUD_TANK)), 16)
         self.assertEqual(len(sprites.hud_glyph(sprites.HUD_FLAG)), 16)
-        self.assertEqual(len(lines), 5 + 2*16)
+        self.assertEqual(len(lines), 5 + 2*17)
         self.assertIn('hud_star_icon:', lines)
         self.assertIn('hud_indicator_offsets:', lines)
         self.assertIn('hud_digit_ptrs:', lines)
         # Map start x32 and width208; sidebar starts x248 (8px gap).
-        self.assertEqual(648, 640 + 32//4)
-        self.assertLessEqual(32 + 13*16, 248)
-        self.assertEqual(248 + 72, 320)
-        self.assertLess(7106 + 0x2000 + 3*80 + 2, 16384)
+        self.assertEqual(0, 0 + 0//4)
+        self.assertLessEqual(0 + 16*16, 256)
+        self.assertEqual(256 + 64, 320)
+        self.assertLess(3587 + 5*2 + 0x2000 + 3*80 + 2, 16384)
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,3 +1,13 @@
+## v0.8 — CGA art, moving tracks, debris, friendly fire and compact HUD
+
+- Detailed original tanks/walls/water/ice/forest and base; 2-phase directional treads.
+- Four-frame debris explosion (single bounded instance, no full redraw buffer).
+- Enemy projectiles can hit other enemies, without awarding player score.
+- Press C to cycle four supported hardware RGBI CGA palette/intensity presets.
+- Wider/taller 16×16 map (256×192 pixels), compact top-right HUD and live score.
+- 35 stage maps adapted to new geometry, assembler ISA and DOS regression tests.
+- Full 320px playable width and certified 8088 FPS remain future work.
+
 ## v0.7 — 35-stage campaign, stage navigation and optional AdLib (2026-11-09)
 - CI map checks now validate all 35 maps in a single Python process (faster on slow hosts).
 - Added conservative OPL2 timer probe and one-channel FM effects with PC Speaker fallback.

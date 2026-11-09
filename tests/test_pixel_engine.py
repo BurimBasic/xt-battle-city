@@ -15,7 +15,7 @@ def bitmap_occupied(mask: int, x: int, y: int) -> bool:
 
 class PixelEngineTests(unittest.TestCase):
     def test_sprite_mask_colours_are_consistent(self):
-        self.assertEqual(len(a.SMOOTH_SPRITES), 32)
+        self.assertEqual(len(a.SMOOTH_SPRITES), 44)
         for name in a.SMOOTH_SPRITES:
             data = a.pack_smooth(a.SPRITES[name])
             self.assertEqual(len(data), 4 * 12 * 10)
@@ -39,14 +39,14 @@ class PixelEngineTests(unittest.TestCase):
 
     def test_pixel_boundaries_and_field(self):
         # World 13 tiles of 16x12, viewport at (32,16), panel at x=248.
-        self.assertLessEqual(32 + 192 + 16, 248)
-        self.assertLessEqual(16 + 144 + 12, 200)
-        for x,y in ((0,0),(3,7),(96,132),(192,144)):
+        self.assertLessEqual(0 + 240 + 16, 256)
+        self.assertLessEqual(0 + 180 + 12, 200)
+        for x,y in ((0,0),(3,7),(112,168),(240,180)):
             left,right=x+2,x+13
             top,bottom=y+1,y+10
             self.assertGreaterEqual(left,0)
-            self.assertLess(right,208)
-            self.assertLess(bottom,156)
+            self.assertLess(right,256)
+            self.assertLess(bottom,192)
             self.assertGreaterEqual(top,0)
 
     def test_source_uses_pixel_input_and_dirty_compositing(self):

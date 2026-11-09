@@ -18,30 +18,32 @@ def sprite(*rows):
     return rows
 
 EMPTY = sprite(*(['.'*16] * 12))
+# Detailed, purely original pixel art, designed for the real four-colour CGA
+# RGBI palette. Every texture is exactly 16x12, without source ROM assets.
 BRICK = sprite(
- '................', '2222222222222222', '2222222.22222222',
- '2222222.22222222', '2222222.22222222', '................',
- '222.222222222.22', '222.222222222.22', '222.222222222.22',
- '222.222222222.22', '2222222222222222', '................')
+ '2222222222222222', '2332223223222232', '2222222222222222',
+ '1111111111111111', '2222222222222222', '2223222232223222',
+ '2222222222222222', '1111111111111111', '2222222222222222',
+ '2232222322232223', '2222222222222222', '1111111111111111')
 STEEL = sprite(
- '3333333333333333', '3..............3', '3.333333333333.3',
- '3.3............3', '3.3.33333333.3.3', '3.3.3......3.3.3',
- '3.3.3......3.3.3', '3.3.33333333.3.3', '3.3............3',
- '3.333333333333.3', '3..............3', '3333333333333333')
+ '3333333333333333', '3111111111111113', '3133333333333313',
+ '3131..........13', '3131.333333.1.13', '3131.3....3.1.13',
+ '3131.3....3.1.13', '3131.333333.1.13', '3131..........13',
+ '3133333333333313', '3111111111111113', '3333333333333333')
 WATER = sprite(
- '1111111111111111', '1111111111111111', '11..11111..11111',
- '1111111111111111', '111111..11111111', '1111111111111111',
- '1111111111111111', '..11111111..1111', '1111111111111111',
- '11111111111..111', '1111111111111111', '1111111111111111')
-# Extra terrain: forest hides part of a tank, ice will preserve motion briefly.
+ '1111111111111111', '11..1111....1111', '11111...11111111',
+ '1111111111111111', '111..1111...1111', '1111111111111111',
+ '11...11111....11', '1111111111111111', '11111...11111111',
+ '1111111111111111', '11..1111111..111', '1111111111111111')
 FOREST = sprite(*tuple(
-    ''.join('1' if (x * 3 + y * 5) % 9 < 3 else ('2' if (x+y) % 11 == 0 else '.')
-            for x in range(16)) for y in range(12)
-))
+    ''.join('1' if (x * 17 + y * 13 + (x*y)//3) % 11 < 4 else
+            ('3' if (x+2*y) % 17 == 0 else '.')
+            for x in range(16)) for y in range(12)))
 ICE = sprite(*tuple(
-    ''.join('3' if y in (0, 11) or x in (0, 15) else
-            ('1' if (x+y) % 7 < 2 else '.') for x in range(16)) for y in range(12)
-))
+    ''.join('3' if x in (0,15) or y in (0,11) else
+            ('1' if (x + y*3) % 9 in (0,1) else
+             ('3' if (x*3+y) % 19 == 0 else '.'))
+            for x in range(16)) for y in range(12)))
 
 # Each wall tracks four independent quadrants. Fourteen intermediate shapes
 # deliberately preserve the brick texture of the original *project* artwork.
@@ -75,32 +77,82 @@ def bonus_sprite(kind):
     return sprite(*(''.join(row) for row in g))
 
 BASE = sprite(
- '................', '......3333......', '.....333333.....',
- '....33333333....', '....33....33....', '...333.33.333...',
- '...333.33.333...', '....33....33....', '....33333333....',
- '.....333333.....', '......3333......', '................')
-TANK_UP = sprite(
- '......11........', '......11........', '..33..11..33....',
- '..3111111133....', '..3113311133....', '..3113311133....',
- '..3113311133....', '..3111111133....', '..3111111133....',
- '..33......33....', '..33......33....', '................')
-# Render directions by rotating a 12x12 centered graphic in a 16x12 tile;
-# the sprite is 12 wide and 12 tall, then left-padded by 2 pixels.
-def tank_grid():
-    return [list(r[2:14]) for r in TANK_UP]
+ '................', '.....333333.....', '....31111113....',
+ '...3123333213...', '..312333333213..', '..312332233213..',
+ '..312332233213..', '..312333333213..', '...3123333213...',
+ '....31111113....', '.....333333.....', '................')
 
+def new_tank_up(body='1',trim='3'):
+    """Track, turret, gun, armour plates and rivets in 12x12 pixels."""
+    g=[['.']*12 for _ in range(12)]
+    for y in range(1,11):
+        for x in (0,1,10,11):
+            g[y][x] = body if x in (1,10) else trim
+        for x in range(3,9):
+            g[y][x] = body
+    for y in (2,6,9):
+        for x in (0,11):g[y][x]=body
+    for y in range(3,10):
+        g[y][2]=trim;g[y][9]=trim
+    for x in range(3,9):
+        g[3][x]=trim
+        g[9][x]=trim
+    for y in range(1,5):g[y][5]=trim;g[y][6]=trim
+    for y in range(4,8):
+        for x in range(4,8):g[y][x]='2' if y==6 else trim
+    for x,y in ((3,5),(8,5),(3,8),(8,8)):
+        g[y][x]=trim
+    g[0][5]=trim;g[0][6]=trim
+    return sprite(*('..'+''.join(row)+'..' for row in g))
+
+TANK_UP = new_tank_up()
+
+def tank_grid():return [list(r[2:14]) for r in TANK_UP]
 def rotate_grid(g):
-    n = len(g)
-    assert all(len(row) == n for row in g)
+    n=len(g)
+    assert all(len(row)==n for row in g)
     return [[g[n-1-x][y] for x in range(n)] for y in range(n)]
+def padded(g): return sprite(*('..'+''.join(r)+'..' for r in g))
 
-def padded(g):
-    return sprite(*('..' + ''.join(r) + '..' for r in g))
+G_UP=tank_grid()
+TANK_RIGHT=padded(rotate_grid(G_UP))
+TANK_DOWN=padded(rotate_grid(rotate_grid(G_UP)))
+TANK_LEFT=padded(rotate_grid(rotate_grid(rotate_grid(G_UP))))
 
-G_UP = tank_grid()
-TANK_RIGHT = padded(rotate_grid(G_UP))
-TANK_DOWN = padded(rotate_grid(rotate_grid(G_UP)))
-TANK_LEFT = padded(rotate_grid(rotate_grid(rotate_grid(G_UP))))
+def track_overlay(direction,phase):
+    """Two animated tread phases; directional overlay needs only 8 small sprites."""
+    rows=[['.']*12 for _ in range(12)]
+    for y in range(1,11):
+        if (y+2*phase)%4 < 2:
+            for x in (0,11):rows[y][x]='3'
+        if (y+2*phase)%5==0:
+            rows[y][1]='2';rows[y][10]='2'
+    for x in (1,10):
+        rows[1][x]='3';rows[10][x]='3'
+    g=rows
+    for _ in range(direction):g=rotate_grid(g)
+    return padded(g)
+
+TRACK_SPRITES={f'tread_{d}_{phase}':track_overlay(d,phase)
+               for d in range(4) for phase in range(2)}
+
+def explosion_sprite(frame):
+    """Four six-colour-frame shapes suggest fire, smoke, shrapnel movement."""
+    g=[['.']*16 for _ in range(12)]
+    if frame==0:
+        points=[(8,5,3),(7,5,3),(8,6,3),(7,6,3),(6,5,2),(9,6,2)]
+    elif frame==1:
+        points=[(8,2,3),(8,9,3),(3,5,2),(12,5,2),(5,3,3),(10,3,3),
+                (5,8,3),(10,8,3),(7,4,2),(8,5,3),(6,6,2),(9,6,2)]
+    elif frame==2:
+        points=[(1,2,3),(14,1,2),(2,9,2),(13,10,3),(4,5,2),
+                (11,5,2),(6,2,3),(10,8,3),(7,6,1),(9,4,1)]
+    else:
+        points=[(0,0,2),(15,2,3),(3,11,3),(14,10,2),(5,4,1),
+                (10,7,1),(8,0,2)]
+    for x,y,c in points:g[y][x]=str(c)
+    return sprite(*(''.join(r) for r in g))
+EXPLOSIONS={f'explosion_{i}':explosion_sprite(i) for i in range(4)}
 
 # White arc around the player's own original tank pixels during invulnerability.
 def shield_sprite(art):
@@ -179,6 +231,8 @@ SPRITES = {
     'enemy_bullet': ENEMY_BULLET,
     **{'brick_mask_'+str(i): brick_mask_sprite(i) for i in range(16)},
     **{'bonus_'+kind: bonus_sprite(kind) for kind in BONUS_LETTERS},
+    **TRACK_SPRITES,
+    **EXPLOSIONS,
 }
 
 
@@ -208,6 +262,8 @@ SMOOTH_SPRITES = [
     'armor_up','armor_right','armor_down','armor_left',
     'bullet','enemy_bullet',
     'bonus_star','bonus_helmet','bonus_grenade','bonus_shovel','bonus_clock','bonus_life',
+    *TRACK_SPRITES.keys(),
+    *EXPLOSIONS.keys(),
 ]
 
 def pack_smooth(rows):
@@ -232,7 +288,7 @@ def pack_smooth(rows):
 
 def get_map(map_path):
     rows = [line.strip() for line in map_path.read_text(encoding='ascii').splitlines() if line.strip()]
-    assert len(rows) == 13 and all(len(x) == 13 for x in rows)
+    assert len(rows) == 16 and all(len(x) == 16 for x in rows)
     assert set(''.join(rows)) <= set('.#~TEPBFI')
     assert ''.join(rows).count('P') == 1
     assert ''.join(rows).count('B') == 1
@@ -256,6 +312,7 @@ HUD_FONT = {
  '9': ('.###.', '#...#', '#...#', '.####', '....#', '....#', '.###.'),
  'p': ('####.', '#...#', '#...#', '####.', '#....', '#....', '#....'),
  'x': ('.....', '.....', '#...#', '.#.#.', '..#..', '.#.#.', '#...#'),
+ 's': ('.####', '#....', '#....', '.###.', '....#', '....#', '####.'),
 }
 HUD_TANK = (
  '...##...', '.######.', '###..###', '########',
@@ -290,7 +347,7 @@ def generate_hud():
     lines = [
         '/* HUD CGA 8x8 glyphs, generated from original pixel-font patterns. */',
         'hud_indicator_offsets:',
-        '    .word ' + ', '.join(str(640 + 320 * i + 64) for i in range(10)),
+        '    .word ' + ', '.join(str(225 + 480 * i) for i in range(5)),
         'hud_digit_ptrs:',
         '    .word ' + ', '.join('hud_digit_' + str(i) for i in range(10)),
     ]
@@ -301,6 +358,7 @@ def generate_hud():
         'hud_star_icon': hud_glyph(('...##...', '#.####.#', '.######.', '########', '########', '.######.', '#.####.#', '...##...')),
         'hud_p_char': hud_font_glyph('p'),
         'hud_x_char': hud_font_glyph('x'),
+        'hud_s_char': hud_font_glyph('s'),
     }
     for digit in range(10):
         data['hud_digit_'+str(digit)] = hud_font_glyph(str(digit))
@@ -321,15 +379,15 @@ def generate(map_path):
         'sprite_table:',
         '    .word ' + ', '.join('sprite_' + name for name in SPRITES),
         'tile_row_offsets:',
-        '    .word ' + ', '.join(str(648+480*i) for i in range(13)),
+        '    .word ' + ', '.join(str(480*i) for i in range(16)),
         'level_template:',
     ]
     rows = get_map(map_path)
     for row in rows:
         lines.append('    .ascii "' + row + '"')
     lines.append('level_end:')
-    lines.append('    .if (level_end - level_template) != 169')
-    lines.append('    .error "Level must have exactly 169 cells"')
+    lines.append('    .if (level_end - level_template) != 256')
+    lines.append('    .error "Level must have exactly 256 cells"')
     lines.append('    .endif')
     for stage in range(2, 36):
         staged = get_map(ROOT / 'assets' / 'maps' / f'level{stage:02}.map')

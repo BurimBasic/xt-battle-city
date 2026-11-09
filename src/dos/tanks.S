@@ -1,7 +1,7 @@
-/* XT Battle City v0.7: original CGA tile arcade for DOS, 8086/8088.
+/* XT Battle City v0.8: original CGA tile arcade for DOS, 8086/8088.
  * Gameplay: 20-enemy waves, 4 tank classes, segmented bricks, 6 pickups,
  * destructible bricks, lives, headquarters, score and stage transitions.
- * 16x12 CGA cells, 13x13 battlefield. Original artwork and stage layouts.
+ * 16x12 CGA cells, 16x16 battlefield. Original artwork and stage layouts.
  * This is NOT the Poisk-1 native version and is NOT a pixel-perfect NES port.
  */
 .code16
@@ -21,6 +21,8 @@ _start:
     mov ax, 0x0b00
     mov bx, 0x0101
     int 0x10
+    mov byte ptr [palette_index], 0
+    call apply_cga_palette
     call draw_map
     call draw_sidebar_background
     call draw_hud
@@ -98,12 +100,12 @@ load_stage:
     shl bx, 1
     mov si, [stage_ptrs+bx]
     mov di, offset level_data
-    mov cx, 169
+    mov cx, 256
     rep movsb
     pop es
     /* Strip static E/P markers, replace with dynamic entities. */
     mov di, offset level_data
-    mov cx, 169
+    mov cx, 256
 clear_markers:
     cmp byte ptr [di], 'E'
     je clear_marker
@@ -114,8 +116,8 @@ clear_marker:
 marker_next:
     inc di
     loop clear_markers
-    mov byte ptr [player_col], 6
-    mov byte ptr [player_row], 11
+    mov byte ptr [player_col], 7
+    mov byte ptr [player_row], 14
     mov byte ptr [player_dir], 0
     mov byte ptr [player_shield], 24
     mov byte ptr [bullet_active], 0
@@ -134,8 +136,8 @@ marker_next:
     mov byte ptr [sound_ticks], 0
     mov byte ptr [held_keys], 0
     mov byte ptr [pending_commands], 0
-    mov byte ptr [player_px], 96
-    mov byte ptr [player_py], 132
+    mov byte ptr [player_px], 112
+    mov byte ptr [player_py], 168
     mov byte ptr [paint_player_valid], 0
     mov byte ptr [paint_bullet_valid], 0
     mov byte ptr [paint_bonus_valid], 0
@@ -147,11 +149,11 @@ marker_next:
     mov cx, 4
     rep stosb
     mov di, offset dirty_tiles
-    mov cx, 169
+    mov cx, 256
     rep stosb
     mov si, offset level_data
     mov di, offset brick_masks
-    mov cx, 169
+    mov cx, 256
 init_bricks:
     xor al, al
     cmp byte ptr [si], '#'
@@ -316,7 +318,7 @@ right_key:
     mov byte ptr [player_dir], 1
     mov dl, [player_col]
     mov dh, [player_row]
-    cmp dl, 12
+    cmp dl, 15
     je player_turn_only
     inc dl
     jmp player_move
@@ -324,7 +326,7 @@ down_key:
     mov byte ptr [player_dir], 2
     mov dl, [player_col]
     mov dh, [player_row]
-    cmp dh, 12
+    cmp dh, 15
     je player_turn_only
     inc dh
     jmp player_move
@@ -440,6 +442,7 @@ game_tick_step:
     inc byte ptr [game_tick]
     call move_player_smooth
     call sound_tick
+    call tick_explosion
     call tick_powerups
     call slide_player_smooth
     cmp byte ptr [player_shield], 0
@@ -1052,7 +1055,7 @@ enemy_move_unfiltered:
     and al, 15
     cmp al, 11
     jb enemy_keep_direction
-    cmp al, 13
+    cmp al, 16
     jae enemy_random_dir
     mov al, 2
     jmp enemy_direction_chosen
@@ -1074,14 +1077,14 @@ enemy_direction_chosen:
 enemy_not_up:
     cmp al, 1
     jne enemy_not_right
-    cmp dl, 12
+    cmp dl, 15
     je enemy_move_next
     inc dl
     jmp enemy_target
 enemy_not_right:
     cmp al, 2
     jne enemy_not_down
-    cmp dh, 12
+    cmp dh, 15
     je enemy_move_next
     inc dh
     jmp enemy_target
@@ -1336,7 +1339,7 @@ step_position:
 pos_not_up:
     cmp al, 1
     jne pos_not_right
-    cmp dl, 12
+    cmp dl, 15
     je pos_off
     inc dl
     clc
@@ -1344,7 +1347,7 @@ pos_not_up:
 pos_not_right:
     cmp al, 2
     jne pos_not_down
-    cmp dh, 12
+    cmp dh, 15
     je pos_off
     inc dh
     clc
@@ -1452,8 +1455,8 @@ shot_player_hit:
 player_respawn:
     mov dl, [player_col]
     mov dh, [player_row]
-    mov byte ptr [player_col], 6
-    mov byte ptr [player_row], 11
+    mov byte ptr [player_col], 7
+    mov byte ptr [player_row], 14
     mov byte ptr [player_dir], 0
     mov byte ptr [player_shield], 24
     call draw_cell
@@ -1558,16 +1561,16 @@ draw_stage_result_box:
     mov ax, 0xb800
     mov es, ax
     xor ax, ax
-    mov di, 1128             /* y28 /2 *80 + x32/4 */
+    mov di, 1120             /* y28 /2 *80 + x0 */
     mov bx, 64               /* 128 physical scan lines */
 stage_box_row:
     push di
-    mov cx, 26
+    mov cx, 32
     rep stosw
     pop di
     push di
     add di, 0x2000
-    mov cx, 26
+    mov cx, 32
     rep stosw
     pop di
     add di, 80
@@ -1646,16 +1649,16 @@ draw_result_box:
     mov ax, 0xb800
     mov es, ax
     xor ax, ax
-    mov di, 2888             /* (72/2)*80 + 32/4 */
+    mov di, 2880             /* y72 even-bank, x0 */
     mov bx, 32               /* 64 physical scan lines */
 result_box_row:
     push di
-    mov cx, 26               /* 208 pixels = 52 bytes */
+    mov cx, 32               /* 256 pixels = 64 bytes */
     rep stosw
     pop di
     push di
     add di, 0x2000
-    mov cx, 26
+    mov cx, 32
     rep stosw
     pop di
     add di, 80
@@ -1819,9 +1822,9 @@ enemy_pixel_collision:
 projectile_probe:
     push bx
     push cx
-    cmp dl, 208
+    cmp dl, 255
     jae projectile_outside
-    cmp dh, 156
+    cmp dh, 192
     jae projectile_outside
     mov [probe_x_original], dl
     mov al, dl
@@ -1903,6 +1906,33 @@ chip_brick_dirty:
     pop dx
     pop bx
     pop ax
+    ret
+
+/* Single bounded explosion with four animation frames, at most one FX actor.
+ * Input DL/DH = impact position; must be in 0..192 / 0..144.
+ * Uses masked sprites, so existing CGA background cells survive intact.
+ */
+spawn_explosion:
+    push ax
+    cmp dl, 240
+    jbe 1f
+    mov dl, 240
+1:
+    cmp dh, 180
+    jbe 1f
+    mov dh, 180
+1:
+    mov [explosion_x], dl
+    mov [explosion_y], dh
+    mov byte ptr [explosion_ticks], 8
+    pop ax
+    ret
+
+tick_explosion:
+    cmp byte ptr [explosion_ticks], 0
+    je tick_explosion_done
+    dec byte ptr [explosion_ticks]
+tick_explosion_done:
     ret
 
 /* Bullet center is at sprite top-left + (8,6); 3px x or 3px y per tick.
@@ -2024,6 +2054,9 @@ smooth_bullet_not_steel:
     jne smooth_bullet_impact
     mov byte ptr [game_state], 2
 smooth_bullet_impact:
+    mov dl, [bullet_px]
+    mov dh, [bullet_py]
+    call spawn_explosion
     mov ax, 2100
     call sound_play
 smooth_bullet_out:
@@ -2078,6 +2111,10 @@ smooth_shot_substep:
     mov byte ptr [bullet_active], 0
     jmp smooth_shot_out
 smooth_shot_no_bullet:
+    call shot_hits_other_enemy
+    jnc smooth_shot_no_friend
+    jmp smooth_shot_out
+smooth_shot_no_friend:
     mov al, [shot_px+bx]
     add al, 8
     sub al, [player_px]
@@ -2093,10 +2130,10 @@ smooth_shot_no_bullet:
     dec byte ptr [lives]
     cmp byte ptr [lives], 0
     je smooth_player_dead
-    mov byte ptr [player_px], 96
-    mov byte ptr [player_py], 132
-    mov byte ptr [player_col], 6
-    mov byte ptr [player_row], 11
+    mov byte ptr [player_px], 112
+    mov byte ptr [player_py], 168
+    mov byte ptr [player_col], 7
+    mov byte ptr [player_row], 14
     mov byte ptr [player_dir], 0
     mov byte ptr [player_shield], 60
     call draw_hud
@@ -2124,10 +2161,62 @@ smooth_shot_not_brick:
     jne smooth_shot_impact
     mov byte ptr [game_state], 2
 smooth_shot_impact:
+    mov dl, [shot_px+bx]
+    mov dh, [shot_py+bx]
+    call spawn_explosion
     mov ax, 2400
     call sound_play
 smooth_shot_out:
     mov byte ptr [shot_active+bx], 0
+    ret
+
+/* All enemy shells are live projectiles, including against OTHER enemies.
+ * BX = shooter slot; exclude that tank to prevent self damage.
+ * Carry set on hit. Friendly kills count toward wave clearance, but the player
+ * gets neither points nor a bonus for enemies destroying one another.
+ */
+shot_hits_other_enemy:
+    push ax
+    push si
+    push dx
+    xor si, si
+friendly_target_loop:
+    cmp si, bx
+    je friendly_target_next
+    cmp byte ptr [enemy_active+si], 0
+    je friendly_target_next
+    mov al, [shot_px+bx]
+    add al, 8
+    sub al, [enemy_px+si]
+    cmp al, 16
+    jae friendly_target_next
+    mov al, [shot_py+bx]
+    add al, 6
+    sub al, [enemy_py+si]
+    cmp al, 12
+    jae friendly_target_next
+    dec byte ptr [enemy_hp+si]
+    jnz friendly_target_hit
+    mov byte ptr [enemy_active+si], 0
+    inc byte ptr [enemy_killed]
+    call draw_hud
+friendly_target_hit:
+    mov dl, [shot_px+bx]
+    mov dh, [shot_py+bx]
+    call spawn_explosion
+    mov ax, 2600
+    call sound_play
+    stc
+    jmp friendly_target_done
+friendly_target_next:
+    inc si
+    cmp si, 4
+    jb friendly_target_loop
+    clc
+friendly_target_done:
+    pop dx
+    pop si
+    pop ax
     ret
 
 /* ========= CGA smooth engine (8086-compatible, no offscreen buffer) =========
@@ -2234,6 +2323,11 @@ irq_no_pgup:
     or byte ptr [pending_commands], 64
     jmp irq_ack
 irq_no_pgdn:
+    cmp al, 0x2e             /* C: cycle CGA palette */
+    jne irq_not_palette
+    or byte ptr [pending_commands], 128
+    jmp irq_ack
+irq_not_palette:
     cmp al, 0x32
     jne irq_ack
     or byte ptr [pending_commands], 8
@@ -2294,6 +2388,10 @@ controls_not_exit:
     ret
 controls_not_restart:
     mov bl, al
+    test bl, 128
+    jz controls_no_palette
+    call cycle_cga_palette
+controls_no_palette:
     test bl, 8
     jz controls_not_mute
     xor byte ptr [sound_muted], 1
@@ -2355,6 +2453,27 @@ controls_fire:
     jne controls_done
     call do_fire
 controls_done:
+    ret
+
+/* CGA hardware register 3D9h: four legal RGBI palette/intensity pairs.
+ * No INT10 mode switch: video RAM is unchanged and cycling is constant time.
+ * Classic CGA mode 4, background black; no undocumented colour tricks.
+ */
+cycle_cga_palette:
+    inc byte ptr [palette_index]
+    and byte ptr [palette_index], 3
+apply_cga_palette:
+    push ax
+    push bx
+    push dx
+    xor bx, bx
+    mov bl, [palette_index]
+    mov al, [cga_palettes+bx]
+    mov dx, 0x3d9
+    out dx, al
+    pop dx
+    pop bx
+    pop ax
     ret
 
 /* One movement pixel; input AL=direction. Caller loops twice per game tick.
@@ -2480,7 +2599,7 @@ step_pixel:
 step_pixel_not_up:
     cmp al, 1
     jne step_pixel_not_right
-    cmp dl, 192
+    cmp dl, 240
     jae step_pixel_off
     inc dl
     clc
@@ -2488,7 +2607,7 @@ step_pixel_not_up:
 step_pixel_not_right:
     cmp al, 2
     jne step_pixel_not_down
-    cmp dh, 144
+    cmp dh, 180
     jae step_pixel_off
     inc dh
     clc
@@ -2511,9 +2630,9 @@ pixel_is_blocked:
     push bx
     push cx
     push si
-    cmp dl, 208
+    cmp dl, 255
     jae pixel_blocked
-    cmp dh, 156
+    cmp dh, 192
     jae pixel_blocked
     mov al, dl
     shr al, 1
@@ -2640,9 +2759,9 @@ mark_dirty_rect:
 mark_rect_row:
     mov dl, [rect_x0]
 mark_rect_col:
-    cmp dl, 13
+    cmp dl, 16
     jae mark_rect_next_col
-    cmp dh, 13
+    cmp dh, 16
     jae mark_rect_next_col
     call get_tile
     sub si, offset level_data
@@ -2683,6 +2802,13 @@ old_bullet_done:
     call mark_dirty_rect
 old_bonus_done:
     mov byte ptr [paint_bonus_valid], 0
+    cmp byte ptr [paint_explosion_valid], 0
+    je old_explosion_done
+    mov dl, [paint_explosion_x]
+    mov dh, [paint_explosion_y]
+    call mark_dirty_rect
+old_explosion_done:
+    mov byte ptr [paint_explosion_valid], 0
     xor bx, bx
 old_entities_loop:
     cmp byte ptr [paint_enemy_valid+bx], 0
@@ -2719,10 +2845,10 @@ flush_col:
 flush_skip:
     pop dx
     inc dl
-    cmp dl, 13
+    cmp dl, 16
     jb flush_col
     inc dh
-    cmp dh, 13
+    cmp dh, 16
     jb flush_row
     ret
 
@@ -2743,7 +2869,6 @@ draw_smooth_sprite:
     add si, ax
     mov [scan_x], dl
     mov al, dh
-    add al, 16
     mov [scan_y], al
     mov ax, 0xb800
     mov es, ax
@@ -2778,7 +2903,6 @@ smooth_bank_ready:
     shr ax, 1
     shr ax, 1
     add di, ax
-    add di, 8                     /* world starts at screen x32 */
     mov cx, 5
 smooth_byte:
     mov al, es:[di]
@@ -2870,11 +2994,29 @@ paint_enemy_standard:
     mov si, [smooth_enemy_ptrs+si]
 paint_enemy_selected:
     call draw_smooth_sprite
+    /* Tread phase is tied to position: stops immediately if tank stops. */
+    mov dl, [enemy_px+bx]
+    mov dh, [enemy_py+bx]
+    xor ax, ax
+    mov al, [enemy_dir+bx]
+    shl al, 1
+    mov ah, [enemy_px+bx]
+    xor ah, [enemy_py+bx]
+    shr ah, 1
+    and ah, 1
+    or al, ah
+    xor ah, ah
+    shl ax, 1
+    mov si, ax
+    mov si, [smooth_tread_ptrs+si]
+    call draw_smooth_sprite
     pop bx
 paint_enemy_next:
     inc bx
     cmp bx, 4
-    jb paint_enemy_loop
+    jae paint_enemy_finished
+    jmp paint_enemy_loop
+paint_enemy_finished:
     /* Player's tank. */
     mov dl, [player_px]
     mov dh, [player_py]
@@ -2891,6 +3033,20 @@ paint_enemy_next:
 paint_player_normal:
     mov si, [smooth_player_ptrs+bx]
 paint_player_smooth:
+    call draw_smooth_sprite
+    /* Moving tread overlay, with no extra per-frame dynamic buffers. */
+    mov dl, [player_px]
+    mov dh, [player_py]
+    xor bx, bx
+    mov bl, [player_dir]
+    shl bx, 1
+    mov al, [player_px]
+    xor al, [player_py]
+    shr al, 1
+    and al, 1
+    or bl, al
+    shl bx, 1
+    mov si, [smooth_tread_ptrs+bx]
     call draw_smooth_sprite
     /* Player projectile and up to four enemy projectiles. */
     cmp byte ptr [bullet_active], 0
@@ -2918,6 +3074,27 @@ paint_next_shot:
     inc bx
     cmp bx, 4
     jb paint_shot_loop
+    /* One bounded four-phase explosion: debris expands without full-screen redraw. */
+    cmp byte ptr [explosion_ticks], 0
+    je paint_explosion_done
+    mov dl, [explosion_x]
+    mov dh, [explosion_y]
+    mov [paint_explosion_x], dl
+    mov [paint_explosion_y], dh
+    mov byte ptr [paint_explosion_valid], 1
+    xor ax, ax
+    mov al, 8
+    sub al, [explosion_ticks]
+    shr al, 1
+    cmp al, 3
+    jbe paint_explosion_valid_frame
+    mov al, 3
+paint_explosion_valid_frame:
+    shl ax, 1
+    mov bx, ax
+    mov si, [smooth_explosion_ptrs+bx]
+    call draw_smooth_sprite
+paint_explosion_done:
     pop bp
     pop di
     pop si
@@ -2937,14 +3114,18 @@ smooth_fast_ptrs: .word smooth_fast_up, smooth_fast_right, smooth_fast_down, smo
 smooth_power_ptrs: .word smooth_power_up, smooth_power_right, smooth_power_down, smooth_power_left
 smooth_armor_ptrs: .word smooth_armor_up, smooth_armor_right, smooth_armor_down, smooth_armor_left
 smooth_bonus_ptrs: .word smooth_bonus_star, smooth_bonus_helmet, smooth_bonus_grenade, smooth_bonus_shovel, smooth_bonus_clock, smooth_bonus_life
+smooth_tread_ptrs:
+    .word smooth_tread_0_0, smooth_tread_0_1, smooth_tread_1_0, smooth_tread_1_1
+    .word smooth_tread_2_0, smooth_tread_2_1, smooth_tread_3_0, smooth_tread_3_1
+smooth_explosion_ptrs: .word smooth_explosion_0, smooth_explosion_1, smooth_explosion_2, smooth_explosion_3
 .section .text
 
-/* Return AL tile and SI writable address, DL/DH grid 0..12. */
+/* Return AL tile and SI writable address, DL/DH grid 0..15. */
 get_tile:
     push bx
     xor ax, ax
     mov al, dh
-    mov bl, 13
+    mov bl, 16
     mul bl
     add al, dl
     adc ah, 0
@@ -2963,10 +3144,10 @@ map_col:
     call draw_static_cell
     pop dx
     inc dl
-    cmp dl, 13
+    cmp dl, 16
     jb map_col
     inc dh
-    cmp dh, 13
+    cmp dh, 16
     jb map_row
     ret
 
@@ -3082,7 +3263,7 @@ sprite_row:
 /* The original Battle City used a separate grey right HUD (enemy tank
  * badges, 1P lives, stage flag); score was shown on results after the stage.
  * CGA has no gray in this palette, so we use a white panel and black glyphs.
- * The 13x13 map is drawn at x32..239, sidebar starts at x248.
+ * The 16x16 map is drawn at x0..255, compact HUD starts at x256.
  */
 draw_sidebar_background:
     push ax
@@ -3093,16 +3274,16 @@ draw_sidebar_background:
     mov ax, 0xb800
     mov es, ax
     mov ax, 0xffff
-    mov di, 62               /* x248 / 4 pixels per byte */
-    mov bx, 100              /* 100 even/odd pairs = 200 scanlines */
+    mov di, 64               /* x256 / 4 */
+    mov bx, 56               /* 112px high floating HUD at top right */
 sidebar_row:
     push di
-    mov cx, 9                /* 72px = 18 bytes = 9 words */
+    mov cx, 8                /* 64px = 16 bytes = 8 words */
     rep stosw
     pop di
     push di
     add di, 0x2000
-    mov cx, 9
+    mov cx, 8
     rep stosw
     pop di
     add di, 80
@@ -3171,16 +3352,18 @@ draw_enemy_markers:
     xor bx, bx
 hud_enemy_next:
     mov ax, bx
-    mov cl, 2
+    mov cl, 4
     div cl
-    mov dl, ah               /* odd index -> second icon column */
+    mov dl, ah               /* 0..3 mini columns */
     xor ah, ah
     shl ax, 1
     mov si, ax
     mov di, [hud_indicator_offsets+si]
-    test dl, dl
-    jz hud_enemy_first_column
-    add di, 6                /* x280 (24 px to right) */
+    xor ax, ax
+    mov al, dl
+    mov cl, 3
+    mul cl
+    add di, ax               /* icons spaced by 12 pixels */
 hud_enemy_first_column:
     mov si, offset hud_tank_icon
     cmp bl, [hud_remaining]
@@ -3210,43 +3393,59 @@ draw_hud:
     push di
     push si
     call draw_enemy_markers
-    mov di, 4864             /* x256, y120  (1P) */
+    mov di, 2625             /* x260,y64: 1P */
     mov al, 1
     call draw_hud_digit
-    mov di, 4866             /* x264, y120 */
+    mov di, 2627
     mov si, offset hud_p_char
     call draw_hud_glyph
-    mov di, 5504             /* x256, y136  (x2) */
+    mov di, 2630             /* x280,y64: lives in reserve */
     mov si, offset hud_x_char
     call draw_hud_glyph
     mov al, [lives]
-    test al, al
+    or al, al
     jz hud_lives_zero
-    dec al                    /* NES HUD shows lives in reserve */
+    dec al
 hud_lives_zero:
-    mov di, 5506
+    mov di, 2632
     call draw_hud_digit
-    cmp byte ptr [player_upgrade], 0
-    je hud_no_upgrade
-    mov di, 5510             /* x280, y136: star power indicator */
-    mov si, offset hud_star_icon
-    call draw_hud_glyph
-    mov al, [player_upgrade]
-    mov di, 5512             /* x288, y136: upgrade level */
-    call draw_hud_digit
-hud_no_upgrade:
-    mov di, 6464             /* x256, y160: stage flag */
+    mov di, 2945             /* x260,y72: flag */
     mov si, offset hud_flag_icon
     call draw_hud_glyph
     mov al, [stage]
     xor ah, ah
     mov bl, 10
     div bl
-    mov di, 7104             /* x256, y176: two stage digits */
+    mov di, 2948             /* x272,y72 */
     call draw_hud_digit
     mov al, ah
-    mov di, 7106
+    mov di, 2950             /* x280,y72 */
     call draw_hud_digit
+    cmp byte ptr [player_upgrade], 0
+    je hud_no_upgrade
+    mov di, 2953             /* x292,y72 star */
+    mov si, offset hud_star_icon
+    call draw_hud_glyph
+    mov al, [player_upgrade]
+    mov di, 2955             /* x300,y72 */
+    call draw_hud_digit
+hud_no_upgrade:
+    call format_score
+    mov di, 3585             /* x260,y88: S + five digits */
+    mov si, offset hud_s_char
+    call draw_hud_glyph
+    xor bx, bx
+hud_score_loop:
+    xor ax, ax
+    mov al, [score_string+6+bx]
+    sub al, '0'
+    mov di, bx
+    shl di, 1
+    add di, 3587            /* x268 onwards */
+    call draw_hud_digit
+    inc bx
+    cmp bx, 5
+    jb hud_score_loop
     pop si
     pop di
     pop dx
@@ -3254,6 +3453,7 @@ hud_no_upgrade:
     pop bx
     pop ax
     ret
+
 cursor_at:
     mov ah, 2
     xor bh, bh
@@ -3286,13 +3486,13 @@ smoke_test:
     push es
     mov ax, 0xb800
     mov es, ax
-    cmp word ptr es:[62], 0xffff       /* white first panel scanline */
+    cmp word ptr es:[64], 0xffff       /* white first panel scanline */
     je smoke_white_ok
     pop es
     jmp smoke_fail
 smoke_white_ok:
     mov ax, [hud_tank_icon]            /* first active marker at x256,y16 */
-    cmp word ptr es:[704], ax          /* (16/2)*80 + 256/4 */
+    cmp word ptr es:[225], ax          /* (16/2)*80 + 256/4 */
     je smoke_mark_ok
     pop es
     jmp smoke_fail
@@ -3305,31 +3505,33 @@ smoke_mark_ok:
     jmp smoke_fail
 test_spawned:
     mov byte ptr [test_phase], 2
-    mov dl, 6
-    mov dh, 10
+    mov dl, 7
+    mov dh, 13
     call try_move
-    cmp byte ptr [player_row], 10
+    cmp byte ptr [player_row], 13
     je test_move1
     jmp smoke_fail
 test_move1:
     mov byte ptr [test_phase], 3
-    mov dl, 6
-    mov dh, 9
+    mov dl, 7
+    mov dh, 12
     call try_move
-    cmp byte ptr [player_row], 9
+    cmp byte ptr [player_row], 12
     je test_move2
     jmp smoke_fail
 test_move2:
     mov byte ptr [test_phase], 4
-    mov dl, 6
-    mov dh, 8
+    mov dl, 7
+    mov dh, 15
     call try_move
-    cmp byte ptr [player_row], 9
+    cmp byte ptr [player_row], 12
     je test_blocked
     jmp smoke_fail
 test_blocked:
     mov byte ptr [test_phase], 5
     /* Advance player bullet at row 9 col 6 through brick at col 9. */
+    mov byte ptr [player_col], 7
+    mov byte ptr [player_row], 9
     mov byte ptr [player_dir], 1
     call do_fire
     mov cx, 12
@@ -3339,9 +3541,9 @@ test_bullet_loop:
     pop cx
     loop test_bullet_loop
     /* One hit destroys only the entry-side half of the brick. */
-    cmp byte ptr [level_data+126], '#'
+    cmp byte ptr [level_data+154], '#'
     jne test_failed_jump_far
-    cmp byte ptr [brick_masks+126], 10
+    cmp byte ptr [brick_masks+154], 10
     jne test_failed_jump_far
     /* A second shot removes the remaining half. */
     call do_fire
@@ -3351,19 +3553,19 @@ test_bullet_again:
     call advance_bullet
     pop cx
     loop test_bullet_again
-    cmp byte ptr [level_data+126], '.'
+    cmp byte ptr [level_data+154], '.'
     je test_brick
     jmp smoke_fail
 test_failed_jump_far:
     jmp smoke_fail
 test_brick:
     mov byte ptr [test_phase], 6
-    mov byte ptr [player_row], 11
-    mov byte ptr [player_col], 6
+    mov byte ptr [player_row], 14
+    mov byte ptr [player_col], 7
     mov byte ptr [player_shield], 0
     mov bx, 0
-    mov byte ptr [shot_col+bx], 6
-    mov byte ptr [shot_row+bx], 10
+    mov byte ptr [shot_col+bx], 7
+    mov byte ptr [shot_row+bx], 13
     mov byte ptr [shot_dir+bx], 2
     mov byte ptr [shot_active+bx], 1
     mov byte ptr [shot_delay+bx], 1
@@ -3373,8 +3575,8 @@ test_brick:
     jmp smoke_fail
 test_life:
     mov byte ptr [test_phase], 7
-    mov byte ptr [shot_col+bx], 6
-    mov byte ptr [shot_row+bx], 11
+    mov byte ptr [shot_col+bx], 7
+    mov byte ptr [shot_row+bx], 14
     mov byte ptr [shot_dir+bx], 2
     mov byte ptr [shot_active+bx], 1
     mov byte ptr [shot_delay+bx], 1
@@ -3477,21 +3679,21 @@ test_wave_complete:
 
     mov byte ptr [test_phase], 13
     call protect_hq
-    cmp byte ptr [level_data+148], 'T'
+    cmp byte ptr [level_data+230], 'T'
     je 1f
     jmp test_failed_jump
 1:
-    cmp byte ptr [level_data+150], 'T'
+    cmp byte ptr [level_data+232], 'T'
     je 1f
     jmp test_failed_jump
 1:
     call restore_hq
     mov byte ptr [hq_shield], 0
-    cmp byte ptr [level_data+148], '#'
+    cmp byte ptr [level_data+230], '#'
     je 1f
     jmp test_failed_jump
 1:
-    cmp byte ptr [brick_masks+148], 15
+    cmp byte ptr [brick_masks+230], 15
     je 1f
     jmp test_failed_jump
 1:
@@ -3560,21 +3762,21 @@ test_wave_complete:
 1:
     mov byte ptr [test_phase], 17
     call reset_campaign
-    mov byte ptr [player_col], 0
+    mov byte ptr [player_col], 1
     mov byte ptr [player_row], 4
-    mov dl, 1
+    mov dl, 2
     mov dh, 4
     call try_move
-    cmp byte ptr [player_col], 1
+    cmp byte ptr [player_col], 2
     je 1f
     jmp test_failed_jump
 1:
-    mov byte ptr [player_col], 8
+    mov byte ptr [player_col], 9
     mov byte ptr [player_row], 7
-    mov dl, 9
+    mov dl, 10
     mov dh, 7
     call try_move
-    cmp byte ptr [player_col], 9
+    cmp byte ptr [player_col], 10
     je 1f
     jmp test_failed_jump
 1:
@@ -3585,18 +3787,18 @@ test_wave_complete:
     mov byte ptr [test_phase], 18
     mov byte ptr [stage], 9
     call load_stage
-    cmp byte ptr [level_data+40], 'F' /* row3, col1 */
+    cmp byte ptr [level_data+50], 'F' /* row3, col1 */
     je 1f
     jmp test_failed_jump
 1:
     mov byte ptr [test_phase], 19
     call reset_campaign
-    mov byte ptr [player_col], 6
+    mov byte ptr [player_col], 7
     mov byte ptr [player_row], 9
     mov byte ptr [player_dir], 0
     mov byte ptr [player_upgrade], 3
     call do_fire
-    cmp byte ptr [level_data+110], '.' /* max upgrade cuts steel */
+    cmp byte ptr [level_data+135], '.' /* max upgrade cuts steel */
     je 1f
     jmp test_failed_jump
 1:
@@ -3616,16 +3818,16 @@ test_wave_complete:
     call reset_campaign
     mov al, 0
     call player_move_pixel
-    cmp byte ptr [player_py], 131
+    cmp byte ptr [player_py], 167
     je 1f
     jmp smoke_fail
 1:
-    cmp byte ptr [player_row], 10
+    cmp byte ptr [player_row], 13
     je 1f
     jmp smoke_fail
 1:
     mov byte ptr [test_phase], 22
-    mov byte ptr [player_px], 96
+    mov byte ptr [player_px], 112
     mov byte ptr [player_py], 107
     xor al, al
     call player_move_pixel
@@ -3634,7 +3836,7 @@ test_wave_complete:
     jmp smoke_fail
 1:
     mov byte ptr [test_phase], 23
-    mov dl, 34
+    mov dl, 50
     mov dh, 25
     call projectile_probe
     cmp al, 1
@@ -3642,18 +3844,18 @@ test_wave_complete:
     jmp smoke_fail
 1:
     call chip_brick_pixel
-    cmp byte ptr [brick_masks+28], 14   /* row2 col2: 2*13+2 */
+    cmp byte ptr [brick_masks+35], 14   /* row2 col2: 2*13+2 */
     je 1f
     jmp smoke_fail
 1:
-    mov dl, 34
+    mov dl, 50
     mov dh, 25
     call projectile_probe
     cmp al, 0
     je 1f
     jmp smoke_fail
 1:
-    mov dl, 42
+    mov dl, 58
     mov dh, 25
     call projectile_probe
     cmp al, 1
@@ -3662,12 +3864,12 @@ test_wave_complete:
 1:
     mov byte ptr [test_phase], 24
     call reset_campaign
-    cmp byte ptr [enemy_px+1], 96
+    cmp byte ptr [enemy_px+1], 112
     je 1f
     jmp smoke_fail
 1:
     mov byte ptr [bullet_px], 48
-    mov byte ptr [bullet_py], 132
+    mov byte ptr [bullet_py], 168
     mov byte ptr [bullet_dir], 1
     mov byte ptr [bullet_active], 1
     call advance_bullet_smooth
@@ -3687,7 +3889,7 @@ test_wave_complete:
     call reset_campaign
     mov byte ptr [held_keys], 1
     call move_player_smooth
-    cmp byte ptr [player_py], 130
+    cmp byte ptr [player_py], 166
     je 1f
     jmp smoke_fail
 1:
@@ -3710,7 +3912,7 @@ smoke_campaign_35:
     mov byte ptr [test_phase], 28
     mov byte ptr [stage], 35
     call load_stage
-    cmp byte ptr [level_data+26], 'F'
+    cmp byte ptr [level_data+33], 'F'
     je 1f
     jmp smoke_fail
 1:
@@ -3727,6 +3929,50 @@ smoke_campaign_35:
     mov byte ptr [pending_commands], 64
     call poll_controls
     cmp byte ptr [stage], 35
+    je 1f
+    jmp smoke_fail
+1:
+    /* Test phase 29: enemy bullet damages second enemy, not the player. */
+    mov byte ptr [test_phase], 29
+    call reset_campaign
+    mov byte ptr [enemy_hp+1], 1
+    mov byte ptr [shot_px], 94
+    mov byte ptr [shot_py], 0
+    mov byte ptr [enemy_px+1], 94
+    mov byte ptr [enemy_py+1], 0
+    xor bx, bx
+    call shot_hits_other_enemy
+    jc 1f
+    jmp smoke_fail
+1:
+    cmp byte ptr [enemy_active+1], 0
+    je 1f
+    jmp smoke_fail
+1:
+    cmp byte ptr [enemy_killed], 1
+    je 1f
+    jmp smoke_fail
+1:
+    cmp word ptr [score], 0
+    je 1f
+    jmp smoke_fail
+1:
+    mov byte ptr [test_phase], 30
+    mov byte ptr [palette_index], 0
+    call cycle_cga_palette
+    cmp byte ptr [palette_index], 1
+    je 1f
+    jmp smoke_fail
+1:
+    mov dl, 112
+    mov dh, 40
+    call spawn_explosion
+    cmp byte ptr [explosion_ticks], 8
+    je 1f
+    jmp smoke_fail
+1:
+    call tick_explosion
+    cmp byte ptr [explosion_ticks], 7
     je 1f
     jmp smoke_fail
 1:
@@ -3756,9 +4002,9 @@ bonus_type: .byte 0
 bonus_timer: .byte 0
 bonus_sequence: .byte 0
 bonus_columns: .byte 2, 10, 4, 8, 1, 11
-hq_wall_indices: .word 148, 150, 161, 163
-hq_wall_columns: .byte 5, 7, 5, 7
-hq_wall_rows: .byte 11, 11, 12, 12
+hq_wall_indices: .word 230, 232, 246, 248
+hq_wall_columns: .byte 6, 8, 6, 8
+hq_wall_rows: .byte 14, 14, 15, 15
 player_upgrade: .byte 0
 freeze_ticks: .byte 0
 hq_shield: .byte 0
@@ -3769,9 +4015,17 @@ slide_old_col: .byte 0
 slide_old_row: .byte 0
 sound_muted: .byte 0
 adlib_present: .byte 0
+palette_index: .byte 0
+cga_palettes: .byte 0x20, 0x00, 0x30, 0x10
+explosion_ticks: .byte 0
+explosion_x: .byte 0
+explosion_y: .byte 0
+paint_explosion_valid: .byte 0
+paint_explosion_x: .byte 0
+paint_explosion_y: .byte 0
 sound_ticks: .byte 0
 sound_tone: .word 0
-brick_masks: .space 169
+brick_masks: .space 256
 test_phase: .byte 0
 lives: .byte 3
 score: .word 0
@@ -3797,7 +4051,7 @@ old_col: .byte 0
 old_row: .byte 0
 next_col: .byte 0
 next_row: .byte 0
-spawn_columns: .byte 0, 6, 12
+spawn_columns: .byte 1, 7, 13
 enemy_col: .space 4
 enemy_row: .space 4
 enemy_dir: .space 4
@@ -3845,8 +4099,8 @@ old_int9_seg: .word 0
 held_keys: .byte 0
 pending_commands: .byte 0
 test_mode: .byte 0
-player_px: .byte 96
-player_py: .byte 132
+player_px: .byte 112
+player_py: .byte 168
 enemy_px: .space 4
 enemy_py: .space 4
 bullet_px: .byte 0
@@ -3866,7 +4120,7 @@ rect_y1: .byte 0
 scan_x: .byte 0
 scan_y: .byte 0
 scan_bank: .word 0
-dirty_tiles: .space 169
+dirty_tiles: .space 256
 paint_player_valid: .byte 0
 paint_player_x: .byte 0
 paint_player_y: .byte 0
@@ -3882,5 +4136,5 @@ paint_enemy_y: .space 4
 paint_shot_valid: .space 4
 paint_shot_x: .space 4
 paint_shot_y: .space 4
-level_data: .space 169
+level_data: .space 256
 .include "src/dos/cga_assets.inc"
