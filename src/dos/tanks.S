@@ -4873,6 +4873,45 @@ smoke_bonus_replay:
     jnc 9f
     jmp smoke_extra_fail
 9:
+    /* Phase 64: an outer-wing decoy at y172 must NOT distract from
+       a true HQ-corridor attacker at y120. */
+    mov byte ptr [test_phase],64
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],1
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],128
+    mov byte ptr [enemy_py],120
+    mov byte ptr [enemy_px+1],208
+    mov byte ptr [enemy_py+1],172
+    call tactical_find_target
+    jc 9f
+    jmp smoke_extra_fail
+9:
+    cmp bx,0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 65: at the edge of the defensive corridor choose a vertical
+       interception instead of oscillating outside x144. */
+    mov byte ptr [test_phase],65
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],208
+    mov byte ptr [enemy_py],160
+    mov byte ptr [player_px],144
+    mov byte ptr [player_py],120
+    mov byte ptr [game_tick],4
+    mov byte ptr [auto_mode],1
+    call tactical_player_tick
+    cmp byte ptr [held_keys],4
+    je 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
