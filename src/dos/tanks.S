@@ -5513,6 +5513,132 @@ smoke_bonus_replay:
     jmp smoke_extra_fail
 9:
     pop es
+    /* Phase 79: one free V summon, 15s and unchanged lives. */
+    mov byte ptr [test_phase],79
+    call reset_campaign
+    mov byte ptr [auto_mode],0
+    call ally20_try_call
+    cmp byte ptr [ally_stock],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [lives],3
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp word ptr [ally_ticks],270
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 80: V with no stock spends life, never a final life. */
+    mov byte ptr [test_phase],80
+    mov word ptr [ally_ticks],0
+    mov byte ptr [ally_stock],0
+    call ally20_try_call
+    cmp byte ptr [lives],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [ally_life_flash],18
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [test_phase],81
+    mov word ptr [ally_ticks],0
+    mov byte ptr [lives],1
+    call ally20_try_call
+    cmp byte ptr [lives],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp word ptr [ally_ticks],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 82: manual pickup adds a V stock without forced activation. */
+    mov byte ptr [test_phase],82
+    mov byte ptr [ally_stock],1
+    mov byte ptr [auto_mode],0
+    call ally20_collect
+    cmp byte ptr [ally_stock],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp word ptr [ally_ticks],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 83: AUTO pickup immediately dispatches one companion. */
+    mov byte ptr [test_phase],83
+    mov byte ptr [auto_mode],1
+    call ally20_collect
+    cmp word ptr [ally_ticks],270
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [ally_stock],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 84: companion collects team powerups independently of P1. */
+    mov byte ptr [test_phase],84
+    mov byte ptr [auto_mode],0
+    mov byte ptr [ally_px],80
+    mov byte ptr [ally_py],120
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_col],5
+    mov byte ptr [bonus_row],10
+    mov byte ptr [bonus_type],5
+    mov byte ptr [lives],3
+    call ally20_pickup
+    cmp byte ptr [lives],4
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bonus_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 85: Vx2 on right, companion's remaining 15s centered. */
+    mov byte ptr [test_phase],85
+    mov byte ptr [game_tick],0
+    call draw_bonus_indicator
+    push es
+    mov ax,0xb800
+    mov es,ax
+    mov ax,[hud_digit_2]
+    cmp word ptr es:[3918],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    mov ax,[hud_digit_1]
+    cmp word ptr es:[3908],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    mov ax,[hud_digit_5]
+    cmp word ptr es:[3910],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    pop es
+    /* Phase 86: one physical CGA tile can be blanked for curtain wipes. */
+    mov byte ptr [test_phase],86
+    push es
+    mov ax,0xb800
+    mov es,ax
+    mov word ptr es:[0],0xffff
+    xor dx,dx
+    call transition20_blank_tile
+    cmp word ptr es:[0],0
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    pop es
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
