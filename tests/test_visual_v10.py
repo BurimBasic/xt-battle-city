@@ -48,7 +48,7 @@ class ReadabilityTests(unittest.TestCase):
             self.assertLessEqual(abs(min(xs)+max(xs)-15),1,kind)
             self.assertLessEqual(abs(min(ys)+max(ys)-11),1,kind)
             all_shapes.append(tuple(tile))
-        self.assertEqual(len(set(all_shapes)),6)
+        self.assertEqual(len(set(all_shapes)),11)
 
     def test_shield_has_symmetric_solid_external_arc_without_hiding_tank(self):
         for direction in ('up','right','down','left'):
