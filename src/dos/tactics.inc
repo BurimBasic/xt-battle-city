@@ -52,7 +52,8 @@ tactical_defense_position_ready:
     cmp byte ptr [enemy_py+bx],96
     jae tactical_player_engage
     cmp byte ptr [player_py],136
-    jbe tactical_patrol
+    ja tactical_player_engage
+    jmp tactical_patrol
  tactical_player_engage:
     /* BX = persistent enemy objective, selected by HQ threat. */
     mov al, [enemy_px+bx]
@@ -344,7 +345,9 @@ tactical_find_threat:
     xor bx,bx
  tactical_threat_loop:
     cmp byte ptr [shot_active+bx], 0
-    je tactical_threat_next
+    jne tactical_threat_live
+    jmp tactical_threat_next
+ tactical_threat_live:
     mov dl, [shot_dir+bx]
     test dl, 1
     jnz tactical_threat_horizontal
