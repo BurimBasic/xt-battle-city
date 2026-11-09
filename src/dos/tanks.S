@@ -3601,10 +3601,12 @@ test_wave_complete:
     je 1f
     jmp test_failed_jump
 1:
+    mov byte ptr [test_phase], 31
     cmp byte ptr [enemy_type+1], 1
     je 1f
     jmp test_failed_jump
 1:
+    mov byte ptr [test_phase], 32
     cmp byte ptr [enemy_type+2], 2
     je 1f
     jmp test_failed_jump
@@ -3612,16 +3614,18 @@ test_wave_complete:
     /* Force enemy 0 to armor, then hit once: it must survive with 3 HP. */
     mov byte ptr [enemy_type], 3
     mov byte ptr [enemy_hp], 4
-    mov byte ptr [bullet_col], 0
+    mov byte ptr [bullet_col], 1
     mov byte ptr [bullet_row], 1
     mov byte ptr [bullet_dir], 0
     mov byte ptr [bullet_delay], 1
     mov byte ptr [bullet_active], 1
     call advance_bullet
+    mov byte ptr [test_phase], 33
     cmp byte ptr [enemy_hp], 3
     je 1f
     jmp test_failed_jump
 1:
+    mov byte ptr [test_phase], 34
     cmp byte ptr [enemy_active], 1
     je 1f
     jmp test_failed_jump
