@@ -3345,35 +3345,17 @@ draw_smooth_sprite:
     call mark_dirty_rect
     mov bp, 12
 smooth_scanline:
-    xor ax, ax
-    mov al, [scan_y]
-    test al, 1
-    jz smooth_even
-    mov word ptr [scan_bank], 0x2000
-    jmp smooth_bank_ready
-smooth_even:
-    mov word ptr [scan_bank], 0
-smooth_bank_ready:
-    shr ax, 1
-    mov bx, ax
-    shl ax, 1
-    shl ax, 1
-    shl ax, 1
-    shl ax, 1
-    shl bx, 1
-    shl bx, 1
-    shl bx, 1
-    shl bx, 1
-    shl bx, 1
-    shl bx, 1
-    add ax, bx                    /* 16*halfY + 64*halfY */
-    add ax, [scan_bank]
-    mov di, ax
-    xor ax, ax
-    mov al, [scan_x]
-    shr ax, 1
-    shr ax, 1
-    add di, ax
+    /* Table removes 10 bit-shifts and two branches for every
+       row of every masked CGA tank/bullet/explosion sprite. */
+    xor bx,bx
+    mov bl,[scan_y]
+    shl bx,1
+    mov di,[cga_scanline_offsets+bx]
+    xor bx,bx
+    mov bl,[scan_x]
+    shr bx,1
+    shr bx,1
+    add di,bx
     mov cx, 5
 smooth_byte:
     mov al, es:[di]
