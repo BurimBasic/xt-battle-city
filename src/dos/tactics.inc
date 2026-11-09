@@ -600,7 +600,8 @@ tactical_route_choose:
     mov [tactical_goal_y], dh
     mov word ptr [tactical_best_score], 0xffff
     mov al, [enemy_dir+bx]
-    mov [tactical_best_dir], al
+    xor al,2
+    mov [tactical_best_dir], al /* escape rather than repeat blocked order */
     xor si, si
  tactical_route_next:
     mov ax, si
