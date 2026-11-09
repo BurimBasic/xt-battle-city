@@ -805,10 +805,14 @@ spawn_slot_found:
     xor dh, dh
     call get_tile
     cmp al, '.'
-    jne spawn_abort
+    je spawn_tile_open
+    jmp spawn_abort
+spawn_tile_open:
     call enemy_at
     cmp al, 0xff
-    jne spawn_abort
+    je spawn_slot_free
+    jmp spawn_abort
+spawn_slot_free:
     cmp dl, [player_col]
     jne spawn_ready
     cmp dh, [player_row]
