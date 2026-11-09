@@ -38,7 +38,7 @@ class V15Tests(unittest.TestCase):
         self.assertIn('mov di,3906',T)
         self.assertIn('mov di, 4224',T)  # preserve TAB-AUTO
         indicator=T[T.index('draw_bonus_indicator:'):T.index('draw_mode_indicator:')]
-        self.assertNotIn('draw_hud_digit',indicator)
+        self.assertIn('call draw_hud_digit',indicator)  # countdown seconds
     def test_multiple_doctrines_and_initial_entropy(self):
         self.assertIn('squad_doctrine: .byte 0',N)
         self.assertIn('and al,3',N)

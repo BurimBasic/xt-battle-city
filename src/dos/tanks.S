@@ -230,6 +230,14 @@ marker_next:
     mov byte ptr [bonus_active], 0
     mov byte ptr [bonus_timer], 0
     mov byte ptr [bonus_flash_ticks], 0
+    mov byte ptr [laser_ticks], 0
+    mov byte ptr [multi_ticks], 0
+    mov byte ptr [homing_ticks], 0
+    mov byte ptr [frenzy_ticks], 0
+    mov byte ptr [laser_flash_ticks], 0
+    mov byte ptr [ally_ticks], 0
+    mov byte ptr [extra_active], 0
+    mov byte ptr [extra_active+1], 0
     mov byte ptr [freeze_ticks], 0
     mov byte ptr [hq_shield], 0
     mov byte ptr [slide_ticks], 0
@@ -242,7 +250,17 @@ marker_next:
     mov byte ptr [player_py], 168
     mov byte ptr [paint_player_valid], 0
     mov byte ptr [paint_bullet_valid], 0
+    mov byte ptr [paint_extra_valid], 0
+    mov byte ptr [paint_extra_valid+1], 0
+    mov byte ptr [paint_ally_valid], 0
     mov byte ptr [paint_bonus_valid], 0
+    mov di,offset grenade_fx_ticks
+    mov cx,4
+    xor al,al
+    rep stosb
+    mov di,offset paint_grenade_valid
+    mov cx,4
+    rep stosb
     mov di, offset paint_enemy_valid
     mov cx, 4
     xor al, al
@@ -573,7 +591,9 @@ game_tick_step:
  game_tick_no_autofire:
     call sound_tick
     call tick_explosion
+    call grenade17_fx_tick
     call tick_powerups
+    call bonus17_tick
     call slide_player_smooth
     cmp byte ptr [player_shield], 0
     je tick_no_shield
@@ -583,7 +603,15 @@ game_tick_step:
     mov dh, [player_row]
     call draw_cell
 tick_no_shield:
+    /* Homing works by itself, not only when triple-fire is also active. */
+    cmp byte ptr [homing_ticks],0
+    je bullet17_standard
+    cmp byte ptr [bullet_active],0
+    je bullet17_standard
+    call extra17_home_direction
+bullet17_standard:
     call advance_bullet_smooth
+    call extra17_advance
     cmp byte ptr [freeze_ticks], 0
     jne tick_frozen
     call update_enemy_shots_smooth
@@ -615,7 +643,12 @@ maybe_drop_bonus:
     jnz bonus_drop_done
     xor bx, bx
     mov bl, [bonus_sequence]
-    mov [bonus_type], bl
+    mov al,[bonus_drop_order+bx]
+    cmp byte ptr [test_mode],0
+    je bonus_live_order
+    xor al,al
+bonus_live_order:
+    mov [bonus_type],al
     mov dl, [bonus_columns+bx]
     mov dh, 10
     call get_tile
@@ -636,7 +669,7 @@ bonus_drop_ready:
     /* Plan the bonus route once on spawn, never per video frame. */
     call strategy_bonus_spawn
     inc byte ptr [bonus_sequence]
-    cmp byte ptr [bonus_sequence], 6
+    cmp byte ptr [bonus_sequence], 11
     jb bonus_cycle_valid
     mov byte ptr [bonus_sequence], 0
 bonus_cycle_valid:
@@ -660,10 +693,14 @@ check_bonus_pickup:
 bonus_can_collect:
     mov al, [player_col]
     cmp al, [bonus_col]
-    jne bonus_pickup_done
+    je 1f
+    jmp bonus_pickup_done
+1:
     mov al, [player_row]
     cmp al, [bonus_row]
-    jne bonus_pickup_done
+    je 1f
+    jmp bonus_pickup_done
+1:
     mov byte ptr [bonus_active], 0
     mov byte ptr [bonus_timer], 0
     mov al,[bonus_type]
@@ -675,7 +712,9 @@ bonus_can_collect:
     cmp al, 0
     jne pickup_not_star
     cmp byte ptr [player_upgrade], 3
-    jae bonus_pickup_done
+    jb 1f
+    jmp bonus_pickup_done
+1:
     inc byte ptr [player_upgrade]
     call draw_hud
     jmp bonus_pickup_done
@@ -683,6 +722,7 @@ pickup_not_star:
     cmp al, 1
     jne pickup_not_helmet
     mov byte ptr [player_shield], 150
+    mov byte ptr [bonus_flash_ticks],150
     jmp bonus_pickup_done
 pickup_not_helmet:
     cmp al, 2
@@ -693,17 +733,48 @@ pickup_not_grenade:
     cmp al, 3
     jne pickup_not_shovel
     call protect_hq
+    mov byte ptr [bonus_flash_ticks],160
     jmp bonus_pickup_done
 pickup_not_shovel:
     cmp al, 4
     jne pickup_not_clock
     mov byte ptr [freeze_ticks], 120
+    mov byte ptr [bonus_flash_ticks],120
     jmp bonus_pickup_done
 pickup_not_clock:
+    cmp al,5
+    jne pickup_not_life
     cmp byte ptr [lives], 9
-    jae bonus_pickup_done
+    jb 1f
+    jmp bonus_pickup_done
+1:
     inc byte ptr [lives]
     call draw_hud
+    jmp bonus_pickup_done
+pickup_not_life:
+    cmp al,6
+    jne pickup_not_laser
+    mov byte ptr [laser_ticks],180
+    jmp bonus17_timed
+pickup_not_laser:
+    cmp al,7
+    jne pickup_not_ally
+    call ally17_spawn
+    jmp bonus17_timed
+pickup_not_ally:
+    cmp al,8
+    jne pickup_not_triple
+    mov byte ptr [multi_ticks],180
+    jmp bonus17_timed
+pickup_not_triple:
+    cmp al,9
+    jne pickup_not_homing
+    mov byte ptr [homing_ticks],180
+    jmp bonus17_timed
+pickup_not_homing:
+    mov byte ptr [frenzy_ticks],180
+bonus17_timed:
+    mov byte ptr [bonus_flash_ticks],180
 bonus_pickup_done:
     pop dx
     pop cx
@@ -719,6 +790,11 @@ grenade_all_enemies:
 grenade_next:
     cmp byte ptr [enemy_active+bx], 0
     je grenade_skip
+    mov al,[enemy_px+bx]
+    mov [grenade_fx_x+bx],al
+    mov al,[enemy_py+bx]
+    mov [grenade_fx_y+bx],al
+    mov byte ptr [grenade_fx_ticks+bx],12
     mov byte ptr [enemy_active+bx], 0
     mov byte ptr [shot_active+bx], 0
     inc byte ptr [enemy_killed]
@@ -1282,6 +1358,12 @@ enemy_fire_loop:
     je enemy_fire_next
     cmp byte ptr [shot_active+bx], 0
     jne enemy_fire_next
+    cmp byte ptr [frenzy_ticks],0
+    je enemy_fire_normal
+    call frenzy17_target
+    jnc enemy_fire_normal
+    jmp enemy_fire_now
+enemy_fire_normal:
     call tactical_safe_fire
     jnc enemy_fire_next
     cmp byte ptr [enemy_hold+bx], 0
@@ -1318,7 +1400,10 @@ enemy_fire_next:
 /* Player projectile: one at a time, one cell per two simulated frames. */
 do_fire:
     cmp byte ptr [bullet_active], 0
-    jne fire_done
+    je fire_primary
+    call extra17_player_fire
+    jmp fire_done
+fire_primary:
     mov al, [player_col]
     mov [bullet_col], al
     mov al, [player_row]
@@ -1339,6 +1424,9 @@ fire_smooth_init:
     mov [bullet_px], al
     mov al, [player_py]
     mov [bullet_py], al
+    cmp byte ptr [laser_ticks],0
+    je fire_done
+    call laser17_fire
 fire_done:
     ret
 advance_bullet:
@@ -2278,7 +2366,9 @@ smooth_shot_no_friend:
     cmp al, 12
     jae smooth_shot_no_player
     cmp byte ptr [player_shield], 0
-    jne smooth_shot_out
+    je 1f
+    jmp smooth_shot_out
+1:
     dec byte ptr [lives]
     cmp byte ptr [lives], 0
     je smooth_player_dead
@@ -2294,6 +2384,25 @@ smooth_player_dead:
     mov byte ptr [game_state], 2
     jmp smooth_shot_out
 smooth_shot_no_player:
+    /* Ally is an independent target: enemy shots can destroy it. */
+    cmp byte ptr [ally_ticks],0
+    je smooth_shot_no_ally
+    mov al,[shot_px+bx]
+    sub al,[ally_px]
+    add al,8
+    cmp al,16
+    jae smooth_shot_no_ally
+    mov al,[shot_py+bx]
+    sub al,[ally_py]
+    add al,6
+    cmp al,12
+    jae smooth_shot_no_ally
+    mov byte ptr [ally_ticks],0
+    mov dl,[ally_px]
+    mov dh,[ally_py]
+    call spawn_explosion
+    jmp smooth_shot_out
+smooth_shot_no_ally:
     dec byte ptr [shot_substeps]
     jz 1f
     jmp smooth_shot_substep
@@ -2988,6 +3097,41 @@ old_player_done:
     call mark_dirty_rect
 old_bullet_done:
     mov byte ptr [paint_bullet_valid], 0
+    xor bx,bx
+old_extra_loop:
+    cmp byte ptr [paint_extra_valid+bx],0
+    je old_extra_next
+    mov dl,[paint_extra_x+bx]
+    mov dh,[paint_extra_y+bx]
+    push bx
+    call mark_dirty_rect
+    pop bx
+old_extra_next:
+    mov byte ptr [paint_extra_valid+bx],0
+    inc bx
+    cmp bx,2
+    jb old_extra_loop
+    cmp byte ptr [paint_ally_valid],0
+    je old_ally_done
+    mov dl,[paint_ally_x]
+    mov dh,[paint_ally_y]
+    call mark_dirty_rect
+old_ally_done:
+    mov byte ptr [paint_ally_valid],0
+    xor bx,bx
+old_grenade_loop:
+    cmp byte ptr [paint_grenade_valid+bx],0
+    je old_grenade_next
+    mov dl,[paint_grenade_x+bx]
+    mov dh,[paint_grenade_y+bx]
+    push bx
+    call mark_dirty_rect
+    pop bx
+old_grenade_next:
+    mov byte ptr [paint_grenade_valid+bx],0
+    inc bx
+    cmp bx,4
+    jb old_grenade_loop
     cmp byte ptr [paint_bonus_valid], 0
     je old_bonus_done
     mov dl, [paint_bonus_x]
@@ -3334,6 +3478,20 @@ paint_enemy_next:
     jae paint_enemy_finished
     jmp paint_enemy_loop
 paint_enemy_finished:
+    /* Attack-oriented allied AUTO tank: same chassis with a bright halo. */
+    cmp byte ptr [ally_ticks],0
+    je paint_ally_done
+    mov dl,[ally_px]
+    mov dh,[ally_py]
+    mov [paint_ally_x],dl
+    mov [paint_ally_y],dh
+    mov byte ptr [paint_ally_valid],1
+    xor bx,bx
+    mov bl,[ally_dir]
+    shl bx,1
+    mov si,[smooth_shield_ptrs+bx]
+    call draw_smooth_sprite
+paint_ally_done:
     /* Player's tank. */
     mov dl, [player_px]
     mov dh, [player_py]
@@ -3374,8 +3532,37 @@ paint_player_smooth:
     mov [paint_bullet_y], dh
     mov byte ptr [paint_bullet_valid], 1
     mov si, offset smooth_bullet
+    cmp byte ptr [homing_ticks],0
+    je paint_primary_bullet
+    test byte ptr [game_tick],4
+    jz paint_primary_bullet
+    mov si,offset smooth_enemy_bullet
+paint_primary_bullet:
     call draw_smooth_sprite
 paint_no_bullet:
+    xor bx,bx
+paint_extra_loop:
+    cmp byte ptr [extra_active+bx],0
+    je paint_extra_next
+    mov dl,[extra_px+bx]
+    mov dh,[extra_py+bx]
+    mov [paint_extra_x+bx],dl
+    mov [paint_extra_y+bx],dh
+    mov byte ptr [paint_extra_valid+bx],1
+    mov si,offset smooth_bullet
+    cmp byte ptr [extra_homing+bx],0
+    je paint_extra_visible
+    test byte ptr [game_tick],4
+    jz paint_extra_visible
+    mov si,offset smooth_enemy_bullet
+paint_extra_visible:
+    push bx
+    call draw_smooth_sprite
+    pop bx
+paint_extra_next:
+    inc bx
+    cmp bx,2
+    jb paint_extra_loop
     xor bx, bx
 paint_shot_loop:
     cmp byte ptr [shot_active+bx], 0
@@ -3412,6 +3599,8 @@ paint_explosion_valid_frame:
     mov si, [smooth_explosion_ptrs+bx]
     call draw_smooth_sprite
 paint_explosion_done:
+    call grenade17_fx_paint
+    call laser17_paint
     /* One composed transfer after ALL actors. Never expose a partially
        erased sprite in CGA memory between the restore and paint passes. */
     call commit_dirty_tiles
@@ -3434,6 +3623,7 @@ smooth_fast_ptrs: .word smooth_fast_up, smooth_fast_right, smooth_fast_down, smo
 smooth_power_ptrs: .word smooth_power_up, smooth_power_right, smooth_power_down, smooth_power_left
 smooth_armor_ptrs: .word smooth_armor_up, smooth_armor_right, smooth_armor_down, smooth_armor_left
 smooth_bonus_ptrs: .word smooth_bonus_star, smooth_bonus_helmet, smooth_bonus_grenade, smooth_bonus_shovel, smooth_bonus_clock, smooth_bonus_life
+    .word smooth_bonus_laser, smooth_bonus_ally, smooth_bonus_triple, smooth_bonus_homing, smooth_bonus_frenzy
 smooth_tread_ptrs:
     .word smooth_tread_0_0, smooth_tread_0_1, smooth_tread_1_0, smooth_tread_1_1
     .word smooth_tread_2_0, smooth_tread_2_1, smooth_tread_3_0, smooth_tread_3_1
@@ -3781,22 +3971,67 @@ hud_score_loop:
 draw_bonus_indicator:
     push ax
     push bx
+    push dx
     push si
     push di
-    mov di,3906           /* x264,y96: left aligned, below score */
+    mov di,3906       /* bonus icon x264, countdown x284..299 */
     mov si,offset hud_blank_icon
     cmp byte ptr [bonus_flash_ticks],0
-    je bonus_hud_paint
+    je bonus_hud_icon
     test byte ptr [game_tick],8
-    jnz bonus_hud_paint
+    jnz bonus_hud_icon
     xor bx,bx
     mov bl,[bonus_flash_type]
     shl bx,1
     mov si,[hud_bonus_ptrs+bx]
-bonus_hud_paint:
+bonus_hud_icon:
     call draw_hud_glyph
+    mov si,offset hud_blank_icon
+    mov di,3911
+    cmp byte ptr [bonus_flash_ticks],0
+    jne bonus_hud_time
+    call draw_hud_glyph
+    mov di,3913
+    call draw_hud_glyph
+    jmp bonus_hud_finish
+bonus_hud_time:
+    /* Permanent upgrades, instant grenade and extra life have no
+       expiry: show the icon briefly but never a false countdown. */
+    mov al,[bonus_flash_type]
+    cmp al,0
+    je bonus_hud_time_static
+    cmp al,2
+    je bonus_hud_time_static
+    cmp al,5
+    je bonus_hud_time_static
+    jmp bonus_hud_time_digits
+bonus_hud_time_static:
+    mov si,offset hud_blank_icon
+    mov di,3911
+    call draw_hud_glyph
+    mov di,3913
+    call draw_hud_glyph
+    jmp bonus_hud_finish
+bonus_hud_time_digits:
+    /* BIOS ticks divided by 18. Countdown is rounded up in seconds. */
+    mov al,[bonus_flash_ticks]
+    add al,17
+    xor ah,ah
+    mov bl,18
+    div bl
+    xor ah,ah
+    mov bl,10
+    div bl
+    mov bh,ah
+    mov di,3911
+    call draw_hud_digit
+    mov al,bh
+    mov di,3913
+    call draw_hud_digit
+bonus_hud_finish:
     pop di
     pop si
+    pop dx
     pop bx
     pop ax
     ret
@@ -4912,6 +5147,113 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
+    /* Phase 66: a laser hits a live enemy in the same tick. */
+    mov byte ptr [test_phase],66
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_hp],1
+    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_py],88
+    mov byte ptr [player_px],96
+    mov byte ptr [player_py],136
+    mov byte ptr [bullet_px],96
+    mov byte ptr [bullet_py],136
+    mov byte ptr [bullet_dir],0
+    mov byte ptr [bullet_active],1
+    call laser17_fire
+    cmp byte ptr [enemy_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 67: triple shots never allocate a fourth projectile. */
+    mov byte ptr [test_phase],67
+    call reset_campaign
+    mov byte ptr [multi_ticks],180
+    mov byte ptr [bullet_active],1
+    mov byte ptr [player_dir],0
+    call do_fire
+    call do_fire
+    cmp byte ptr [extra_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [extra_active+1],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 68: homing chooses the closest enemy's direction. */
+    mov byte ptr [test_phase],68
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],144
+    mov byte ptr [enemy_py],120
+    mov byte ptr [bullet_px],96
+    mov byte ptr [bullet_py],120
+    mov byte ptr [bullet_dir],0
+    call extra17_home_direction
+    cmp byte ptr [bullet_dir],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 69: an AI ally acquires an enemy and opens fire. */
+    mov byte ptr [test_phase],69
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_py],88
+    mov byte ptr [player_px],96
+    mov byte ptr [player_py],136
+    call ally17_spawn
+    call ally17_tick
+    cmp byte ptr [extra_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 70: enemy frenzy actively targets an allied enemy. */
+    mov byte ptr [test_phase],70
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],1
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],64
+    mov byte ptr [enemy_py],64
+    mov byte ptr [enemy_px+1],64
+    mov byte ptr [enemy_py+1],96
+    xor bx,bx
+    call frenzy17_target
+    jc 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [enemy_dir],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 71: grenade leaves visible FX actors for every victim. */
+    mov byte ptr [test_phase],71
+    call reset_campaign
+    call grenade_all_enemies
+    cmp byte ptr [grenade_fx_ticks],12
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [grenade_fx_ticks+1],12
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [grenade_fx_ticks+2],12
+    je 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
@@ -5038,6 +5380,7 @@ trace_record_done:
 
 .include "src/dos/tactics.inc"
 .include "src/dos/strategy_v13.inc"
+.include "src/dos/bonuses_v17.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -5057,7 +5400,8 @@ bonus_timer: .byte 0
 bonus_sequence: .byte 0
 bonus_flash_type: .byte 0
 bonus_flash_ticks: .byte 0
-bonus_columns: .byte 2, 10, 4, 8, 1, 11
+bonus_columns: .byte 2, 10, 4, 8, 1, 11, 6, 12, 5, 9, 3
+bonus_drop_order: .byte 0, 1, 2, 6, 7, 4, 8, 9, 10, 3, 5
 hq_wall_indices: .word 230, 232, 246, 248
 hq_wall_columns: .byte 6, 8, 6, 8
 hq_wall_rows: .byte 14, 14, 15, 15
@@ -5135,6 +5479,17 @@ armor_sprite_ptrs:
 hud_remaining: .byte 20
 /* Bonus HUD: star, helmet, grenade, shovel, clock, extra life. */
 hud_bonus_ptrs: .word hud_star_icon, hud_bonus_helmet, hud_bonus_grenade, hud_bonus_shovel, hud_bonus_clock, hud_bonus_life
+    .word hud_bonus_laser, hud_bonus_ally, hud_bonus_triple, hud_bonus_homing, hud_bonus_frenzy
+hud_bonus_laser:
+    .byte 0xfc, 0x3f, 0xfc, 0x3f, 0xc0, 0x03, 0x00, 0x00, 0xfc, 0x3f, 0xc3, 0xc3, 0x0f, 0xf0, 0xff, 0xff
+hud_bonus_ally:
+    .byte 0x0f, 0xf0, 0x00, 0x00, 0xf0, 0x0f, 0x00, 0x00, 0x0c, 0x30, 0x0f, 0xf0, 0xc0, 0x03, 0xff, 0xff
+hud_bonus_triple:
+    .byte 0x0c, 0x30, 0x0c, 0x30, 0x0c, 0x30, 0x0c, 0x30, 0xcf, 0x3c, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
+hud_bonus_homing:
+    .byte 0xc0, 0x03, 0x0f, 0xf0, 0x0c, 0x30, 0x0c, 0x30, 0x0c, 0x30, 0x0f, 0xf0, 0xc0, 0x03, 0xff, 0xff
+hud_bonus_frenzy:
+    .byte 0x0c, 0x30, 0xc0, 0x03, 0xf0, 0x0f, 0x00, 0x00, 0xc3, 0xc3, 0x0f, 0xf0, 0x3f, 0xfc, 0xff, 0xff
 hud_bonus_helmet:
     .byte 0xf0, 0x0f, 0xc0, 0x03, 0x0f, 0xf0, 0x0f, 0xf0, 0x00, 0x00, 0xc0, 0x03, 0xf0, 0x0f, 0xff, 0xff
 hud_bonus_grenade:

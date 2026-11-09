@@ -313,6 +313,14 @@ tactical_player_aim_if_aligned:
 tactical_player_autofire:
     cmp byte ptr [bullet_active],0
     je tactical_autofire_start
+    /* Triple-shot AUTO fills both spare slots while existing bullets fly. */
+    cmp byte ptr [multi_ticks],0
+    je tactical_autofire_skip
+    cmp byte ptr [extra_active],0
+    je tactical_autofire_start
+    cmp byte ptr [extra_active+1],0
+    je tactical_autofire_start
+tactical_autofire_skip:
     ret
  tactical_autofire_start:
     push ax

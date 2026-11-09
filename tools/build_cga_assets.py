@@ -123,6 +123,11 @@ BONUS_LETTERS = {
     'shovel':  ('3333333', '...3...', '...3...', '...3...', '..333..', '..333..'),
     'clock':   ('..333..', '.3...3.', '3..3..3', '3..33.3', '.3...3.', '..333..'),
     'life':    ('...3...', '...3...', '33.3.33', '3333333', '33.3.33', '33.3.33'),
+    'laser':   ('...3...', '...3...', '.33333.', '3333333', '..333..', '...3...'),
+    'ally':    ('3.3.3.3', '3333333', '.33333.', '33.3.33', '3333333', '3.3.3.3'),
+    'triple':  ('3.3.3.3', '3.3.3.3', '.3.3.3.', '.3.3.3.', '3.3.3.3', '3.3.3.3'),
+    'homing':  ('.33333.', '3.....3', '3.333.3', '3.3.3.3', '3.333.3', '.33333.'),
+    'frenzy':  ('3..3..3', '.3.3.3.', '..333..', '3333333', '.3...3.', '3.....3'),
 }
 def bonus_sprite(kind):
     # Clean white square border and a 7x6 centered high-contrast pictogram.
@@ -346,6 +351,7 @@ SMOOTH_SPRITES = [
     'armor_up','armor_right','armor_down','armor_left',
     'bullet','enemy_bullet',
     'bonus_star','bonus_helmet','bonus_grenade','bonus_shovel','bonus_clock','bonus_life',
+    'bonus_laser','bonus_ally','bonus_triple','bonus_homing','bonus_frenzy',
     *TRACK_SPRITES.keys(),
     *EXPLOSIONS.keys(),
 ]
