@@ -5339,8 +5339,8 @@ smoke_bonus_replay:
     jmp smoke_extra_fail
 9:
     pop es
-    /* Phase 73: copyright signature paints as WHITE on the black CGA
-       bottom-right field. Also check changing version V0.18. */
+    /* Phase 73: title now has a blank glyph-height before ©1982; the
+       release version is V0.19. */
     mov byte ptr [test_phase],73
     call draw_branding
     push es
@@ -5348,7 +5348,7 @@ smoke_bonus_replay:
     mov es,ax
     mov ax,[hud_t_char]
     not ax
-    cmp word ptr es:[6467],ax
+    cmp word ptr es:[6147],ax
     je 9f
     pop es
     jmp smoke_extra_fail
@@ -5364,6 +5364,52 @@ smoke_bonus_replay:
     /* Phase 74: right edge moves from x13 to x12 and never covers x13. */
     mov byte ptr [test_phase],74
     cmp byte ptr [sprite_bonus_star+7],0xc0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 75: retain live CGA palette after BIOS mode reset. The
+       choice is IN RAM ONLY (compatible with cassette-tape booting). */
+    mov byte ptr [test_phase],75
+    mov byte ptr [palette_index],3
+    call refresh_screen
+    cmp byte ptr [palette_index],3
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 76: lookup matches 8088 DIV12 across tile boundaries. */
+    mov byte ptr [test_phase],76
+    cmp byte ptr [pixel_y_tile_lookup],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [pixel_y_tile_lookup+11],0x0b
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [pixel_y_tile_lookup+12],0x10
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [pixel_y_tile_lookup+191],0xfb
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 77: a horizontal laser draws one continuous physical
+       pixel line and marks its tiles for ghost-free next-frame restore. */
+    mov byte ptr [test_phase],77
+    mov byte ptr [laser_start_x],32
+    mov byte ptr [laser_end_x],80
+    mov byte ptr [laser_start_y],72
+    mov byte ptr [laser_end_y],72
+    mov byte ptr [laser_dir],1
+    mov byte ptr [laser_flash_ticks],2
+    mov byte ptr [game_tick],0
+    call laser17_paint
+    cmp byte ptr [dirty_tiles+98],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [dirty_tiles+101],1
     je 9f
     jmp smoke_extra_fail
 9:
