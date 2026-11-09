@@ -686,10 +686,14 @@ check_bonus_pickup:
 bonus_can_collect:
     mov al, [player_col]
     cmp al, [bonus_col]
-    jne bonus_pickup_done
+    je 1f
+    jmp bonus_pickup_done
+1:
     mov al, [player_row]
     cmp al, [bonus_row]
-    jne bonus_pickup_done
+    je 1f
+    jmp bonus_pickup_done
+1:
     mov byte ptr [bonus_active], 0
     mov byte ptr [bonus_timer], 0
     mov al,[bonus_type]
@@ -732,7 +736,9 @@ pickup_not_clock:
     cmp al,5
     jne pickup_not_life
     cmp byte ptr [lives], 9
-    jae bonus_pickup_done
+    jb 1f
+    jmp bonus_pickup_done
+1:
     inc byte ptr [lives]
     call draw_hud
     jmp bonus_pickup_done
@@ -2351,7 +2357,9 @@ smooth_shot_no_friend:
     cmp al, 12
     jae smooth_shot_no_player
     cmp byte ptr [player_shield], 0
-    jne smooth_shot_out
+    je 1f
+    jmp smooth_shot_out
+1:
     dec byte ptr [lives]
     cmp byte ptr [lives], 0
     je smooth_player_dead
