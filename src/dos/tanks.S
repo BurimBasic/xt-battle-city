@@ -3421,6 +3421,14 @@ render_frame:
     mov [paint_bonus_y], dh
     mov byte ptr [paint_bonus_valid], 1
     call draw_smooth_sprite
+    /* Final 1.5 seconds: flash ONLY the right-adjusted frame.  The
+       11 distinct pictograms stay visible and usable until collection. */
+    cmp byte ptr [bonus_timer],27
+    ja paint_bonus_done
+    test byte ptr [game_tick],4
+    jz paint_bonus_done
+    mov si,offset smooth_bonus_frame_erase
+    call draw_smooth_sprite
 paint_bonus_done:
     /* Four enemy tanks. */
     xor bx, bx
@@ -3503,6 +3511,9 @@ paint_ally_done:
     shl bx, 1
     cmp byte ptr [player_shield], 0
     je paint_player_normal
+    /* Only the shield halo blinks; the tank chassis is drawn every frame. */
+    test byte ptr [game_tick],4
+    jnz paint_player_normal
     mov si, [smooth_shield_ptrs+bx]
     jmp paint_player_smooth
 paint_player_normal:
@@ -3805,6 +3816,8 @@ sidebar_row:
     pop cx
     pop bx
     pop ax
+    /* Copyright/branding lives on the BLACK lower-right field. */
+    call draw_branding
     ret
 
 /* Every 8x8 HUD glyph is 16 bytes packed CGA. DI points to its first
@@ -3832,6 +3845,71 @@ hud_glyph_row:
     pop di
     pop cx
     pop ax
+    ret
+
+/* The 8x8 panel glyphs are normally black on white. Invert both CGA
+ * 2-bit planes for WHITE-ON-BLACK brand lettering below the scoreboard. */
+draw_hud_glyph_inverted:
+    push ax
+    push cx
+    push di
+    push si
+    push es
+    mov ax,0xb800
+    mov es,ax
+    mov cx,4
+brand_glyph_scan:
+    mov ax,[si]
+    not ax
+    mov es:[di],ax
+    mov ax,[si+2]
+    not ax
+    mov es:[di+0x2000],ax
+    add si,4
+    add di,80
+    loop brand_glyph_scan
+    pop es
+    pop si
+    pop di
+    pop cx
+    pop ax
+    ret
+
+/* Release number is a single five-glyph table; update with each version.
+ * x268: five 8px letters fit centrally in the 64px HUD strip. */
+draw_branding:
+    push bx
+    push cx
+    push di
+    push si
+    mov bx,offset brand_tanks_glyphs
+    mov di,6467             /* x268, y160 */
+    call draw_brand_row
+    mov bx,offset brand_copyright_glyphs
+    mov di,6787             /* x268, y168 */
+    call draw_brand_row
+    mov bx,offset brand_basic_glyphs
+    mov di,7107             /* x268, y176 */
+    call draw_brand_row
+    mov bx,offset brand_version_glyphs
+    mov di,7427             /* x268, y184 */
+    call draw_brand_row
+    pop si
+    pop di
+    pop cx
+    pop bx
+    ret
+
+draw_brand_row:
+    push cx
+    mov cx,5
+brand_row_next:
+    mov si,[bx]
+    call draw_hud_glyph_inverted
+    add bx,2
+    add di,2
+    loop brand_row_next
+    pop cx
     ret
 
 /* AL = digit 0..9, DI = B800 even-bank offset (x multiple of 4px). */
@@ -5512,7 +5590,11 @@ victory_string: .asciz "STAGE CLEAR"
 game_over_string: .asciz "GAME OVER"
 next_string: .asciz "SPACE - NEXT"
 restart_string: .asciz "R - RESTART"
-tactical_auto_glyphs: .word hud_a_char, hud_u_char, hud_t_char, hud_o_char, hud_blank_icon, hud_blank_icon, hud_blank_icon, hud_blank_icon
+tactical_auto_glyphs: .word hud_blank_icon, hud_blank_icon, hud_a_char, hud_u_char, hud_t_char, hud_o_char, hud_blank_icon, hud_blank_icon
+brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
+brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
+brand_basic_glyphs: .word hud_b_char, hud_a_char, hud_s_char, hud_i_char, hud_c_char
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_1, hud_digit_8
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
