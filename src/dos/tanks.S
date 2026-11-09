@@ -1,4 +1,4 @@
-/* XT Battle City v0.8: original CGA tile arcade for DOS, 8086/8088.
+/* XT Battle City v0.9: original CGA tile arcade for DOS, 8086/8088.
  * Gameplay: 20-enemy waves, 4 tank classes, segmented bricks, 6 pickups,
  * destructible bricks, lives, headquarters, score and stage transitions.
  * 16x12 CGA cells, 16x16 battlefield. Original artwork and stage layouts.
@@ -14,6 +14,32 @@ _start:
     push ds
     pop es
     cld
+    /* DOS .COM occupies one allocation. Shrink it and reserve 16 KiB
+       conventional RAM for the composed CGA bitmap. Keep a 4 KiB stack
+       inside our program block. If either DOS call fails, fall back to
+       the original direct-VRAM drawing path. No extra adapter is required. */
+    mov ax, offset program_end
+    add ax, 0x0fff
+    and ax, 0xfff0
+    mov sp, ax
+    mov bx, ax
+    shr bx, 1
+    shr bx, 1
+    shr bx, 1
+    shr bx, 1
+    push cs
+    pop es
+    mov ah, 0x4a
+    int 0x21
+    jc buffer_unavailable
+    mov bx, 0x0400            /* 1024 paragraphs = 16384 bytes */
+    mov ah, 0x48
+    int 0x21
+    jc buffer_unavailable
+    mov [frame_seg], ax
+buffer_unavailable:
+    push cs
+    pop es
     call reset_campaign
     call adlib_detect            /* OPL2 is optional; PC Speaker fallback */
     mov ax, 0x0004
@@ -24,6 +50,7 @@ _start:
     mov byte ptr [palette_index], 0
     call apply_cga_palette
     call draw_map
+    call present_full_field
     call draw_sidebar_background
     call draw_hud
     /* /AUDIO: DOS errorlevel 0 when OPL2 detected, 1 for speaker fallback.
@@ -149,6 +176,9 @@ marker_next:
     mov cx, 4
     rep stosb
     mov di, offset dirty_tiles
+    mov cx, 256
+    rep stosb
+    mov di, offset upload_tiles
     mov cx, 256
     rep stosb
     mov si, offset level_data
@@ -294,6 +324,7 @@ refresh_screen:
     mov bx, 0x0101
     int 0x10
     call draw_map
+    call present_full_field
     call draw_sidebar_background
     call draw_hud
     call render_frame
@@ -2766,6 +2797,7 @@ mark_rect_col:
     call get_tile
     sub si, offset level_data
     mov byte ptr [dirty_tiles+si], 1
+    mov byte ptr [upload_tiles+si], 1
 mark_rect_next_col:
     inc dl
     cmp dl, [rect_x1]
@@ -2852,6 +2884,127 @@ flush_skip:
     jb flush_row
     ret
 
+/* ===== Anti-flicker shadow composition / tile commits =====
+ * 320x200 CGA mode 4: byte(y,x) = (y>>1)*80 + (y&1)*8192 + (x>>2).
+ * Static map and actors are first rendered in RAM at frame_seg. Only
+ * complete 16x12 tiles then go to B800h, without clearing live actors.
+ * When no RAM is available, frame_seg=B800h and this is a no-op.
+ */
+present_full_field:
+    push ax
+    push cx
+    push di
+    mov ax, [frame_seg]
+    cmp ax, 0xb800
+    je present_all_done
+    mov di, offset upload_tiles
+    mov al, 1
+    mov cx, 256
+    rep stosb
+    call commit_dirty_tiles
+present_all_done:
+    pop di
+    pop cx
+    pop ax
+    ret
+
+commit_dirty_tiles:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    push es
+    mov ax, [frame_seg]
+    cmp ax, 0xb800
+    je commit_done
+    xor dx, dx
+commit_row:
+    xor dl, dl
+commit_col:
+    xor ax, ax
+    mov al, dh
+    shl ax, 1
+    shl ax, 1
+    shl ax, 1
+    shl ax, 1
+    xor bx, bx
+    mov bl, dl
+    add ax, bx
+    mov bx, ax
+    cmp byte ptr [upload_tiles+bx], 0
+    je commit_skip
+    mov byte ptr [upload_tiles+bx], 0
+    push dx
+    call copy_tile_to_cga
+    pop dx
+commit_skip:
+    inc dl
+    cmp dl, 16
+    jb commit_col
+    inc dh
+    cmp dh, 16
+    jb commit_row
+commit_done:
+    pop es
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+/* DL/DH = tile col/row, 6 even/odd row pairs x 4 bytes per scanline.
+ * DS switches only for the uninterrupted 48-byte transfer; no calls
+ * and no interrupts disabled. The keyboard ISR restores DS=CS itself. */
+copy_tile_to_cga:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    push ds
+    push es
+    xor bx, bx
+    mov bl, dh
+    shl bx, 1
+    mov di, [tile_row_offsets+bx]
+    xor bx, bx
+    mov bl, dl
+    shl bx, 1
+    shl bx, 1
+    add di, bx
+    mov si, di
+    mov ax, 0xb800
+    mov es, ax
+    mov ax, [frame_seg]
+    mov ds, ax
+    mov cx, 6
+copy_tile_pair:
+    mov ax, [si]
+    mov es:[di], ax
+    mov ax, [si+2]
+    mov es:[di+2], ax
+    mov ax, [si+0x2000]
+    mov es:[di+0x2000], ax
+    mov ax, [si+0x2002]
+    mov es:[di+0x2002], ax
+    add si, 80
+    add di, 80
+    loop copy_tile_pair
+    pop es
+    pop ds
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
 /* SI=smooth sprite asset, DL/DH=world pixel x/y; preserves every register. */
 draw_smooth_sprite:
     push bp
@@ -2870,8 +3023,11 @@ draw_smooth_sprite:
     mov [scan_x], dl
     mov al, dh
     mov [scan_y], al
-    mov ax, 0xb800
+    mov ax, [frame_seg]
     mov es, ax
+    /* Every active sprite contributes a freshly composed area. This
+       remains dirty for the next frame's background restore. */
+    call mark_dirty_rect
     mov bp, 12
 smooth_scanline:
     xor ax, ax
@@ -3095,6 +3251,9 @@ paint_explosion_valid_frame:
     mov si, [smooth_explosion_ptrs+bx]
     call draw_smooth_sprite
 paint_explosion_done:
+    /* One composed transfer after ALL actors. Never expose a partially
+       erased sprite in CGA memory between the restore and paint passes. */
+    call commit_dirty_tiles
     pop bp
     pop di
     pop si
@@ -3159,6 +3318,7 @@ draw_cell:
     call get_tile
     sub si, offset level_data
     mov byte ptr [dirty_tiles+si], 1
+    mov byte ptr [upload_tiles+si], 1
     pop dx
     pop si
     pop ax
@@ -3228,7 +3388,7 @@ draw_sprite:
     push di
     push si
     push es
-    mov ax, 0xb800
+    mov ax, [frame_seg]
     mov es, ax
     xor bx, bx
     mov bl, dh
@@ -3980,7 +4140,31 @@ smoke_campaign_35:
     je 1f
     jmp smoke_fail
 1:
+    /* Test phase 33: ensure the composed frame is committed to CGA, not
+       just held in RAM, including background and moving player pixels. */
+    mov byte ptr [test_phase], 33
+    cmp word ptr [frame_seg], 0xb800
+    jne 1f
+    jmp smoke_fail
+1:
+    call reset_campaign
+    call refresh_screen
+    push es
+    mov ax, [frame_seg]
+    mov es, ax
+    mov bx, es:[9162]       /* brick, y25 (odd bank), x40 */
+    mov cx, es:[6748]       /* player's start x112,y168 (even bank) */
+    mov ax, 0xb800
+    mov es, ax
+    cmp bx, es:[9162]
+    jne smoke_buffer_bad
+    cmp cx, es:[6748]
+    jne smoke_buffer_bad
+    pop es
     jmp smoke_pass
+smoke_buffer_bad:
+    pop es
+    jmp smoke_fail
 test_failed_jump:
     jmp smoke_fail
 smoke_pass:
@@ -4125,6 +4309,8 @@ scan_x: .byte 0
 scan_y: .byte 0
 scan_bank: .word 0
 dirty_tiles: .space 256
+upload_tiles: .space 256
+frame_seg: .word 0xb800
 paint_player_valid: .byte 0
 paint_player_x: .byte 0
 paint_player_y: .byte 0
@@ -4142,3 +4328,6 @@ paint_shot_x: .space 4
 paint_shot_y: .space 4
 level_data: .space 256
 .include "src/dos/cga_assets.inc"
+
+/* First free byte of this .COM. DOS stack is positioned 4K above it. */
+program_end:

@@ -1,3 +1,11 @@
+## v0.9 — CGA art and anti-flicker engine (2026-11-09)
+- New 16KB conventional-RAM frame-composition buffer on DOS/XT, with safe direct-VRAM fallback when allocation fails.
+- Compositing occurs off-screen; only completed dirty tiles are transferred into B800 CGA VRAM, avoiding the old visible clear-before-draw flicker.
+- Completely reworked original tank silhouettes (player, basic, fast, power, armor), two-phase tread animation, invulnerability halo, bonus icon centering and terrain art designed with large color clusters.
+- Added engine/visual regression tests plus an in-DOS shadow-vs-CGA-memory consistency check.
+- Preserves four real CGA palette choices, 35 stages, optional AdLib/PC Speaker and 8088 instruction safety.
+- Caveats: performance still needs physical XT/86Box profile measurement; display update uses a fallback path on very low DOS RAM.
+
 ## v0.8 — CGA art, moving tracks, debris, friendly fire and compact HUD
 
 - Detailed original tanks/walls/water/ice/forest and base; 2-phase directional treads.

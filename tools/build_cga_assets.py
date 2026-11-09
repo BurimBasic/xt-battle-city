@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate 8086-compatible CGA 2bpp tiles, 16x12 pixels (four bytes/row).
+"""Generate v0.9 8086-compatible CGA 2bpp art (16x12 tiles).
 
 Each pixel: 0 black, 1 cyan, 2 magenta, 3 white in CGA mode 4 palette 1.
 The original tank/level art is kept in this file as ASCII source.
@@ -20,30 +20,81 @@ def sprite(*rows):
 EMPTY = sprite(*(['.'*16] * 12))
 # Detailed, purely original pixel art, designed for the real four-colour CGA
 # RGBI palette. Every texture is exactly 16x12, without source ROM assets.
-BRICK = sprite(
- '2222222222222222', '2332223223222232', '2222222222222222',
- '1111111111111111', '2222222222222222', '2223222232223222',
- '2222222222222222', '1111111111111111', '2222222222222222',
- '2232222322232223', '2222222222222222', '1111111111111111')
-STEEL = sprite(
- '3333333333333333', '3111111111111113', '3133333333333313',
- '3131..........13', '3131.333333.1.13', '3131.3....3.1.13',
- '3131.3....3.1.13', '3131.333333.1.13', '3131..........13',
- '3133333333333313', '3111111111111113', '3333333333333333')
-WATER = sprite(
- '1111111111111111', '11..1111....1111', '11111...11111111',
- '1111111111111111', '111..1111...1111', '1111111111111111',
- '11...11111....11', '1111111111111111', '11111...11111111',
- '1111111111111111', '11..1111111..111', '1111111111111111')
-FOREST = sprite(*tuple(
-    ''.join('1' if (x * 17 + y * 13 + (x*y)//3) % 11 < 4 else
-            ('3' if (x+2*y) % 17 == 0 else '.')
-            for x in range(16)) for y in range(12)))
-ICE = sprite(*tuple(
-    ''.join('3' if x in (0,15) or y in (0,11) else
-            ('1' if (x + y*3) % 9 in (0,1) else
-             ('3' if (x*3+y) % 19 == 0 else '.'))
-            for x in range(16)) for y in range(12)))
+# Material hierarchy: clean silhouette / medium details / sparing highlights.
+# Favor 2-4 pixel clusters instead of dithering and isolated checkerboard noise.
+def brick_tile():
+    g=[['2']*16 for _ in range(12)]
+    for y in range(12):
+        course=y//4
+        seam_offset=4 if course%2 else 0
+        for x in range(16):
+            if y%4 == 3 or (x-seam_offset)%8 == 0:
+                g[y][x]='.'                  # mortar is an actual dark gap
+            elif y%4 == 0 and (x-seam_offset)%8 in (2,3,4,5):
+                g[y][x]='3'                  # short reflected top edge
+            elif y%4 == 2 and (x-seam_offset)%8 in (5,6,7):
+                g[y][x]='1'                  # deep underside, 3px cluster
+    return sprite(*(''.join(row) for row in g))
+BRICK=brick_tile()
+
+def steel_tile():
+    g=[['1']*16 for _ in range(12)]
+    for y in range(12):
+        for x in range(16):
+            if y in (0,11) or x in (0,15):g[y][x]='3'
+            elif y in (1,10) or x in (1,14):g[y][x]='.'
+            elif y in (2,9):g[y][x]='1'
+            else:g[y][x]='3' if 4<=x<=11 else '1'
+    # Discrete corner studs and inset dark metallic face.
+    for x,y in ((3,3),(12,3),(3,8),(12,8)):
+        g[y][x]='3'
+    for y in range(4,8):
+        for x in range(5,11):g[y][x]='1'
+    for x in range(6,10):g[4][x]='3'
+    return sprite(*(''.join(row) for row in g))
+STEEL=steel_tile()
+
+WATER=sprite(
+ '1111111111111111',
+ '1111111111111111',
+ '111..3333..11111',
+ '11...........111',
+ '1111111111111111',
+ '1111111111111111',
+ '111111..3333..11',
+ '11111..........1',
+ '1111111111111111',
+ '1111111111111111',
+ '11..3333..111111',
+ '1..........11111')
+
+FOREST=sprite(
+ '..11...111...11.',
+ '.1111.11111.1111',
+ '.1331.11331.1331',
+ '1111111111111111',
+ '1111.11111.11111',
+ '.111..111..1111.',
+ '..11.11111..11..',
+ '.1111113311.111.',
+ '1111111111111111',
+ '1111.1111.11111.',
+ '.11..1111..1111.',
+ '..1...11...11...')
+
+ICE=sprite(
+ '3333333333333333',
+ '3311111111111133',
+ '3111111111111113',
+ '311111...1111113',
+ '311111.33.111113',
+ '311111..3.111113',
+ '3111111.3.111113',
+ '3111111..1111113',
+ '3111111111111113',
+ '3111.333...11113',
+ '33111......11133',
+ '3333333333333333')
 
 # Each wall tracks four independent quadrants. Fourteen intermediate shapes
 # deliberately preserve the brick texture of the original *project* artwork.
@@ -65,15 +116,22 @@ BONUS_LETTERS = {
     'life': ('..3..', '..3..', '33333', '..3..', '..3..', '.....', '.....'),
 }
 def bonus_sprite(kind):
+    # Each icon is optically centered by the bounding box of nonempty pixels;
+    # frame and backing stay consistent across all six pickups.
     g=[['.']*16 for _ in range(12)]
-    for y in range(1, 11):
-        for x in range(2, 14):
-            if y in (1,10) or x in (2,13):
-                g[y][x]='2'
-    for y,row in enumerate(BONUS_LETTERS[kind]):
-        for x,p in enumerate(row):
-            if p != '.':
-                g[y+3][x+6] = '3'
+    for y in range(1,11):
+        for x in range(1,15):
+            if y in (1,10) or x in (1,14):g[y][x]='3'
+            elif y in (2,9) or x in (2,13):g[y][x]='2'
+    glyph=BONUS_LETTERS[kind]
+    occupied=[(x,y) for y,row in enumerate(glyph) for x,ch in enumerate(row) if ch != '.']
+    minx=min(x for x,y in occupied);maxx=max(x for x,y in occupied)
+    miny=min(y for x,y in occupied);maxy=max(y for x,y in occupied)
+    width=maxx-minx+1;height=maxy-miny+1
+    x0=(16-width)//2-minx
+    y0=(12-height)//2-miny
+    for x,y in occupied:
+        g[y+y0][x+x0]='3'
     return sprite(*(''.join(row) for row in g))
 
 BASE = sprite(
@@ -82,110 +140,116 @@ BASE = sprite(
  '..312332233213..', '..312333333213..', '...3123333213...',
  '....31111113....', '.....333333.....', '................')
 
-def new_tank_up(body='1',trim='3'):
-    """Track, turret, gun, armour plates and rivets in 12x12 pixels."""
+# Hand-authored geometry rather than recolored copies. Readable at native
+# 320x200, not merely when enlarged: two tracks, a distinct turret, a muzzle.
+def tank_up_geometry(kind='player'):
+    body,edge,metal,accent={
+        'player':('1','3','3','2'),
+        'basic': ('2','3','3','1'),
+        'fast':  ('2','3','1','3'),
+        'power': ('2','1','3','3'),
+        'armor': ('3','2','2','1'),
+    }[kind]
     g=[['.']*12 for _ in range(12)]
-    for y in range(1,11):
-        for x in (0,1,10,11):
-            g[y][x] = body if x in (1,10) else trim
-        for x in range(3,9):
-            g[y][x] = body
-    for y in (2,6,9):
-        for x in (0,11):g[y][x]=body
-    for y in range(3,10):
-        g[y][2]=trim;g[y][9]=trim
-    for x in range(3,9):
-        g[3][x]=trim
-        g[9][x]=trim
-    for y in range(1,5):g[y][5]=trim;g[y][6]=trim
-    for y in range(4,8):
-        for x in range(4,8):g[y][x]='2' if y==6 else trim
-    for x,y in ((3,5),(8,5),(3,8),(8,8)):
-        g[y][x]=trim
-    g[0][5]=trim;g[0][6]=trim
+    # Tracks: thicker on armour, narrower on speed chassis.
+    for y in range(2,11):
+        for x in ((0,1,10,11) if kind=='armor' else (1,2,9,10)):
+            g[y][x]=edge if (y%3!=1) else body
+    for y in range(3,11):
+        for x in range(3,9):g[y][x]=body
+    for x in range(4,8):
+        g[3][x]=edge
+        g[10][x]=edge
+    # Short muzzle/solid barrel; faster tank has a slender snout.
+    barrel=(5,) if kind=='fast' else (5,6)
+    for y in range(0,5):
+        for x in barrel:g[y][x]=metal
+    for y in range(5,9):
+        for x in range(4,8):g[y][x]=metal
+    for x in range(5,7):g[6][x]=accent
+    # Highly recognizable variant-specific details.
+    if kind=='player':
+        for x in (3,8):g[6][x]='3'
+        for x in (4,7):g[9][x]='3'
+    elif kind=='basic':
+        for x in (3,8):g[6][x]='1'
+        g[8][5]=g[8][6]='1'
+    elif kind=='fast':
+        for y in (4,7,10):
+            g[y][2]='3';g[y][9]='3'
+        g[7][4]=g[7][7]='.'
+    elif kind=='power':
+        for y in (1,2):g[y][4]=g[y][7]='3'
+        g[8][4]=g[8][7]='3'
+        for x in range(4,8):g[9][x]='3'
+    else:  # heavy armour, broad shoulders and square turret
+        for x in (2,3,8,9):g[4][x]='3';g[9][x]='3'
+        for x in (4,7):g[5][x]='1';g[8][x]='1'
+        g[6][5]=g[6][6]='1'
     return sprite(*('..'+''.join(row)+'..' for row in g))
 
-TANK_UP = new_tank_up()
+TANK_UP=tank_up_geometry('player')
 
-def tank_grid():return [list(r[2:14]) for r in TANK_UP]
 def rotate_grid(g):
     n=len(g)
     assert all(len(row)==n for row in g)
     return [[g[n-1-x][y] for x in range(n)] for y in range(n)]
-def padded(g): return sprite(*('..'+''.join(r)+'..' for r in g))
+def padded(g):return sprite(*('..'+''.join(r)+'..' for r in g))
+def directions(up):
+    core=[list(row[2:14]) for row in up]
+    right=rotate_grid(core)
+    down=rotate_grid(right)
+    left=rotate_grid(down)
+    return up,padded(right),padded(down),padded(left)
 
-G_UP=tank_grid()
-TANK_RIGHT=padded(rotate_grid(G_UP))
-TANK_DOWN=padded(rotate_grid(rotate_grid(G_UP)))
-TANK_LEFT=padded(rotate_grid(rotate_grid(rotate_grid(G_UP))))
+TANK_UP,TANK_RIGHT,TANK_DOWN,TANK_LEFT=directions(TANK_UP)
+ENEMY_UP,ENEMY_RIGHT,ENEMY,ENEMY_LEFT=directions(tank_up_geometry('basic'))
+FAST_UP,FAST_RIGHT,FAST_DOWN,FAST_LEFT=directions(tank_up_geometry('fast'))
+POWER_UP,POWER_RIGHT,POWER_DOWN,POWER_LEFT=directions(tank_up_geometry('power'))
+ARMOR_UP,ARMOR_RIGHT,ARMOR_DOWN,ARMOR_LEFT=directions(tank_up_geometry('armor'))
 
 def track_overlay(direction,phase):
-    """Two animated tread phases; directional overlay needs only 8 small sprites."""
-    rows=[['.']*12 for _ in range(12)]
-    for y in range(1,11):
-        if (y+2*phase)%4 < 2:
-            for x in (0,11):rows[y][x]='3'
-        if (y+2*phase)%5==0:
-            rows[y][1]='2';rows[y][10]='2'
-    for x in (1,10):
-        rows[1][x]='3';rows[10][x]='3'
-    g=rows
+    # Sparse, coherent 2-frame tread movement, no confetti pixels.
+    g=[['.']*12 for _ in range(12)]
+    for y in range(2,11):
+        if (y+phase*2)%4 in (0,1):
+            for x in (1,10):g[y][x]='3'
+    for x in (1,10):g[2][x]='3';g[10][x]='3'
     for _ in range(direction):g=rotate_grid(g)
     return padded(g)
-
 TRACK_SPRITES={f'tread_{d}_{phase}':track_overlay(d,phase)
                for d in range(4) for phase in range(2)}
 
 def explosion_sprite(frame):
-    """Four six-colour-frame shapes suggest fire, smoke, shrapnel movement."""
+    # Controlled four-frame animation: impact, expanding fire, shrapnel,
+    # dissipating smoke. Chunky connected clusters, not random dither.
     g=[['.']*16 for _ in range(12)]
     if frame==0:
-        points=[(8,5,3),(7,5,3),(8,6,3),(7,6,3),(6,5,2),(9,6,2)]
+        groups=[(6,4,4,4,'3'),(5,5,6,2,'2')]
     elif frame==1:
-        points=[(8,2,3),(8,9,3),(3,5,2),(12,5,2),(5,3,3),(10,3,3),
-                (5,8,3),(10,8,3),(7,4,2),(8,5,3),(6,6,2),(9,6,2)]
+        groups=[(6,2,4,8,'2'),(3,4,10,4,'3'),(5,4,6,4,'1')]
     elif frame==2:
-        points=[(1,2,3),(14,1,2),(2,9,2),(13,10,3),(4,5,2),
-                (11,5,2),(6,2,3),(10,8,3),(7,6,1),(9,4,1)]
+        groups=[(6,3,4,5,'1'),(3,3,2,2,'3'),(12,2,2,2,'2'),(3,8,2,2,'2'),(11,9,2,2,'3')]
     else:
-        points=[(0,0,2),(15,2,3),(3,11,3),(14,10,2),(5,4,1),
-                (10,7,1),(8,0,2)]
-    for x,y,c in points:g[y][x]=str(c)
-    return sprite(*(''.join(r) for r in g))
+        groups=[(4,3,2,2,'1'),(12,3,2,2,'1'),(3,8,2,2,'3'),(11,8,2,2,'1')]
+    for x,y,w,h,c in groups:
+        for yy in range(y,min(12,y+h)):
+            for xx in range(x,min(16,x+w)):
+                g[yy][xx]=c
+    return sprite(*(''.join(row) for row in g))
 EXPLOSIONS={f'explosion_{i}':explosion_sprite(i) for i in range(4)}
 
-# White arc around the player's own original tank pixels during invulnerability.
 def shield_sprite(art):
-    g = [list(row) for row in art]
-    for x in range(2, 14):
-        if x not in (2,13):
-            g[0][x]='3'
-            g[11][x]='3'
+    # Tank remains unchanged; separate outer halo with open corners.
+    g=[list(row) for row in art]
+    for x in range(4,12):
+        if x%2==0:g[0][x]='3';g[11][x]='3'
     for y in range(2,10):
-        g[y][1]='3'
-        g[y][14]='3'
+        if y%2==0:g[y][0]='3';g[y][15]='3'
+    for x,y in ((2,1),(13,1),(2,10),(13,10)):
+        g[y][x]='2'
     return sprite(*(''.join(row) for row in g))
 
-
-# Enemy is same geometry but visibly magenta instead of cyan.
-ENEMY = sprite(*(row.replace('1', '2').replace('3','1') for row in TANK_DOWN))
-EG_DOWN = [list(row[2:14]) for row in ENEMY]
-# Four NES-style gameplay classes remain distinguishable on 4-color CGA.
-def remap(rows, table):
-    return sprite(*(row.translate(str.maketrans(table)) for row in rows))
-
-def four_directions(down):
-    core = [list(row[2:14]) for row in down]
-    left = padded(rotate_grid(core))
-    up = padded(rotate_grid(rotate_grid(core)))
-    right = padded(rotate_grid(rotate_grid(rotate_grid(core))))
-    return up, right, down, left
-FAST_UP, FAST_RIGHT, FAST_DOWN, FAST_LEFT = four_directions(remap(ENEMY, {'2':'3'}))
-POWER_UP, POWER_RIGHT, POWER_DOWN, POWER_LEFT = four_directions(remap(ENEMY, {'2':'1', '1':'2'}))
-ARMOR_UP, ARMOR_RIGHT, ARMOR_DOWN, ARMOR_LEFT = four_directions(remap(ENEMY, {'2':'3', '1':'2'}))
-ENEMY_LEFT = padded(rotate_grid(EG_DOWN))
-ENEMY_UP = padded(rotate_grid(rotate_grid(EG_DOWN)))
-ENEMY_RIGHT = padded(rotate_grid(rotate_grid(rotate_grid(EG_DOWN))))
 ENEMY_BULLET = sprite(
  *(['.'*16] * 4),
  '.......22.......', '......2222......', '......2222......',
