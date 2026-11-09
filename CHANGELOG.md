@@ -1,3 +1,16 @@
+## v0.11 — Tactical Director and CGA materials (2026-11-09)
+
+- Autoplay begins immediately, with a low-cost 8088 player defender that
+  selects objectives, seeks firing lanes, dodges enemy shells and protects HQ.
+- Manual arrows/WASD/space take over; Tab toggles AI mode, displayed as AUTO/MAN.
+- AI demo advances/restarts after a result-screen hold.
+- Four enemy squad roles (HQ raider, left/right flank, interceptor), shared
+  short-lived last-known player location, ambush holds and incoming-shot dodge.
+- Friend-aware shot suppression alongside existing live friendly-fire physics.
+- Material pass: negative-space water waves and bright cracked ice.
+- Align GAME OVER/SCORE/R - RESTART and add mode indicator to the CGA HUD.
+- 8086 ISA, DOS /TEST tactical probes, map and asset QA; **true 8088 FPS still unmeasured**.
+
 ## v0.10 — CGA silhouette and material readability (2026-11-09)
 - Redesigned player and four enemy classes as silhouette-first original 12×12 cores, keeping a visible turret/muzzle and two physically separated tracks.
 - Removed all cyan/green ornamentation from brick; dark mortar, staggered courses and deliberate white highlight strips remain recognizable under all four CGA palette settings.
@@ -88,16 +101,3 @@
 - Projectiles advance in 1-pixel substeps with exact 8x6-brick quadrant damage, tank hits, shot-vs-shot collisions and improved damage rules; nine stages and all six bonuses retained.
 - Extend /TEST with smooth movement, steel boundary, precise brick damage and bullet advance; add structural regression suite and increase DOS COM size cap to 48KiB.
 - **Note:** keyboard hook and 4.77MHz performance need specific emulator and manual user checks, and this binary remains a DOS/CGA build rather than a base Poisk-1 native build.
-
-## v0.11 — Tactical Director and CGA materials (2026-11-09)
-
-- Autoplay begins immediately, with a low-cost 8088 player defender that
-  selects objectives, seeks firing lanes, dodges enemy shells and protects HQ.
-- Manual arrows/WASD/space take over; Tab toggles AI mode, displayed as AUTO/MAN.
-- AI demo advances/restarts after a result-screen hold.
-- Four enemy squad roles (HQ raider, left/right flank, interceptor), shared
-  short-lived last-known player location, ambush holds and incoming-shot dodge.
-- Friend-aware shot suppression alongside existing live friendly-fire physics.
-- Material pass: negative-space water waves and bright cracked ice.
-- Align GAME OVER/SCORE/R - RESTART and add mode indicator to the CGA HUD.
-- 8086 ISA, DOS /TEST tactical probes, map and asset QA; **true 8088 FPS still unmeasured**.
