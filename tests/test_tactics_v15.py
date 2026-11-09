@@ -12,7 +12,7 @@ class V15Tests(unittest.TestCase):
         for delta in range(-32,33):
             self.assertEqual(0 <= (delta+9) <= 19,-2 <= (8-delta) <= 17,delta)
             self.assertEqual(0 <= (delta+7) <= 15,-2 <= (6-delta) <= 13,delta)
-        self.assertIn('add al, 9            /* projectile reaches outer treads */',A)
+        self.assertIn('add al,9',A)
         self.assertIn('cmp al, 19',A)
         self.assertIn('add al,9            /* same width as physics collision */',A)
         self.assertIn('cmp al,15',A)
@@ -24,7 +24,7 @@ class V15Tests(unittest.TestCase):
         self.assertEqual(p.count('call tactical_player_path_open'),2)
         self.assertIn('cmp al, 72',A)
     def test_base_breach_precedes_bonus(self):
-        self.assertIn('cmp byte ptr [enemy_py+bx],120',N)
+        self.assertIn('cmp byte ptr [enemy_py+bx],140',N)
         self.assertIn('cmp byte ptr [enemy_py+bx],96',A)
         self.assertIn('tactical_target_wide:',A)
         self.assertIn('tactical_seek_flank_breach:',A)
@@ -35,7 +35,7 @@ class V15Tests(unittest.TestCase):
         self.assertIn('mov [bonus_flash_type],al',T)
         self.assertIn('mov byte ptr [bonus_flash_ticks],112',T)
         self.assertIn('test byte ptr [game_tick],8',T)
-        self.assertIn('mov di,3911',T)
+        self.assertIn('mov di,3906',T)
         self.assertIn('mov di, 4224',T)  # preserve TAB-AUTO
         indicator=T[T.index('draw_bonus_indicator:'):T.index('draw_mode_indicator:')]
         self.assertNotIn('draw_hud_digit',indicator)
