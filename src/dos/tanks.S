@@ -5434,15 +5434,23 @@ smoke_fail:
 /* Deterministic real-mode trace, not an AI simulator or source-only test. */
 trace_run:
     mov byte ptr [trace_count],0
+.ifdef PERF_BUILD
+    mov cx,384          /* exact 384 full visible frames, no real-time delay */
+.else
     mov cx,2048
+.endif
 trace_tick:
     push cx
     call game_tick_step
+.ifdef PERF_BUILD
+    call render_frame     /* benchmark the real frame workload every tick */
+.endif
     test byte ptr [game_tick],15
     jnz trace_no_sample
-    /* Only paint diagnostic frames every 16 ticks: 128 timed snapshots
-       cover the full first-stage assault without a large emulator cost. */
+.ifndef PERF_BUILD
+    /* Normal trace records 128 snapshots without painting every tick. */
     call render_frame
+.endif
     call trace_record
 trace_no_sample:
     pop cx
