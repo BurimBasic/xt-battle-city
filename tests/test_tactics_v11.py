@@ -20,7 +20,7 @@ class TacticalTests(unittest.TestCase):
                   'tactical_find_target:','tactical_player_path_open:'):
             self.assertIn(s,self.ai)
         self.assertIn('call tactical_player_tick',self.src)
-        self.assertIn('mov byte ptr [auto_mode],0',self.src)
+        self.assertIn('mov byte ptr [auto_mode], 0',self.src)
         self.assertIn('cmp al, 0x0f',self.src)  # Tab: switch mode
         self.assertIn('demo_timer',self.src)
         self.assertIn('cmp byte ptr [demo_timer], 72',self.src)
@@ -30,7 +30,7 @@ class TacticalTests(unittest.TestCase):
         for label in ('tactical_enemy_turn:','tactical_enemy_evade:',
                       'tactical_safe_fire:','tactical_report_player:'):
             self.assertIn(label,self.ai)
-        for label in ('tactical_role_flank_left:', 'tactical_role_flank_right:',
+        for label in ('tactical_role_flank_right:', 'tactical_goal_path:',
                       'tactical_role_hunter:','tactical_ambush_hold:'):
             self.assertIn(label,self.ai)
         self.assertIn('call tactical_enemy_turn',self.src)
@@ -61,10 +61,10 @@ class TacticalTests(unittest.TestCase):
 
     def test_hud_auto_indicator_font(self):
         hud=a.generate_hud()
-        for c in 'automn':
+        for c in 'automnb':
             self.assertIn('hud_'+c+'_char:',hud)
         self.assertIn('tactical_auto_glyphs:',self.src)
         self.assertIn('tactical_manual_glyphs:',self.src)
-        self.assertIn('mov di, 4225',self.src)
+        self.assertIn('mov di, 4224',self.src)
 
 if __name__=='__main__':unittest.main()

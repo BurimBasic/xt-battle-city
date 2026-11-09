@@ -1,4 +1,4 @@
-/* v0.11 tactical director, entirely 8086-safe integer arithmetic.
+/* v0.13 tactical director, entirely 8086-safe integer arithmetic.
  * No dynamic allocation, no recursion, no DOS or BIOS work in decisions.
  * AI runs at most once per four 18.2Hz ticks. Directions 0=up,
  * 1=right, 2=down, 3=left, held keys bits 1,2,4,8.
@@ -19,10 +19,21 @@ tactical_player_decide:
     push si
     mov byte ptr [tactical_fire_request], 0
     call tactical_find_threat
-    jc tactical_player_steer
+    jnc 1f
+    jmp tactical_player_steer
+1:
     call tactical_find_target
-    jnc tactical_patrol
-    /* BX = enemy nearest our HQ (highest y). Aim before repositioning. */
+    jc 1f
+    jmp tactical_patrol
+1:
+    /* Defensive doctrine: hold a useful lane near the HQ until there is
+       a genuine breach, instead of chasing every distant enemy. */
+    cmp byte ptr [enemy_py+bx],112
+    jae tactical_player_engage
+    cmp byte ptr [player_py],136
+    jbe tactical_patrol
+ tactical_player_engage:
+    /* BX = persistent enemy objective, selected by HQ threat. */
     mov al, [enemy_px+bx]
     sub al, [player_px]
     add al, 8
@@ -35,7 +46,7 @@ tactical_player_decide:
     mov al, 2
  tactical_aligned_vertical:
     mov byte ptr [tactical_fire_request], 1
-    jmp tactical_player_steer
+    jmp tactical_player_hold_and_fire
  tactical_player_try_row:
     mov al, [enemy_py+bx]
     sub al, [player_py]
@@ -49,7 +60,7 @@ tactical_player_decide:
     mov al, 1
  tactical_aligned_horizontal:
     mov byte ptr [tactical_fire_request], 1
-    jmp tactical_player_steer
+    jmp tactical_player_hold_and_fire
  tactical_player_seek_column:
     /* Defender stays in the central two thirds until an enemy crosses
        the middle of the map. Keeps HQ cover from disappearing in demos. */
@@ -75,9 +86,27 @@ tactical_player_decide:
     mov al, 1
     jmp tactical_player_steer
  tactical_patrol:
-    /* If all three enemy lanes are quiet, patrol towards centre. */
-    mov al, 0
+    /* If the upper field is quiet, take a fixed protective line instead
+       of bouncing through the map. No movement once in position. */
+    cmp byte ptr [player_py],136
+    jbe tactical_player_guard
+    mov al,0
     jmp tactical_player_steer
+ tactical_player_guard:
+    mov byte ptr [held_keys],0
+    mov byte ptr [player_dir],0
+    jmp tactical_player_leave
+ tactical_player_hold_and_fire:
+    /* An aligned defender shoots from cover; pursuing an aligned target
+       is the old source of repeated sideways/up-down oscillation. */
+    mov byte ptr [held_keys],0
+    mov [player_dir],al
+    cmp byte ptr [bullet_active],0
+    jne tactical_player_leave
+    cmp byte ptr [tactical_fire_request],0
+    je tactical_player_leave
+    call do_fire
+    jmp tactical_player_leave
  tactical_player_steer:
     mov [tactical_heading], al
     call tactical_player_path_open
@@ -161,26 +190,56 @@ tactical_player_path_open:
 tactical_find_target:
     push cx
     push dx
+    /* Keep the same enemy until destroyed; switch if a new one penetrates
+       more than 32 pixels deeper into our defensive zone. */
     xor bx,bx
-    mov cl, 0xff
-    mov ch, 0
+    mov bl,[tactical_player_target]
+    cmp bl,4
+    jae tactical_find_search
+    cmp byte ptr [enemy_active+bx],0
+    je tactical_find_search
+    mov dl,[enemy_py+bx]
+    add dl,32
+    jnc tactical_find_priority_scan
+    mov dl,255
+ tactical_find_priority_scan:
+    xor bx,bx
+ tactical_find_priority_loop:
+    cmp byte ptr [enemy_active+bx],0
+    je tactical_find_priority_next
+    cmp byte ptr [enemy_py+bx],dl
+    ja tactical_find_search
+ tactical_find_priority_next:
+    inc bx
+    cmp bx,4
+    jb tactical_find_priority_loop
+    xor bx,bx
+    mov bl,[tactical_player_target]
+    stc
+    jmp tactical_find_ret
+ tactical_find_search:
+    xor bx,bx
+    mov cl,0xff
+    mov ch,0
  tactical_find_next:
-    cmp byte ptr [enemy_active+bx], 0
+    cmp byte ptr [enemy_active+bx],0
     je tactical_find_skip
-    mov al, [enemy_py+bx]
-    cmp al, ch
+    mov al,[enemy_py+bx]
+    cmp al,ch
     jb tactical_find_skip
-    mov ch, al
-    mov cl, bl
+    mov ch,al
+    mov cl,bl
  tactical_find_skip:
     inc bx
-    cmp bx, 4
+    cmp bx,4
     jb tactical_find_next
-    cmp cl, 0xff
+    cmp cl,0xff
     jne tactical_find_found
+    mov byte ptr [tactical_player_target],0xff
     clc
     jmp tactical_find_ret
  tactical_find_found:
+    mov [tactical_player_target],cl
     xor bx,bx
     mov bl,cl
     stc
@@ -284,83 +343,94 @@ tactical_enemy_turn:
     jc tactical_enemy_plan
     jmp tactical_enemy_assign
 tactical_enemy_plan:
-    cmp bx, 0
-    jne tactical_role_flank_left
-    mov dl, 112              /* HQ raider */
-    mov dh, 170
-    jmp tactical_goal_ready
- tactical_role_flank_left:
-    cmp bx, 1
-    jne tactical_role_flank_right
-    mov dl, 48               /* left wing */
-    mov dh, 150
-    cmp byte ptr [squad_alert], 0
+    /* Three agents receive a shared, staged HQ operation; the interceptor
+       alone hunts the exposed player. This prevents all four from randomly
+       chasing the player while leaving the base unharmed. */
+    mov word ptr [route_active_field],offset route_base
+    mov dl,112
+    mov dh,168
+    cmp bx,0
     je tactical_goal_ready
-    mov dl, [squad_target_x]
-    cmp dl, 40
-    jae 1f
-    mov dl, 40
-1:
-    sub dl, 32
-    mov dh, [squad_target_y]
+    cmp bx,1
+    jne tactical_role_flank_right
+    cmp byte ptr [squad_phase],0
+    jne tactical_goal_ready
+    mov word ptr [route_active_field],offset route_left
+    mov dl,48
+    mov dh,132
     jmp tactical_goal_ready
  tactical_role_flank_right:
-    cmp bx, 2
+    cmp bx,2
     jne tactical_role_hunter
-    mov dl, 190              /* right wing */
-    mov dh, 150
-    cmp byte ptr [squad_alert], 0
-    je tactical_goal_ready
-    mov dl, [squad_target_x]
-    cmp dl, 199
-    jbe 1f
-    mov dl, 199
-1:
-    add dl, 32
-    mov dh, [squad_target_y]
+    cmp byte ptr [squad_phase],0
+    jne tactical_goal_ready
+    mov word ptr [route_active_field],offset route_right
+    mov dl,192
+    mov dh,132
     jmp tactical_goal_ready
  tactical_role_hunter:
-    mov dl, [player_px]      /* interceptor */
-    mov dh, [player_py]
+    mov dl,[player_px]
+    mov dh,[player_py]
  tactical_goal_ready:
-    /* Ambush: if aligned with the player's lane, stop for an aimed shot. */
-    cmp bx, 0
-    je tactical_goal_path
-    mov al, [enemy_px+bx]
-    sub al, [player_px]
-    add al, 8
-    cmp al, 16
+    /* Flankers first travel to rally points. Once both are there (or the
+       team clock expires) they push toward the HQ from opposite wings. */
+    cmp bx,3
+    jne tactical_goal_path
+    /* The interceptor can establish a short fire ambush only if the player
+       occupies its row or column. Other roles do not abandon their order. */
+    mov al,[enemy_px+bx]
+    sub al,[player_px]
+    add al,8
+    cmp al,16
     ja tactical_ambush_horizontal
-    mov al, [enemy_py+bx]
-    sub al, [player_py]
-    add al, 64
-    cmp al, 128
+    mov al,[enemy_py+bx]
+    sub al,[player_py]
+    add al,64
+    cmp al,128
     ja tactical_goal_path
-    mov al, 2
-    mov ah, [player_py]
-    cmp byte ptr [enemy_py+bx], ah
+    mov al,2
+    mov ah,[player_py]
+    cmp byte ptr [enemy_py+bx],ah
     jb tactical_ambush_hold
-    mov al, 0
+    mov al,0
     jmp tactical_ambush_hold
  tactical_ambush_horizontal:
-    mov al, [enemy_py+bx]
-    sub al, [player_py]
-    add al, 6
-    cmp al, 12
+    mov al,[enemy_py+bx]
+    sub al,[player_py]
+    add al,6
+    cmp al,12
     ja tactical_goal_path
-    mov al, 1
-    mov ah, [player_px]
-    cmp byte ptr [enemy_px+bx], ah
+    mov al,1
+    mov ah,[player_px]
+    cmp byte ptr [enemy_px+bx],ah
     jb tactical_ambush_hold
-    mov al, 3
+    mov al,3
  tactical_ambush_hold:
-    mov byte ptr [enemy_hold+bx], 20
+    mov byte ptr [enemy_hold+bx],20
     jmp tactical_enemy_assign
  tactical_goal_path:
-    /* v0.12: bounded local planning instead of x-then-y chasing. Four
-       candidate headings, each projected six pixels; rank reachable
-       headings by Manhattan distance to role waypoint. The inertia and
-       reverse penalties avoid oscillation at walls and teammates. */
+    cmp bx,3
+    je tactical_interceptor_seek
+    /* If a squad tank enters the HQ firing lane, it digs in and fires
+       toward the base instead of oscillating around the last waypoint. */
+    mov al,[enemy_px+bx]
+    sub al,104
+    cmp al,16
+    ja tactical_squad_route
+    cmp byte ptr [enemy_py+bx],132
+    jb tactical_squad_route
+    cmp byte ptr [squad_phase],0
+    jne tactical_hq_bombard
+    cmp bx,0
+    jne tactical_squad_route
+ tactical_hq_bombard:
+    mov al,2
+    mov byte ptr [enemy_hold+bx],24
+    jmp tactical_enemy_assign
+ tactical_squad_route:
+    call strategy_route_heading
+    jmp tactical_enemy_assign
+ tactical_interceptor_seek:
     call tactical_route_choose
     jmp tactical_enemy_assign
  tactical_enemy_assign:
@@ -531,6 +601,8 @@ tactical_enemy_evade:
 /* Avoid firing down a friendly's current lane if they are in front of us.
  * Doesn't eliminate emergent friendly fire when a teammate crosses a shell. */
 tactical_safe_fire:
+    /* A teammate anywhere ahead on this row/column blocks fire. Old code
+       only checked 56 px, so tanks shot team members farther downrange. */
     push ax
     push dx
     push si
@@ -543,34 +615,37 @@ tactical_safe_fire:
     mov al,[enemy_dir+bx]
     test al,1
     jnz tactical_fire_horizontal
+    /* Vertical shot: protect every ally whose hull intersects the ray. */
     mov al,[enemy_px+bx]
     sub al,[enemy_px+si]
-    add al,10
-    cmp al,20
+    add al,12
+    cmp al,24
     ja tactical_fire_friend_next
-    mov dl,[enemy_py+bx]
-    sub dl,[enemy_py+si]
+    mov dl,[enemy_py+si]
     cmp byte ptr [enemy_dir+bx],0
     je tactical_fire_up
-    neg dl
+    cmp dl,[enemy_py+bx]       /* downward: ally must be below shooter */
+    jae tactical_fire_friend_block
+    jmp tactical_fire_friend_next
  tactical_fire_up:
-    cmp dl,56
-    jb tactical_fire_friend_block
+    cmp dl,[enemy_py+bx]       /* upward: ally must be above shooter */
+    jbe tactical_fire_friend_block
     jmp tactical_fire_friend_next
  tactical_fire_horizontal:
     mov al,[enemy_py+bx]
     sub al,[enemy_py+si]
-    add al,6
-    cmp al,12
+    add al,9
+    cmp al,18
     ja tactical_fire_friend_next
-    mov dl,[enemy_px+bx]
-    sub dl,[enemy_px+si]
+    mov dl,[enemy_px+si]
     cmp byte ptr [enemy_dir+bx],3
     je tactical_fire_left
-    neg dl
+    cmp dl,[enemy_px+bx]       /* rightward: ally must be to the right */
+    jae tactical_fire_friend_block
+    jmp tactical_fire_friend_next
  tactical_fire_left:
-    cmp dl,56
-    jb tactical_fire_friend_block
+    cmp dl,[enemy_px+bx]       /* leftward: ally must be to the left */
+    jbe tactical_fire_friend_block
  tactical_fire_friend_next:
     inc si
     cmp si,4

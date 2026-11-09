@@ -1,4 +1,4 @@
-/* XT Battle City v0.12: original CGA tile arcade for DOS, 8086/8088.
+/* XT Battle City v0.13: original CGA tile arcade for DOS, 8086/8088.
  * Gameplay: 20-enemy waves, 4 tank classes, segmented bricks, 6 pickups,
  * destructible bricks, lives, headquarters, score and stage transitions.
  * 16x12 CGA cells, 16x16 battlefield. Original artwork and stage layouts.
@@ -191,6 +191,7 @@ marker_next:
     mov byte ptr [slide_ticks], 0
     mov byte ptr [sound_ticks], 0
     mov byte ptr [held_keys], 0
+    mov byte ptr [manual_keys], 0
     mov byte ptr [pending_commands], 0
     mov byte ptr [auto_toggle_pending], 0
     mov byte ptr [player_px], 112
@@ -224,6 +225,7 @@ init_brick_store:
     inc si
     inc di
     loop init_bricks
+    call strategy_reset
     mov di, offset enemy_active
     mov cx, 4
     xor al, al
@@ -508,6 +510,7 @@ slide_done:
 /* 18.2 Hz game tick, no busy-wait dependent on CPU MHz. */
 game_tick_step:
     inc byte ptr [game_tick]
+    call strategy_tick
     cmp byte ptr [auto_mode],0
     je game_tick_no_autopilot
     call tactical_player_tick
@@ -988,6 +991,7 @@ damage_front:
     test bl, bl
     jnz damage_done
     mov byte ptr [level_data+si], '.'
+    mov byte ptr [route_dirty], 1
 damage_done:
     pop si
     pop dx
@@ -1890,24 +1894,13 @@ enemy_pixel_next_other:
     mov [enemy_row+bx], al
     ret
 enemy_pixel_collision:
+    /* Wait for the next coordinated order instead of executing a visible
+       left/right random spin at every obstacle. Only replan periodically. */
     inc byte ptr [enemy_blocked+bx]
-    mov al, [enemy_blocked+bx]
-    and al, 3
-    jz enemy_collision_replan
-    /* Alternating detours prevent endless battles with an impassable tile. */
-    mov al, [enemy_dir+bx]
-    test bl,1
-    jnz enemy_collision_turn_left
-    inc al
-    jmp enemy_collision_assign
- enemy_collision_turn_left:
-    add al,3
- enemy_collision_assign:
-    and al,3
-    mov [enemy_dir+bx],al
-    ret
- enemy_collision_replan:
+    test byte ptr [game_tick],3
+    jnz enemy_pixel_wait
     call choose_enemy_turn
+enemy_pixel_wait:
     ret
 
 /* Probe a shell's center at DL/DH world pixels.
@@ -1994,6 +1987,7 @@ chip_brick_pixel:
     test al, al
     jnz chip_brick_dirty
     mov byte ptr [level_data+si], '.'
+    mov byte ptr [route_dirty], 1
 chip_brick_dirty:
     mov dl, [probe_col]
     mov dh, [probe_row]
@@ -2291,11 +2285,8 @@ friendly_target_loop:
     sub al, [enemy_py+si]
     cmp al, 12
     jae friendly_target_next
-    dec byte ptr [enemy_hp+si]
-    jnz friendly_target_hit
-    mov byte ptr [enemy_active+si], 0
-    inc byte ptr [enemy_killed]
-    call draw_hud
+    /* Friendly units are immune to allied rounds. Commanders also
+       suppress dangerous lanes before shooting; crossing shells fizzle. */
 friendly_target_hit:
     mov dl, [shot_px+bx]
     mov dh, [shot_py+bx]
@@ -2453,14 +2444,30 @@ irq_fire:
     jnz irq_set_held
     or byte ptr [pending_commands], 16
 irq_set_held:
-    test bl, 0x80
-    jnz irq_released
-    mov byte ptr [auto_mode],0 /* any manual movement/fire takes over */
-    or [held_keys], ah
+    call manual_key_event
     jmp irq_ack
-irq_released:
+/* AH key mask, BL make/break scancode; no I/O; also used by /TEST. */
+manual_key_event:
+    /* Physical keys and AI commands never share state. The old takeover
+       ORed a human key into the autopilot's last LEFT bit. */
+    push ax
+    test bl, 0x80
+    jnz manual_key_released
+    or byte ptr [manual_keys], ah
+    mov byte ptr [auto_mode], 0
+    mov al, [manual_keys]
+    mov [held_keys], al
+    jmp manual_key_done
+manual_key_released:
     not ah
-    and [held_keys], ah
+    and byte ptr [manual_keys], ah
+    cmp byte ptr [auto_mode], 0
+    jne manual_key_done
+    mov al, [manual_keys]
+    mov [held_keys], al
+manual_key_done:
+    pop ax
+    ret
 irq_ack:
     in al, 0x61
     mov dl, al
@@ -2488,6 +2495,7 @@ poll_controls:
     jz controls_no_auto_toggle
     xor byte ptr [auto_mode],1
     mov byte ptr [held_keys],0
+    mov byte ptr [manual_keys],0
     call draw_mode_indicator
 controls_no_auto_toggle:
     test al, 1
@@ -3708,8 +3716,8 @@ draw_mode_indicator:
     jne mode_hud_selected
     mov bx, offset tactical_manual_glyphs
 mode_hud_selected:
-    mov di, 4225             /* x260, y104; inside the 112px sidebar */
-    mov cx, 4
+    mov di, 4224             /* x256,y104: eight 8px glyphs = 64px sidebar */
+    mov cx, 8
 mode_hud_glyph:
     mov si,[bx]
     call draw_hud_glyph
@@ -4206,7 +4214,8 @@ smoke_campaign_35:
     je 1f
     jmp smoke_fail
 1:
-    /* Test phase 29: enemy bullet damages second enemy, not the player. */
+    /* Test phase 29: allied shell cannot injure its teammate, even if
+       the teammate crosses a shot already in flight. */
     mov byte ptr [test_phase], 29
     call reset_campaign
     mov byte ptr [enemy_hp+1], 1
@@ -4219,11 +4228,15 @@ smoke_campaign_35:
     jc 1f
     jmp smoke_fail
 1:
-    cmp byte ptr [enemy_active+1], 0
+    cmp byte ptr [enemy_active+1], 1
     je 1f
     jmp smoke_fail
 1:
-    cmp byte ptr [enemy_killed], 1
+    cmp byte ptr [enemy_hp+1], 1
+    je 1f
+    jmp smoke_fail
+1:
+    cmp byte ptr [enemy_killed], 0
     je 1f
     jmp smoke_fail
 1:
@@ -4282,6 +4295,7 @@ smoke_tactics_v11:
     mov byte ptr [auto_mode], 1
     mov byte ptr [game_state], 0
     mov byte ptr [held_keys], 0
+    mov byte ptr [manual_keys], 0
     mov byte ptr [pending_commands], 0
     mov byte ptr [auto_toggle_pending], 1
     call poll_controls
@@ -4410,7 +4424,122 @@ smoke_tactical_path_tests:
     je 1f
     jmp smoke_fail
 1:
+    /* Phase 44: AUTO left -> human right must NOT inherit LEFT. */
+    mov byte ptr [test_phase],44
+    mov byte ptr [auto_mode],1
+    mov byte ptr [held_keys],8
+    mov byte ptr [manual_keys],0
+    mov ah,2
+    xor bl,bl
+    call manual_key_event
+    cmp byte ptr [auto_mode],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [held_keys],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov bl,0x80
+    call manual_key_event
+    cmp byte ptr [held_keys],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 45: global flow fields lead from center spawn to HQ,
+       and the left/right flank goals each have zero distance. */
+    mov byte ptr [test_phase],45
+    call reset_campaign
+    cmp byte ptr [route_base+0xe7],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [route_left+0xb3],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [route_right+0xbc],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [route_base+0x07],0xff
+    jne 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 46: a steel barrier has no passable cached cost. */
+    mov byte ptr [test_phase],46
+    mov byte ptr [level_data+0x77],'T'
+    mov byte ptr [route_dirty],1
+    call strategy_reset_routes
+    cmp byte ptr [route_base+0x77],0xff
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 47: planned global HQ attack takes a valid heading. */
+    mov byte ptr [test_phase],47
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_px],112
+    mov byte ptr [enemy_py],96
+    mov byte ptr [enemy_dir],2
+    mov word ptr [route_active_field],offset route_base
+    xor bx,bx
+    call strategy_route_heading
+    cmp al,4
+    jb 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 48: synchronized attack starts after the staging deadline. */
+    mov byte ptr [test_phase],48
+    mov byte ptr [squad_phase],0
+    mov byte ptr [squad_clock],125
+    call strategy_tick
+    cmp byte ptr [squad_phase],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 49: HQ raider aims DOWN and holds a firing position. */
+    mov byte ptr [test_phase],49
+    mov byte ptr [bullet_active],0
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_px],112
+    mov byte ptr [enemy_py],140
+    mov byte ptr [enemy_dir],1
+    xor bx,bx
+    call tactical_enemy_turn
+    cmp byte ptr [enemy_dir],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [enemy_hold],24
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 50: teammate 120 pixels downrange blocks fire. */
+    mov byte ptr [test_phase],50
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],1
+    mov byte ptr [enemy_px],64
+    mov byte ptr [enemy_py],12
+    mov byte ptr [enemy_px+1],64
+    mov byte ptr [enemy_py+1],140
+    mov byte ptr [enemy_dir],2
+    xor bx,bx
+    call tactical_safe_fire
+    jnc 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 51: teammate moves out of lane, same shot becomes safe. */
+    mov byte ptr [test_phase],51
+    mov byte ptr [enemy_px+1],144
+    call tactical_safe_fire
+    jc 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
+smoke_extra_fail:
+    jmp smoke_fail
 test_failed_jump:
     jmp smoke_fail
 smoke_pass:
@@ -4426,6 +4555,7 @@ smoke_fail:
     int 0x21
 
 .include "src/dos/tactics.inc"
+.include "src/dos/strategy_v13.inc"
 
 .section .data
 kills_by_type: .space 4
@@ -4525,8 +4655,8 @@ victory_string: .asciz "STAGE CLEAR"
 game_over_string: .asciz "GAME OVER"
 next_string: .asciz "SPACE - NEXT"
 restart_string: .asciz "R - RESTART"
-tactical_auto_glyphs: .word hud_a_char, hud_u_char, hud_t_char, hud_o_char
-tactical_manual_glyphs: .word hud_m_char, hud_a_char, hud_n_char, hud_blank_icon
+tactical_auto_glyphs: .word hud_a_char, hud_u_char, hud_t_char, hud_o_char, hud_blank_icon, hud_blank_icon, hud_blank_icon, hud_blank_icon
+tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
 shot_substeps: .byte 0
@@ -4535,6 +4665,7 @@ keyboard_installed: .byte 0
 old_int9_off: .word 0
 old_int9_seg: .word 0
 held_keys: .byte 0
+manual_keys: .byte 0
 pending_commands: .byte 0
 test_mode: .byte 0
 player_px: .byte 112

@@ -51,7 +51,7 @@ class WaveTests(unittest.TestCase):
         lines = sprites.generate_hud()
         self.assertEqual(len(sprites.hud_glyph(sprites.HUD_TANK)), 16)
         self.assertEqual(len(sprites.hud_glyph(sprites.HUD_FLAG)), 16)
-        self.assertEqual(len(lines), 5 + 2*(17+6))
+        self.assertEqual(len(lines), 5 + 2*(19+6))
         self.assertIn('hud_star_icon:', lines)
         self.assertIn('hud_indicator_offsets:', lines)
         self.assertIn('hud_digit_ptrs:', lines)

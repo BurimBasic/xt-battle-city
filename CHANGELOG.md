@@ -1,3 +1,13 @@
+## v0.13 — global tactical routes, coordinated HQ assault and manual keyboard fix (2026-11-09)
+
+- Compute three cached reverse-BFS distance fields (HQ, left staging, right staging) on each 16×16 map; rebuild after destroyed walls.
+- Coordinated phased squad attack with HQ artillery posture; interceptor keeps separate hunter behavior.
+- Defender holds a defensive line and retains its target, instead of chasing random screen objects.
+- Physical XT keys separate from AI movement. Manual takeover no longer inherits the AI's previous LEFT, and the sidebar shows TAB-AUTO in manual mode.
+- Suppress ally-targeted fire over the full line; stray allied projectiles cannot damage allies.
+- Remove collision-triggered random rotations; use route replanning.
+- Expanded Python and DOSBox regression phases; do not claim 86Box 4.77MHz performance certification.
+
 ## v0.12 — local tactical route planning and ambush corrections (2026-11-09)
 
 - Bounded six-pixel lookahead scores four possible headings for each active enemy.

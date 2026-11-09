@@ -14,7 +14,7 @@ build/xtinfo.o: src/dos/xtinfo.S | build
 build/XTINFO.COM: build/xtinfo.o
 	$(LD) -m elf_i386 -Ttext 0x100 --oformat binary -o $@ $<
 
-build/tanks.o: src/dos/tanks.S src/dos/cga_assets.inc src/dos/tactics.inc | build
+build/tanks.o: src/dos/tanks.S src/dos/cga_assets.inc src/dos/tactics.inc src/dos/strategy_v13.inc | build
 	$(AS) --32 -o $@ $<
 
 build/TANKS.COM: build/tanks.o
