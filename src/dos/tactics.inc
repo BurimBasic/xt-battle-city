@@ -137,7 +137,9 @@ tactical_defense_position_ready:
     cmp byte ptr [enemy_py+bx],128
     jb tactical_seek_move_up
     cmp byte ptr [player_py],140
-    jae tactical_player_guard
+    jb tactical_seek_move_down
+    jmp tactical_player_guard
+ tactical_seek_move_down:
     mov al,2
     jmp tactical_player_steer
  tactical_seek_move_up:
