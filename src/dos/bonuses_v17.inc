@@ -142,7 +142,9 @@ extra17_no_home:
 extra17_next:
     inc si
     cmp si,2
-    jb extra17_step_loop
+    jae 1f
+    jmp extra17_step_loop
+1:
     pop si
     pop bx
     pop ax
@@ -324,7 +326,9 @@ ally17_seek_next:
     xor bx,bx
     mov bl,[ally_target]
     cmp bl,4
-    jae ally17_finished
+    jb 1f
+    jmp ally17_finished
+1:
     mov al,[enemy_px+bx]
     sub al,[ally_px]
     add al,9
@@ -349,7 +353,9 @@ ally17_check_horizontal:
     mov byte ptr [ally_dir],1
 ally17_try_fire:
     cmp byte ptr [ally_cooldown],0
-    jne ally17_finished
+    je 1f
+    jmp ally17_finished
+1:
     call extra17_ally_fire
     jmp ally17_finished
 ally17_move:
