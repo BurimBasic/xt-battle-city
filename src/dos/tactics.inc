@@ -49,16 +49,23 @@ tactical_target_not_aligned:
 tactical_defense_position_ready:
     /* Defensive doctrine: hold a useful lane near the HQ until there is
        a genuine breach, instead of chasing every distant enemy. */
-    cmp byte ptr [enemy_py+bx],112
+    cmp byte ptr [enemy_py+bx],96
     jae tactical_player_engage
-    cmp byte ptr [player_py],136
-    jbe tactical_patrol
+    /* During a quiet opening establish a forward firing line, and then
+       engage a reachable raider rather than watching a frozen screen. */
+    cmp byte ptr [player_py],112
+    jbe 1f
+    jmp tactical_patrol
+1:
+    cmp byte ptr [enemy_py+bx],16
+    jae tactical_player_engage
+    jmp tactical_player_guard
  tactical_player_engage:
     /* BX = persistent enemy objective, selected by HQ threat. */
     mov al, [enemy_px+bx]
     sub al, [player_px]
-    add al, 8
-    cmp al, 16
+    add al, 9            /* projectile reaches outer treads */
+    cmp al, 19
     ja tactical_player_try_row
     mov al, 0
     mov dl, [enemy_py+bx]
@@ -71,8 +78,8 @@ tactical_defense_position_ready:
  tactical_player_try_row:
     mov al, [enemy_py+bx]
     sub al, [player_py]
-    add al, 6
-    cmp al, 12
+    add al, 7
+    cmp al, 15
     ja tactical_player_seek_column
     mov al, 3
     mov dl, [enemy_px+bx]
@@ -98,6 +105,14 @@ tactical_defense_position_ready:
     mov al,3
     jmp tactical_player_steer
  tactical_player_seek_unrestricted:
+    /* Outer raiders are not worth abandoning the HQ until they breach. */
+    cmp byte ptr [enemy_py+bx],136
+    jae tactical_seek_flank_breach
+    cmp byte ptr [enemy_px+bx],64
+    jb tactical_player_guard
+    cmp byte ptr [enemy_px+bx],176
+    ja tactical_player_guard
+ tactical_seek_flank_breach:
     mov al, [enemy_px+bx]
     cmp al, [player_px]
     ja tactical_seek_right
@@ -107,9 +122,9 @@ tactical_defense_position_ready:
     mov al, 1
     jmp tactical_player_steer
  tactical_patrol:
-    /* If the upper field is quiet, take a fixed protective line instead
-       of bouncing through the map. No movement once in position. */
-    cmp byte ptr [player_py],136
+    /* Active forward sentry, close enough to fire at a stalled attacker.
+       HQ emergency and incoming shells still preempt this position. */
+    cmp byte ptr [player_py],112
     jbe tactical_player_guard
     mov al,0
     jmp tactical_player_steer
@@ -192,8 +207,8 @@ tactical_defense_position_ready:
 tactical_player_aim_if_aligned:
     mov al,[enemy_px+bx]
     sub al,[player_px]
-    add al,8
-    cmp al,16
+    add al,9            /* same width as physics collision */
+    cmp al,19
     ja tactical_aim_row
     /* Long-range axis alignment should not immobilize our defender:
        shoot from an actual effective position, advance while distant. */
@@ -213,8 +228,8 @@ tactical_player_aim_if_aligned:
  tactical_aim_row:
     mov al,[enemy_py+bx]
     sub al,[player_py]
-    add al,6
-    cmp al,12
+    add al,7
+    cmp al,15
     ja tactical_aim_fail
     mov al,[enemy_px+bx]
     sub al,[player_px]
@@ -296,6 +311,15 @@ tactical_find_target:
     cmp byte ptr [enemy_active+bx],0
     je tactical_find_skip
     mov al,[enemy_py+bx]
+    cmp byte ptr [enemy_px+bx],64
+    jb tactical_target_wide
+    cmp byte ptr [enemy_px+bx],176
+    jbe tactical_target_scored
+ tactical_target_wide:
+    sub al,24
+    jnc tactical_target_scored
+    xor al,al
+ tactical_target_scored:
     cmp al,ch
     jb tactical_find_skip
     mov ch,al
@@ -327,7 +351,9 @@ tactical_find_threat:
     xor bx,bx
  tactical_threat_loop:
     cmp byte ptr [shot_active+bx], 0
-    je tactical_threat_next
+    jne tactical_threat_live
+    jmp tactical_threat_next
+ tactical_threat_live:
     mov dl, [shot_dir+bx]
     test dl, 1
     jnz tactical_threat_horizontal
@@ -346,7 +372,7 @@ tactical_find_threat:
     mov al, [shot_py+bx]
     sub al, [player_py]
  tactical_threat_vertical_range:
-    cmp al, 48
+    cmp al, 72
     ja tactical_threat_next
     mov al, 1
     cmp byte ptr [player_px], 210
@@ -368,13 +394,22 @@ tactical_find_threat:
     mov al, [shot_px+bx]
     sub al, [player_px]
  tactical_threat_horizontal_range:
-    cmp al, 48
+    cmp al, 72
     ja tactical_threat_next
     mov al, 0
     cmp byte ptr [player_py], 15
     ja tactical_threat_found
     mov al, 2
  tactical_threat_found:
+    /* Never commit to an impossible dodge. Try both perpendicular sides. */
+    mov [tactical_heading],al
+    call tactical_player_path_open
+    jnc tactical_threat_escape
+    mov al,[tactical_heading]
+    xor al,2
+    call tactical_player_path_open
+    jc tactical_threat_next
+ tactical_threat_escape:
     stc
     jmp tactical_threat_done
  tactical_threat_next:
@@ -406,6 +441,16 @@ tactical_enemy_turn:
     push cx
     push dx
     mov byte ptr [enemy_hold+bx], 0
+    /* Priority one: a tank failing to move must yield a corridor.  The
+       actual collision probe prevents backing into a teammate or wall. */
+    cmp byte ptr [enemy_blocked+bx],6
+    jb tactical_enemy_not_jammed
+    mov al,[enemy_dir+bx]
+    xor al,2
+    call tactical_enemy_probe6
+    jc tactical_enemy_not_jammed
+    jmp tactical_enemy_assign
+ tactical_enemy_not_jammed:
     call tactical_enemy_evade
     jnc tactical_enemy_plan
     /* Emergency dodge must itself be traversable. Otherwise continue
@@ -463,6 +508,10 @@ tactical_enemy_plan:
     jmp tactical_goal_ready
  tactical_hunter_patrol:
     mov dl,112
+    cmp byte ptr [squad_doctrine],3
+    jne tactical_hunter_patrol_ready
+    mov dl,192          /* denial doctrine screens right-side passage */
+ tactical_hunter_patrol_ready:
     mov dh,132
  tactical_goal_ready:
     /* Flankers first travel to rally points. Once both are there (or the
@@ -551,7 +600,8 @@ tactical_route_choose:
     mov [tactical_goal_y], dh
     mov word ptr [tactical_best_score], 0xffff
     mov al, [enemy_dir+bx]
-    mov [tactical_best_dir], al
+    xor al,2
+    mov [tactical_best_dir], al /* escape rather than repeat blocked order */
     xor si, si
  tactical_route_next:
     mov ax, si
@@ -614,6 +664,7 @@ tactical_enemy_probe6:
     push ax
     push cx
     push dx
+    push si
     mov dl, [enemy_px+bx]
     mov dh, [enemy_py+bx]
     mov cl, 6
@@ -624,6 +675,40 @@ tactical_enemy_probe6:
     jc tactical_probe_blocked
     dec cl
     jnz tactical_probe_next
+    /* The old probe saw only tiles: four tanks could select the same
+       impassable lane forever. Compare predicted hull against live bodies. */
+    xor si,si
+ tactical_probe_actor:
+    cmp si,bx
+    je tactical_probe_other
+    cmp byte ptr [enemy_active+si],0
+    je tactical_probe_other
+    mov al,dl
+    sub al,[enemy_px+si]
+    add al,15
+    cmp al,30
+    ja tactical_probe_other
+    mov al,dh
+    sub al,[enemy_py+si]
+    add al,11
+    cmp al,22
+    jbe tactical_probe_blocked
+ tactical_probe_other:
+    inc si
+    cmp si,4
+    jb tactical_probe_actor
+    /* Also avoid futile pursuit straight through the defending tank. */
+    mov al,dl
+    sub al,[player_px]
+    add al,15
+    cmp al,30
+    ja tactical_probe_clear
+    mov al,dh
+    sub al,[player_py]
+    add al,11
+    cmp al,22
+    jbe tactical_probe_blocked
+ tactical_probe_clear:
     mov [tactical_probe_x], dl
     mov [tactical_probe_y], dh
     clc
@@ -631,6 +716,7 @@ tactical_enemy_probe6:
  tactical_probe_blocked:
     stc
  tactical_probe_finish:
+    pop si
     pop dx
     pop cx
     pop ax

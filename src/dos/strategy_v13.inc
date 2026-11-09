@@ -15,6 +15,17 @@ strategy_reset:
     push di
     mov byte ptr [squad_phase],0
     mov byte ptr [squad_clock],0
+    /* Four doctrines, one selection per stage; the per-frame AI is stable. */
+    mov byte ptr [squad_doctrine],0
+    cmp byte ptr [test_mode],0
+    jne strategy_doctrine_ready
+    call random_byte
+    and al,3
+    mov [squad_doctrine],al
+    cmp al,1
+    jne strategy_doctrine_ready
+    mov byte ptr [squad_phase],1   /* blitz skips the opening rally */
+ strategy_doctrine_ready:
     mov byte ptr [tactical_player_target],0xff
     mov byte ptr [route_dirty],0
     mov di,offset route_base
@@ -47,8 +58,15 @@ strategy_clock:
     cmp byte ptr [squad_phase],0
     jne strategy_tick_done
     inc byte ptr [squad_clock]
+    cmp byte ptr [squad_doctrine],2
+    jne strategy_clock_regular
+    cmp byte ptr [squad_clock],180
+    jae strategy_assault
+    jmp strategy_clock_staging
+ strategy_clock_regular:
     cmp byte ptr [squad_clock],126
     jae strategy_assault
+ strategy_clock_staging:
     cmp byte ptr [enemy_active+1],0
     je strategy_tick_done
     cmp byte ptr [enemy_active+2],0
@@ -349,7 +367,7 @@ bonus_route_check_threat:
 bonus_route_threat_loop:
     cmp byte ptr [enemy_active+bx],0
     je bonus_route_next_threat
-    cmp byte ptr [enemy_py+bx],144
+    cmp byte ptr [enemy_py+bx],120
     jb bonus_route_next_threat
     mov al,[enemy_px+bx]
     cmp al,64
@@ -486,6 +504,7 @@ bonus_route_done:
 .section .data
 squad_phase: .byte 0
 squad_clock: .byte 0
+squad_doctrine: .byte 0     /* balanced, blitz, pincer, eastern denial */
 route_dirty: .byte 0
 tactical_player_target: .byte 0xff
 route_goal_cell: .byte 0

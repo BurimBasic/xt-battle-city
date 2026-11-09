@@ -1,3 +1,14 @@
+## v0.15 — defender fire/dodge, squad diversity, bonus HUD, anti-stall (2026-11-09)
+
+- Player shells now score edge/tread overlaps, and AUTO aims within the same physical collision margins.
+- Improved base defence: forward sentry, earlier central-breach priority and less chasing of remote flank decoys.
+- Incoming shells are considered farther ahead; the escape heading must be physically legal, with an opposite-side fallback.
+- New per-stage enemy squad doctrines: standard, fast HQ blitz, delayed pincer, right-side denial.
+- Collected power-ups display their own blinking 8x8 icon in the right HUD (not a star/number placeholder).
+- Prevented multi-tank stalemates: collision probes consider live occupied hulls; repeatedly blocked attackers yield to free corridors.
+- DOS /TEST adds phases 56–58 (actor congestion, jam backoff, sentry advance). Python unit tests cover visual/logic invariants.
+- CI: 68 Python tests, ISA audit, map checks and strict 48 KiB size budget PASS. Physical DOSBox-X on SLOW1: /TEST phase script PASS. Qualitative gameplay and true 4.77-MHz 8088 speed still require observation.
+
 ## v0.14 — collision-aware squad, pickup pursuit and proactive fire (2026-11-09)
 
 - Restored enemy-on-enemy damage and kills without awarding player points.
