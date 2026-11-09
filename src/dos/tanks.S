@@ -603,6 +603,13 @@ game_tick_step:
     mov dh, [player_row]
     call draw_cell
 tick_no_shield:
+    /* Homing works by itself, not only when triple-fire is also active. */
+    cmp byte ptr [homing_ticks],0
+    je bullet17_standard
+    cmp byte ptr [bullet_active],0
+    je bullet17_standard
+    call extra17_home_direction
+bullet17_standard:
     call advance_bullet_smooth
     call extra17_advance
     cmp byte ptr [freeze_ticks], 0
@@ -3525,6 +3532,12 @@ paint_player_smooth:
     mov [paint_bullet_y], dh
     mov byte ptr [paint_bullet_valid], 1
     mov si, offset smooth_bullet
+    cmp byte ptr [homing_ticks],0
+    je paint_primary_bullet
+    test byte ptr [game_tick],4
+    jz paint_primary_bullet
+    mov si,offset smooth_enemy_bullet
+paint_primary_bullet:
     call draw_smooth_sprite
 paint_no_bullet:
     xor bx,bx
