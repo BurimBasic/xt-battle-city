@@ -1,3 +1,16 @@
+## v0.19 — XT 8088 speed, clean laser line, RAM-only palette (2026-11-10)
+
+- Reduced complete real-mode frame rendering time on SLOW1: at fixed 240 DOSBox-X cycles/ms, **384 full frames: 56.123s (v0.18) → 40.051s (v0.19), 28.6% elapsed-time reduction**. At fixed 500 cycles/ms: 28.088s → 20.033s, 28.7% reduction. Both replays have identical 24 snapshots/6 kills at 384 ticks. This is emulator timing, not proof of physical 4.77MHz 8088 FPS.
+- Separate less visual 2048-tick/128-frame trace: 52.12s→50.06s (~4% lower elapsed); both cleared stage 1 at 1040 sample tick with 20 kills. The gain primarily comes from rendering optimizations.
+- Avoid repeated CGA row calculations in every masked sprite: precomputed even/odd bank offsets for 192 scanlines. Replace MUL-16 on map lookups with shifts and DIV-12 per collision corner with a 256-byte lookup.
+- Rewrite dirty-tile marking, static restoration and VRAM upload to scan flat 256-byte flags directly instead of 256 full get_tile() calculations per frame. Suppress redundant per-tick AUTO HUD repaint.
+- Draw laser as a continuous 1-pixel segment from muzzle to actual projectile collision. Switch CGA color 1/3 every tick and restore every touched tile on the next frame. No more repeated 16×12 projectile sprite splats/ghosts.
+- Correct palette reset: after every BIOS CGA mode reinitialization, replay the current user-selected 3D9h palette index held in RAM. **No filesystem settings file, no cassette I/O, and no write to CMOS**; user choice cannot outlive power loss without an external medium.
+- Retro footer: move TANKS up by eight pixels for an empty separator row; ©1982/BASIC/V0.19 remain in regular rows with one blank font scanline between them.
+- Emulated adapter smoke: CGA baseline PASS; EGA PASS and VGA PASS only under **CGA mode 4 compatibility**; Hercules FAIL. Native EGA-16, VGA-256 and Hercules drivers remain future work.
+- GitHub: 96 Python tests, 35 stages, regenerated CGA assets, 8086 ISA audit, DOS binary under 56KiB. SLOW1 actual DOSBox-X /TEST through phase 78 PASS (new palette, y lookup, laser cleanup).
+- Real XT/Poisk hardware, all-stage play, diskless and tape-native Poisk boot still not certified.
+
 ## v0.18 — lighter classic CGA artwork and readable sidebar (2026-11-10)
 
 - Redrew water as two thin wave ribbons with dark space, replacing thick sawtooth bands. Ice is a clean cyan sheet with broad asymmetric white crystalline facets.
