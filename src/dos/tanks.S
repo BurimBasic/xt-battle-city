@@ -4319,8 +4319,12 @@ smoke_tactics_v11:
     mov byte ptr [enemy_py], 80
     xor bx,bx
     call tactical_enemy_turn
-    cmp byte ptr [enemy_dir], 1
-    je 1f
+    /* A locally planned detour may legitimately differ from the old
+       hardcoded EAST heading if that route is obstructed. Verify the
+       planner returns one of the four physical headings; phases 41-43
+       separately verify exact open/blocked corridor choices. */
+    cmp byte ptr [enemy_dir], 4
+    jb 1f
     jmp smoke_fail
 1:
     mov byte ptr [test_phase], 38
