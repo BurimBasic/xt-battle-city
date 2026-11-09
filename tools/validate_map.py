@@ -27,21 +27,27 @@ def validate(text: str) -> list[str]:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
-        print("usage: python3 tools/validate_map.py LEVEL.map", file=sys.stderr)
+    if len(argv) < 2:
+        print("usage: python3 tools/validate_map.py LEVEL.map [MORE.map ...]", file=sys.stderr)
         return 2
-    p = Path(argv[1])
-    try:
-        data = p.read_text(encoding="ascii")
-    except (OSError, UnicodeError) as e:
-        print(f"error: {e}", file=sys.stderr)
-        return 2
-    errors = validate(data)
-    if errors:
-        print("INVALID", p, *errors, sep="\n", file=sys.stderr)
-        return 1
-    print("OK", p)
-    return 0
+    count = 0
+    failed = 0
+    for name in argv[1:]:
+        p = Path(name)
+        try:
+            data = p.read_text(encoding="ascii")
+        except (OSError, UnicodeError) as e:
+            print(f"INVALID {p}: {e}", file=sys.stderr)
+            failed += 1
+            continue
+        errors = validate(data)
+        if errors:
+            print("INVALID", p, *errors, sep="\n", file=sys.stderr)
+            failed += 1
+        else:
+            count += 1
+    print(f"MAPS_VALID={count} MAPS_INVALID={failed}")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

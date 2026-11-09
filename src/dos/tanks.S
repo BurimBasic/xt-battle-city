@@ -15,6 +15,7 @@ _start:
     pop es
     cld
     call reset_campaign
+    call adlib_detect            /* OPL2 is optional; PC Speaker fallback */
     mov ax, 0x0004
     int 0x10
     mov ax, 0x0b00
@@ -23,6 +24,26 @@ _start:
     call draw_map
     call draw_sidebar_background
     call draw_hud
+    /* /AUDIO: DOS errorlevel 0 when OPL2 detected, 1 for speaker fallback.
+       Safe to use for emulator acceptance without playing a stage. */
+    cmp byte ptr [0x80], 7
+    jne check_smoke_test
+    cmp byte ptr [0x82], '/'
+    jne check_smoke_test
+    cmp byte ptr [0x83], 'A'
+    jne check_smoke_test
+    cmp byte ptr [0x84], 'U'
+    jne check_smoke_test
+    mov ax, 0x0003
+    int 0x10
+    cmp byte ptr [adlib_present], 0
+    je audio_not_detected
+    mov ax, 0x4c00
+    int 0x21
+audio_not_detected:
+    mov ax, 0x4c01
+    int 0x21
+check_smoke_test:
     /* Invocation: TANKS.COM /TEST (six command-line chars). */
     cmp byte ptr [0x80], 6
     jne normal_start
@@ -690,6 +711,108 @@ tick_power_done:
  * Input AX = PIT divisor (larger value means lower pitch).
  * An AdLib detection and OPL2 layer can be plugged in later.
  */
+/* AdLib OPL2 timer-status detection (classic FM/OPL2 probe).
+ * Reads only the AdLib status port; a disconnected ISA bus returns FFh.
+ * No mandatory sound card; no external ROM or driver is needed.
+ */
+adlib_detect:
+    push ax
+    push bx
+    push cx
+    push dx
+    mov byte ptr [adlib_present], 0
+    mov ax, 0x0460
+    call adlib_write
+    mov ax, 0x0480
+    call adlib_write
+    mov dx, 0x0388
+    in al, dx
+    and al, 0xe0
+    mov bl, al
+    mov ax, 0x02ff
+    call adlib_write
+    mov ax, 0x0421
+    call adlib_write
+    mov dx, 0x0388
+    mov cx, 200
+adlib_timer_wait:
+    in al, dx
+    loop adlib_timer_wait
+    in al, dx
+    and al, 0xe0
+    mov bh, al
+    mov ax, 0x0460
+    call adlib_write
+    mov ax, 0x0480
+    call adlib_write
+    cmp bl, 0
+    jne adlib_detect_done
+    cmp bh, 0xc0
+    jne adlib_detect_done
+    mov byte ptr [adlib_present], 1
+    call adlib_setup
+adlib_detect_done:
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+/* AH=OPL register, AL=value; explicit ISA timing for 4.77 MHz XT. */
+adlib_write:
+    push ax
+    push bx
+    push cx
+    push dx
+    mov bx, ax
+    mov dx, 0x0388
+    mov al, bh
+    out dx, al
+    mov cx, 6
+adlib_addr_delay:
+    in al, dx
+    loop adlib_addr_delay
+    inc dx
+    mov al, bl
+    out dx, al
+    dec dx
+    mov cx, 35
+adlib_data_delay:
+    in al, dx
+    loop adlib_data_delay
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+/* Basic original one-channel percussive tone, not an existing soundtrack. */
+adlib_setup:
+    push ax
+    mov ax, 0x2001       /* channel 0 modulator and carrier */
+    call adlib_write
+    mov ax, 0x2301
+    call adlib_write
+    mov ax, 0x403f       /* suppress modulator for simple sine-like tone */
+    call adlib_write
+    mov ax, 0x4308
+    call adlib_write
+    mov ax, 0x60f0
+    call adlib_write
+    mov ax, 0x63f0
+    call adlib_write
+    mov ax, 0x8077
+    call adlib_write
+    mov ax, 0x8377
+    call adlib_write
+    mov ax, 0xc000
+    call adlib_write
+    mov ax, 0xb011
+    call adlib_write
+    pop ax
+    ret
+
+/* Game sound API: AX=PC speaker divider. Prefer OPL2 when detected. */
 sound_play:
     push ax
     push bx
@@ -697,6 +820,24 @@ sound_play:
     cmp byte ptr [sound_muted], 0
     jne sound_play_done
     mov bx, ax
+    cmp byte ptr [adlib_present], 0
+    je sound_speaker_fallback
+    mov ax, 0xb011      /* key off before new tone */
+    call adlib_write
+    mov ax, 0xa0c0
+    cmp bx, 1100
+    jb adlib_fx_ready
+    mov ax, 0xa080
+    cmp bx, 2000
+    jb adlib_fx_ready
+    mov ax, 0xa030
+adlib_fx_ready:
+    call adlib_write
+    mov ax, 0xb031      /* octave 4, key on */
+    call adlib_write
+    mov byte ptr [sound_ticks], 2
+    jmp sound_play_done
+sound_speaker_fallback:
     mov al, 0xb6
     out 0x43, al
     mov ax, bx
@@ -725,6 +866,11 @@ sound_stop:
     in al, 0x61
     and al, 0xfc
     out 0x61, al
+    cmp byte ptr [adlib_present], 0
+    je speaker_stopped
+    mov ax, 0xb011
+    call adlib_write
+speaker_stopped:
     mov byte ptr [sound_ticks], 0
     pop ax
     ret
@@ -3622,6 +3768,7 @@ slide_ticks: .byte 0
 slide_old_col: .byte 0
 slide_old_row: .byte 0
 sound_muted: .byte 0
+adlib_present: .byte 0
 sound_ticks: .byte 0
 sound_tone: .word 0
 brick_masks: .space 169

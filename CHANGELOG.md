@@ -1,4 +1,6 @@
-## v0.7 — 35-stage campaign and stage navigation (2026-11-09)
+## v0.7 — 35-stage campaign, stage navigation and optional AdLib (2026-11-09)
+- CI map checks now validate all 35 maps in a single Python process (faster on slow hosts).
+- Added conservative OPL2 timer probe and one-channel FM effects with PC Speaker fallback.
 - Extended the original project campaign from 9 to 35 distinct new maps without copying NES layouts.
 - Stage path safety: two-tile winding center corridor, safe P/HQ and enemy spawn positions.
 - Stage-aware opponent class mix, with more power/armor enemies in later stages.
