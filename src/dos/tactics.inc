@@ -85,7 +85,9 @@ tactical_defense_position_ready:
     cmp byte ptr [enemy_py+bx],112
     jb tactical_engage_forward
     cmp byte ptr [player_py],136
-    jae tactical_player_guard
+    jb tactical_engage_down
+    jmp tactical_player_guard
+ tactical_engage_down:
     mov al,2
     jmp tactical_player_steer
  tactical_engage_forward:
