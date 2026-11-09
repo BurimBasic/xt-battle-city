@@ -13,7 +13,7 @@ class V15Tests(unittest.TestCase):
             self.assertEqual(0 <= (delta+9) <= 19,-2 <= (8-delta) <= 17,delta)
             self.assertEqual(0 <= (delta+7) <= 15,-2 <= (6-delta) <= 13,delta)
         self.assertIn('add al,9',A)
-        self.assertIn('cmp al, 19',A)
+        self.assertIn('cmp al,19',A)
         self.assertIn('add al,9            /* same width as physics collision */',A)
         self.assertIn('cmp al,15',A)
         self.assertIn('add al, 2           /* includes both tread edges */',T)
