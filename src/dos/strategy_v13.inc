@@ -79,6 +79,11 @@ strategy_reset_routes:
     mov al,0xbc
     call strategy_fill
     mov byte ptr [route_dirty],0
+    /* Destroying a brick can open a shorter bonus route. */
+    cmp byte ptr [bonus_active],0
+    je strategy_routes_restored
+    call strategy_bonus_spawn
+strategy_routes_restored:
     pop di
     pop si
     pop dx
@@ -301,6 +306,183 @@ strategy_route_ready:
     pop bx
     ret
 
+/* Cache a whole-map distance field to the currently visible bonus.
+   Reuses one BFS queue, saves all registers for projectile/bonus callbacks. */
+strategy_bonus_spawn:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    mov al,[bonus_row]
+    shl al,1
+    shl al,1
+    shl al,1
+    shl al,1
+    add al,[bonus_col]
+    mov di,offset route_bonus
+    call strategy_fill
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+/* DEFENDER ONLY: choose a six-pixel move using the cached bonus flow.
+   CF=1 with AL as legal direction; CF=0 if a bonus is unreachable or the
+   HQ is in immediate danger. No BFS in the 18 Hz / four-tick decision loop.
+   Cost: route distance *64 plus local 1/8 Manhattan offset. */
+strategy_bonus_heading:
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    cmp byte ptr [bonus_active],0
+    jne bonus_route_check_threat
+    jmp bonus_route_fail
+bonus_route_check_threat:
+    xor bx,bx
+bonus_route_threat_loop:
+    cmp byte ptr [enemy_active+bx],0
+    je bonus_route_next_threat
+    cmp byte ptr [enemy_py+bx],144
+    jb bonus_route_next_threat
+    mov al,[enemy_px+bx]
+    cmp al,64
+    jb bonus_route_next_threat
+    cmp al,176
+    ja bonus_route_next_threat
+    jmp bonus_route_fail
+bonus_route_next_threat:
+    inc bx
+    cmp bx,4
+    jb bonus_route_threat_loop
+    /* Verify the current map cell has a connected route. */
+    mov al,[player_px]
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov dl,al
+    mov al,[player_py]
+    xor ah,ah
+    mov bl,12
+    div bl
+    shl al,1
+    shl al,1
+    shl al,1
+    shl al,1
+    add al,dl
+    xor bx,bx
+    mov bl,al
+    cmp byte ptr [route_bonus+bx],0xff
+    jne bonus_route_connected
+    jmp bonus_route_fail
+bonus_route_connected:
+    mov byte ptr [bonus_best_direction],0xff
+    mov word ptr [bonus_best_cost],0xffff
+    xor si,si
+bonus_route_candidate:
+    mov ax,si
+    call tactical_player_path_open
+    jnc bonus_route_can_step
+    jmp bonus_route_skip
+bonus_route_can_step:
+    mov dl,[player_px]
+    mov dh,[player_py]
+    mov cx,6
+bonus_route_step:
+    mov ax,si
+    call step_pixel
+    loop bonus_route_step
+    /* DL/DH now hold the candidate position, 6 pixels into motion. */
+    mov [bonus_probe_x],dl
+    mov [bonus_probe_y],dh
+    mov al,dl
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov cl,al
+    mov al,dh
+    xor ah,ah
+    mov bl,12
+    div bl
+    shl al,1
+    shl al,1
+    shl al,1
+    shl al,1
+    add al,cl
+    xor bx,bx
+    mov bl,al
+    mov al,[route_bonus+bx]
+    cmp al,0xff
+    je bonus_route_skip
+    xor ah,ah
+    shl ax,1
+    shl ax,1
+    shl ax,1
+    shl ax,1
+    shl ax,1
+    shl ax,1                   /* base score = 64 * map distance */
+    mov di,ax
+    /* Local tie-break: move towards the bonus's top-left anchor. */
+    mov al,[bonus_col]
+    shl al,1
+    shl al,1
+    shl al,1
+    shl al,1
+    sub al,[bonus_probe_x]
+    jnc bonus_route_abs_x
+    neg al
+bonus_route_abs_x:
+    shr al,1
+    shr al,1
+    shr al,1
+    xor ah,ah
+    add di,ax
+    mov al,[bonus_row]
+    mov bl,12
+    mul bl
+    sub al,[bonus_probe_y]
+    jnc bonus_route_abs_y
+    neg al
+bonus_route_abs_y:
+    shr al,1
+    shr al,1
+    shr al,1
+    xor ah,ah
+    add di,ax
+    cmp di,[bonus_best_cost]
+    jae bonus_route_skip
+    mov [bonus_best_cost],di
+    mov ax,si
+    mov [bonus_best_direction],al
+bonus_route_skip:
+    inc si
+    cmp si,4
+    jae bonus_route_finish
+    jmp bonus_route_candidate
+bonus_route_finish:
+    mov al,[bonus_best_direction]
+    cmp al,0xff
+    je bonus_route_fail
+    stc
+    jmp bonus_route_done
+bonus_route_fail:
+    clc
+bonus_route_done:
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    ret
+
 .section .data
 squad_phase: .byte 0
 squad_clock: .byte 0
@@ -323,3 +505,10 @@ route_left: .space 256
 route_right: .space 256
 route_queue: .space 256
 .section .text
+
+.section .bss
+route_bonus: .space 256
+bonus_best_direction: .byte 0
+bonus_best_cost: .word 0
+bonus_probe_x: .byte 0
+bonus_probe_y: .byte 0

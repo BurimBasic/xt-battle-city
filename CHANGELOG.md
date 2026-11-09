@@ -1,3 +1,16 @@
+## v0.14 — collision-aware squad, pickup pursuit and proactive fire (2026-11-09)
+
+- Restored enemy-on-enemy damage and kills without awarding player points.
+- DEFENDER doctrine: emergency HQ defense > pickup BFS goal > lane interception.
+- Added a cached 16x16 bonus route recalculated on spawn/terrain change only.
+- AUTO aims/fires on aligned enemies before the HQ final defensive rows.
+- ATTACKER interceptor: deny accessible power-ups, use last revealed player
+  position and central screening, instead of knowing exact hidden coordinates.
+- HQ breacher relocates when a teammate blocks its firing lane.
+- 35 stage maps packed in 4-bit tile IDs, decoded once per stage; 48 KiB budget kept.
+- New DOS /TEST phases 52-54 and Python roundtrip/friendly-fire tests.
+- Skill of full-game strategy requires manual acceptance: no claim of chess search.
+
 ## v0.13.0 — release stabilization (2026-11-09)
 
 - Reinstated strict 48 KiB shipping DOS binary limit; extracted 384-tick diagnostic trace into optional `TANKS-TRACE.COM` instead of inflating the release.

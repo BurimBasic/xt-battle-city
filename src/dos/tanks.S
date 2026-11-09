@@ -166,8 +166,24 @@ load_stage:
     shl bx, 1
     mov si, [stage_ptrs+bx]
     mov di, offset level_data
-    mov cx, 256
-    rep movsb
+    mov cx, 128
+unpack_stage_loop:
+    lodsb
+    mov dh,al                  /* upper nibble = second tile */
+    and al,15
+    xor bx,bx
+    mov bl,al
+    mov al,[stage_tile_codes+bx]
+    stosb
+    mov al,dh
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov bl,al
+    mov al,[stage_tile_codes+bx]
+    stosb
+    loop unpack_stage_loop
     pop es
     /* Strip static E/P markers, replace with dynamic entities. */
     mov di, offset level_data
@@ -596,6 +612,8 @@ bonus_drop_ready:
     mov [bonus_row], dh
     mov byte ptr [bonus_active], 1
     mov byte ptr [bonus_timer], 180
+    /* Plan the bonus route once on spawn, never per video frame. */
+    call strategy_bonus_spawn
     inc byte ptr [bonus_sequence]
     cmp byte ptr [bonus_sequence], 6
     jb bonus_cycle_valid
@@ -2299,9 +2317,19 @@ friendly_target_loop:
     sub al, [enemy_py+si]
     cmp al, 12
     jae friendly_target_next
-    /* Friendly units are immune to allied rounds. Commanders also
-       suppress dangerous lanes before shooting; crossing shells fizzle. */
+    /* A stray shot can harm a teammate, despite safe-fire suppression.
+       Destroyed friendlies count toward 20 enemies, but do not score for P1. */
 friendly_target_hit:
+    cmp byte ptr [enemy_hp+si],1
+    jbe friendly_target_destroyed
+    dec byte ptr [enemy_hp+si]
+    jmp friendly_target_fx
+friendly_target_destroyed:
+    mov byte ptr [enemy_active+si],0
+    mov byte ptr [shot_active+si],0
+    inc byte ptr [enemy_killed]
+    call draw_hud
+friendly_target_fx:
     mov dl, [shot_px+bx]
     mov dh, [shot_py+bx]
     call spawn_explosion
@@ -4551,6 +4579,72 @@ smoke_tactical_path_tests:
     jc 9f
     jmp smoke_extra_fail
 9:
+    /* Phase 52: enemy projectile must DAMAGE an allied tank rather than
+       only draw a harmless blast. This was accidentally disabled in v0.13. */
+    mov byte ptr [test_phase],52
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],1
+    mov byte ptr [enemy_hp+1],1
+    mov byte ptr [shot_px],100
+    mov byte ptr [shot_py],88
+    mov byte ptr [enemy_px+1],100
+    mov byte ptr [enemy_py+1],88
+    xor bx,bx
+    call shot_hits_other_enemy
+    jc 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [enemy_active+1],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [enemy_killed],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 53: bonus flow must lead the AUTO defender toward an open
+       reachable pickup instead of holding the HQ guard lane indefinitely. */
+    mov byte ptr [test_phase],53
+    call reset_campaign
+    mov byte ptr [bonus_col],7
+    mov byte ptr [bonus_row],10
+    mov byte ptr [bonus_active],1
+    call strategy_bonus_spawn
+    cmp byte ptr [route_bonus+0xa7],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [game_tick],4
+    mov byte ptr [auto_mode],1
+    call tactical_player_tick
+    cmp byte ptr [held_keys],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 54: an aligned opponent can trigger an actual AUTO shot, even
+       before it enters the last two rows of the base defensive zone. */
+    mov byte ptr [test_phase],54
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],112
+    mov byte ptr [enemy_py],96
+    mov byte ptr [player_px],112
+    mov byte ptr [player_py],136
+    mov byte ptr [game_tick],4
+    mov byte ptr [auto_mode],1
+    call tactical_player_tick
+    cmp byte ptr [bullet_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [player_dir],0
+    je 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
@@ -4685,6 +4779,7 @@ trace_buffer: .space 384
 kills_by_type: .space 4
 stage: .byte 1
 /* Six original effects in a new arrangement; all durations are BIOS ticks. */
+stage_tile_codes: .ascii ".#~TEPBFI"
 bonus_active: .byte 0
 bonus_col: .byte 0
 bonus_row: .byte 0

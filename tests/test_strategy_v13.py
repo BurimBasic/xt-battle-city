@@ -58,10 +58,10 @@ class StrategicV13(unittest.TestCase):
         self.assertIn('hud_b_char',SRC)
         self.assertIn('mov cx, 8',SRC)
 
-    def test_allied_units_do_not_take_allied_projectile_damage(self):
+    def test_allied_units_can_damage_each_other_without_player_score(self):
         hits=SRC[SRC.index('shot_hits_other_enemy:'):SRC.index('/* ========= CGA smooth engine')]
-        self.assertNotIn('dec byte ptr [enemy_hp+si]',hits)
-        self.assertNotIn('inc byte ptr [enemy_killed]',hits)
+        self.assertIn('dec byte ptr [enemy_hp+si]',hits)
+        self.assertIn('inc byte ptr [enemy_killed]',hits)
         self.assertIn('call tactical_safe_fire',SRC)
         self.assertIn('cmp dl,[enemy_py+bx]',AI)
         self.assertIn('cmp dl,[enemy_px+bx]',AI)

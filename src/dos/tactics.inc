@@ -22,10 +22,24 @@ tactical_player_decide:
     jnc 1f
     jmp tactical_player_steer
 1:
+    /* An uncollected bonus is an urgent positional objective; abandon it
+       only for a tank already penetrating the HQ's defensive zone. */
+    call strategy_bonus_heading
+    jnc tactical_no_bonus_route
+    mov byte ptr [tactical_fire_request],0
+    jmp tactical_player_steer
+ tactical_no_bonus_route:
     call tactical_find_target
     jc 1f
     jmp tactical_patrol
 1:
+    /* If an opponent is on our firing axis, shoot now — even if it has
+       not yet crossed the defensive threshold. This fixes the inert
+       defender staring at a visible enemy during automatic play. */
+    call tactical_player_aim_if_aligned
+    jnc tactical_target_not_aligned
+    jmp tactical_player_hold_and_fire
+tactical_target_not_aligned:
     /* First leave the HQ brick pocket and occupy the defensive line.
        The first auto orders must not try horizontal pursuit behind walls. */
     cmp byte ptr [player_py],136
@@ -172,6 +186,40 @@ tactical_defense_position_ready:
 
 /* Six-pixel advance lookahead for the defending AUTO tank. This avoids
  * committing to a lane when the second/third step is already blocked. */
+/* BX targeted enemy; CF=1 if on a valid horizontal/vertical shot lane;
+   AL points the gun towards target. CF=0 if it is offset from both axes.
+   Aimed shots remove brick cover, while a free lane hits the tank. */
+tactical_player_aim_if_aligned:
+    mov al,[enemy_px+bx]
+    sub al,[player_px]
+    add al,8
+    cmp al,16
+    ja tactical_aim_row
+    mov al,2
+    mov ah,[enemy_py+bx]
+    cmp ah,[player_py]
+    ja tactical_aim_ready
+    mov al,0
+    jmp tactical_aim_ready
+ tactical_aim_row:
+    mov al,[enemy_py+bx]
+    sub al,[player_py]
+    add al,6
+    cmp al,12
+    ja tactical_aim_fail
+    mov al,1
+    mov ah,[enemy_px+bx]
+    cmp ah,[player_px]
+    ja tactical_aim_ready
+    mov al,3
+ tactical_aim_ready:
+    mov byte ptr [tactical_fire_request],1
+    stc
+    ret
+ tactical_aim_fail:
+    clc
+    ret
+
 tactical_player_path_open:
     push ax
     push cx
@@ -376,8 +424,30 @@ tactical_enemy_plan:
     mov dh,132
     jmp tactical_goal_ready
  tactical_role_hunter:
-    mov dl,[player_px]
-    mov dh,[player_py]
+    /* Independent raider doctrine: deny a valuable pickup when it appears;
+       otherwise intercept at the last disclosed P1 position, not omniscient
+       live coordinates. When idle, guard the central base approach lane. */
+    cmp byte ptr [bonus_active],0
+    je tactical_hunter_no_bonus
+    mov dl,[bonus_col]
+    shl dl,1
+    shl dl,1
+    shl dl,1
+    shl dl,1
+    mov al,[bonus_row]
+    mov cl,12
+    mul cl
+    mov dh,al
+    jmp tactical_goal_ready
+ tactical_hunter_no_bonus:
+    cmp byte ptr [squad_alert],0
+    je tactical_hunter_patrol
+    mov dl,[squad_target_x]
+    mov dh,[squad_target_y]
+    jmp tactical_goal_ready
+ tactical_hunter_patrol:
+    mov dl,112
+    mov dh,132
  tactical_goal_ready:
     /* Flankers first travel to rally points. Once both are there (or the
        team clock expires) they push toward the HQ from opposite wings. */
@@ -431,6 +501,10 @@ tactical_enemy_plan:
     cmp bx,0
     jne tactical_squad_route
  tactical_hq_bombard:
+    /* Do not dig in behind a teammate where every round is suppressed. */
+    mov byte ptr [enemy_dir+bx],2
+    call tactical_safe_fire
+    jnc tactical_squad_route
     mov al,2
     mov byte ptr [enemy_hold+bx],24
     jmp tactical_enemy_assign
