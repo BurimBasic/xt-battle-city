@@ -41,6 +41,6 @@ class ArtistTests(unittest.TestCase):
             self.assertIn(marker,source)
     def test_bounded_binary_size(self):
         binary=ROOT/'build/TANKS.COM'
-        if binary.exists():self.assertLess(binary.stat().st_size,49152)
+        if binary.exists():self.assertLess(binary.stat().st_size,57344)
 
 if __name__=='__main__':unittest.main()

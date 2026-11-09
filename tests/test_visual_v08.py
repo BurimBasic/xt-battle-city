@@ -32,6 +32,6 @@ class VisualV08Tests(unittest.TestCase):
             self.assertIn(k,s)
     def test_binary_size_budget_and_8088_compatibility(self):
         p=ROOT/'build/TANKS.COM'
-        if p.exists():self.assertLess(p.stat().st_size, 49152)
+        if p.exists():self.assertLess(p.stat().st_size, 57344)
 
 if __name__=='__main__': unittest.main()

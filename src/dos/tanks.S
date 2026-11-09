@@ -83,6 +83,18 @@ check_smoke_test:
     jne normal_start
     jmp smoke_test
 normal_start:
+    /* TANKS.COM /TRACE: reproduce 128 real simulation frames on DOS,
+       save eight 16-byte squad snapshots for offline tactical inspection. */
+    cmp byte ptr [0x80],7
+    jne normal_play
+    cmp byte ptr [0x82],'/'
+    jne normal_play
+    cmp byte ptr [0x83],'T'
+    jne normal_play
+    cmp byte ptr [0x84],'R'
+    jne normal_play
+    jmp trace_run
+normal_play:
     call render_frame
     call install_keyboard
     mov ah, 0
@@ -4554,10 +4566,116 @@ smoke_fail:
     mov ah, 0x4c
     int 0x21
 
+/* Deterministic real-mode trace, not an AI simulator or source-only test. */
+trace_run:
+    mov byte ptr [trace_count],0
+    mov cx,128
+trace_tick:
+    push cx
+    call game_tick_step
+    call render_frame
+    test byte ptr [game_tick],15
+    jnz trace_no_sample
+    call trace_record
+trace_no_sample:
+    pop cx
+    loop trace_tick
+    mov ax,0x0003
+    int 0x10
+    xor cx,cx
+    mov dx,offset trace_filename
+    mov ax,0x3c00
+    int 0x21
+    jc trace_failed
+    mov bx,ax
+    mov dx,offset trace_buffer
+    xor cx,cx
+    mov cl,[trace_count]
+    shl cx,1
+    shl cx,1
+    shl cx,1
+    shl cx,1
+    mov ah,0x40
+    int 0x21
+    pushf
+    push ax
+    mov ah,0x3e
+    int 0x21
+    pop ax
+    popf
+    jc trace_failed
+    cmp ax,cx
+    jne trace_failed
+    mov ax,0x4c00
+    int 0x21
+trace_failed:
+    mov ax,0x4c01
+    int 0x21
+
+/* 16-byte record: tick, player XY, held keys, squad phase, enemies XY
+   for four slots, total spawned, state, total destroyed. */
+trace_record:
+    push ax
+    push bx
+    push cx
+    push si
+    push di
+    xor bx,bx
+    mov bl,[trace_count]
+    cmp bl,8
+    jae trace_record_done
+    shl bx,1
+    shl bx,1
+    shl bx,1
+    shl bx,1
+    mov di,offset trace_buffer
+    add di,bx
+    mov al,[game_tick]
+    mov [di],al
+    mov al,[player_px]
+    mov [di+1],al
+    mov al,[player_py]
+    mov [di+2],al
+    mov al,[held_keys]
+    mov [di+3],al
+    mov al,[squad_phase]
+    mov [di+4],al
+    xor bx,bx
+trace_record_enemies:
+    mov al,[enemy_px+bx]
+    mov [di+bx+5],al
+    inc bx
+    cmp bx,4
+    jb trace_record_enemies
+    xor bx,bx
+trace_record_enemy_y:
+    mov al,[enemy_py+bx]
+    mov [di+bx+9],al
+    inc bx
+    cmp bx,4
+    jb trace_record_enemy_y
+    mov al,[enemy_spawned]
+    mov [di+13],al
+    mov al,[game_state]
+    mov [di+14],al
+    mov al,[enemy_killed]
+    mov [di+15],al
+    inc byte ptr [trace_count]
+trace_record_done:
+    pop di
+    pop si
+    pop cx
+    pop bx
+    pop ax
+    ret
+
 .include "src/dos/tactics.inc"
 .include "src/dos/strategy_v13.inc"
 
 .section .data
+trace_filename: .asciz "V13TRACE.BIN"
+trace_count: .byte 0
+trace_buffer: .space 128
 kills_by_type: .space 4
 stage: .byte 1
 /* Six original effects in a new arrangement; all durations are BIOS ticks. */
