@@ -4589,6 +4589,7 @@ smoke_tactical_path_tests:
 9:
     /* Phase 48: synchronized attack starts after the staging deadline. */
     mov byte ptr [test_phase],48
+    mov byte ptr [squad_doctrine],0  /* baseline timing, not patient pincer */
     mov byte ptr [squad_phase],0
     mov byte ptr [squad_clock],125
     call strategy_tick
