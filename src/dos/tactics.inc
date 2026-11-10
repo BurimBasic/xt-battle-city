@@ -38,6 +38,15 @@ tactical_dodge_done:
     cmp al,168
     jbe tactical_no_bonus_route
 tactical_bonus_objective:
+    /* A front-line kill may drop a pickup at the very top of the map.
+       The AUTO defender must not abandon headquarters for a distant
+       prize; the attacking ally can pursue it independently. */
+    cmp byte ptr [bonus_active],0
+    je tactical21_bonus_try
+    cmp byte ptr [bonus_row],8
+    jae tactical21_bonus_try
+    jmp tactical_no_bonus_route
+tactical21_bonus_try:
     call strategy_bonus_heading
     jnc tactical_no_bonus_route
     mov byte ptr [tactical_fire_request],0
