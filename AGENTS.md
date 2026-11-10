@@ -3,7 +3,7 @@
 ## Hard platform constraints
 
 - Shipping DOS CGA executable is **8086/8088 real-mode** code; no 186/286 instructions, near conditional jumps, FPU, 32-bit runtime operations or browser technology. Always run `make assets && make clean all test` and the 8086 ISA audit before shipping.
-- Current DOS .COM image cap: **strictly less than 60,416 bytes (59 KiB)**. Keep `program_end + 0x0fff` under 0x10000 so the intended 4 KiB stack is not lost. Do not silently increase the limit or turn the DOS game into a 32-bit binary.
+- Current DOS .COM image cap: **strictly less than 57,344 bytes (56 KiB)**. Keep `program_end + 0x0fff` under 0x10000 so the intended 4 KiB stack is not lost. Do not silently increase the limit or turn the DOS game into a 32-bit binary.
 - The Poisk-1 native/tape-boot target **cannot depend on files, disks, config saves, CMOS writes or an initialized DOS filesystem**. Temporary values such as palette, companion reserve and stage state live in RAM. A full power cycle resets them.
 - Native EGA 16-color, VGA 256-color, Hercules and Poisk-1 video backends are not implemented. CGA mode-4 running under an EGA/VGA emulator does not constitute native driver support.
 
