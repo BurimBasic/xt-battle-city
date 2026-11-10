@@ -243,6 +243,7 @@ marker_next:
     mov byte ptr [bonus_active], 0
     mov byte ptr [bonus_timer], 0
     mov byte ptr [bonus_flash_ticks], 0
+    mov byte ptr [ally_shield],0
     mov byte ptr [laser_ticks], 0
     mov byte ptr [multi_ticks], 0
     mov byte ptr [homing_ticks], 0
@@ -2456,6 +2457,8 @@ smooth_shot_no_player:
     add al,6
     cmp al,12
     jae smooth_shot_no_ally
+    cmp byte ptr [ally_shield],0
+    jne smooth_shot_out
     mov word ptr [ally_ticks],0
     mov dl,[ally_px]
     mov dh,[ally_py]
@@ -3566,8 +3569,19 @@ paint_enemy_finished:
     xor bx,bx
     mov bl,[ally_dir]
     shl bx,1
+    /* Ally identity is its tiny magenta cockpit mark, not a permanent
+       shield. A real spawn shield flashes for the first 48 ticks. */
+    cmp byte ptr [ally_shield],0
+    je paint_ally_no_shield
+    test byte ptr [game_tick],4
+    jnz paint_ally_no_shield
     mov si,[smooth_shield_ptrs+bx]
+    jmp paint_ally_body
+paint_ally_no_shield:
+    mov si,[smooth_player_ptrs+bx]
+paint_ally_body:
     call draw_smooth_sprite
+    call ally21_draw_mark
 paint_ally_done:
     /* Player's tank. */
     mov dl, [player_px]
@@ -5844,6 +5858,7 @@ trace_record_done:
 .include "src/dos/ally_v20.inc"
 .include "src/dos/transitions_v20.inc"
 .include "src/dos/enemy_pickups_v21.inc"
+.include "src/dos/ally_marker_v21.inc"
 
 .section .data
 .ifdef TRACE_BUILD
