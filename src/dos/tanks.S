@@ -5225,7 +5225,7 @@ smoke_bonus_replay:
     jc 9f
     jmp smoke_extra_fail
 9:
-    /* Phase 62: collected helmet is drawn at x264, not the old x284. */
+    /* Phase 62: collected helmet icon now starts at far-left x256. */
     mov byte ptr [test_phase],62
     mov byte ptr [bonus_flash_type],1
     mov byte ptr [bonus_flash_ticks],112
@@ -5235,7 +5235,7 @@ smoke_bonus_replay:
     mov ax,0xb800
     mov es,ax
     mov ax,[hud_bonus_helmet]
-    cmp word ptr es:[3906],ax
+    cmp word ptr es:[3904],ax
     je 9f
     pop es
     jmp smoke_extra_fail
