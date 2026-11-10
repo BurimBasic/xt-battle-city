@@ -84,3 +84,33 @@ There is no palette settings file or external state dependency. Palette index
 remains in process RAM across every BIOS CGA re-initialization, matching
 cassette and diskless boot requirements. After a full cold start it necessarily
 returns to the built-in default.
+
+
+## v0.20 ongoing acceptance gate (2026-11-10)
+
+Rule source: root `AGENTS.md`. All game/AI/UI changes must preserve the
+accepted **v0.19** fast CGA baseline. The release acceptance gate is
+matched SLOW1 DOSBox-X 8086/`machine=cga` with `cycles=fixed 240`,
+384 fully rendered deterministic frames, identical result snapshots,
+**no more than 5% longer** than the matched v0.19 run.
+Repeat also at 500 cycles/ms when possible. Effects are allowed only at
+level boundaries, not in normal gameplay ticks.
+
+Latest matched measurements from SLOW1:
+
+| 8086 emulator cycles/ms | v0.19 | v0.20 | Candidate regression |
+|---|---:|---:|---:|
+| 240 | 40.124 s | 41.057 s | **+2.3%** |
+| 500 | 20.035 s | 20.039 s | **+0.02%** |
+
+All four runs executed 384 complete rendered frames and ended with
+6 enemies killed and state 0. Scripts and staging:
+`C:\Users\Office20Agent\Office20\tanks-benchmark-v020.ps1`;
+`C:\XT-Battle-City\dev-v019\TANKS-PERF.COM` and
+`C:\XT-Battle-City\dev-v020\TANKS-PERF.COM`.
+These are emulated elapsed times, NOT certified physical 4.77 MHz FPS.
+
+The ally stock, signed-time short wipes, V keyboard handler and 16-bit
+15-second timer are additional features. They do not run a full-field
+transition inside `game_tick_step`; start/end effects use a bounded
+~8 BIOS-tick per-boundary budget and the existing CGA shadow buffer.
