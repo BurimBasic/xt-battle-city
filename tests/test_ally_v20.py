@@ -81,8 +81,8 @@ class AllyAndTransitions(unittest.TestCase):
         self.assertIn("5% regression",RULES)
         self.assertIn("cannot depend on files",RULES)
         self.assertIn("57344",RULES.replace(",",""))
-    def test_dos_real_mode_tests_to_86(self):
-        for i in range(79,87):
+    def test_dos_real_mode_tests_to_88(self):
+        for i in range(79,89):
             self.assertIn("mov byte ptr [test_phase],"+str(i),T)
     def test_version_footer(self):
         self.assertIn("brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_0",T)
