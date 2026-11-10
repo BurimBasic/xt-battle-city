@@ -3655,10 +3655,11 @@ paint_explosion_valid_frame:
     call draw_smooth_sprite
 paint_explosion_done:
     call grenade17_fx_paint
-    call laser17_paint
-    /* One composed transfer after ALL actors. Never expose a partially
-       erased sprite in CGA memory between the restore and paint passes. */
+    /* Finish the actor/background composition first. The beam is a
+       transient VRAM-only overlay, NEVER written into the RAM shadow.
+       Next frame's pending tile upload scrubs it even after expiry. */
     call commit_dirty_tiles
+    call laser17_paint
     pop bp
     pop di
     pop si
