@@ -359,8 +359,10 @@ strategy_bonus_heading:
     push dx
     push si
     push di
+    mov word ptr [route_active_field],offset route_bonus
     cmp byte ptr [tactical23_hunting],0
     je bonus_route_real_check
+    mov word ptr [route_active_field],offset route_hunt
     jmp bonus_route_ready_to_choose
 bonus_route_real_check:
     cmp byte ptr [bonus_active],0
@@ -413,7 +415,8 @@ bonus_route_ready_to_choose:
     add al,dl
     xor bx,bx
     mov bl,al
-    cmp byte ptr [route_bonus+bx],0xff
+    mov di,[route_active_field]
+    cmp byte ptr [di+bx],0xff
     jne bonus_route_connected
     jmp bonus_route_fail
 bonus_route_connected:
@@ -453,7 +456,8 @@ bonus_route_step:
     add al,cl
     xor bx,bx
     mov bl,al
-    mov al,[route_bonus+bx]
+    mov di,[route_active_field]
+    mov al,[di+bx]
     cmp al,0xff
     je bonus_route_skip
     xor ah,ah
@@ -466,6 +470,10 @@ bonus_route_step:
     mov di,ax
     /* Local tie-break: move towards the bonus's top-left anchor. */
     mov al,[bonus_col]
+    cmp byte ptr [tactical23_hunting],0
+    je 1f
+    mov al,[tactical23_hunt_col]
+1:
     shl al,1
     shl al,1
     shl al,1
@@ -480,6 +488,10 @@ bonus_route_abs_x:
     xor ah,ah
     add di,ax
     mov al,[bonus_row]
+    cmp byte ptr [tactical23_hunting],0
+    je 1f
+    mov al,[tactical23_hunt_row]
+1:
     mov bl,12
     mul bl
     sub al,[bonus_probe_y]
@@ -543,6 +555,7 @@ route_queue: .space 256
 
 .section .bss
 route_bonus: .space 256
+route_hunt: .space 256
 bonus_best_direction: .byte 0
 bonus_best_cost: .word 0
 bonus_probe_x: .byte 0
