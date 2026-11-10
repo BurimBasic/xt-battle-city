@@ -579,7 +579,8 @@ laser19_paint_active:
     push si
     push di
     push es
-    mov ax,[frame_seg]
+    /* Overlay ONLY physical VRAM; shadow remains pristine. */
+    mov ax,0xb800
     mov es,ax
     mov dl,[laser_start_x]
     add dl,8
@@ -619,8 +620,14 @@ laser19_pixel_in_world:
     shr al,1
     xor ah,ah
     add bx,ax
-    mov byte ptr [dirty_tiles+bx],1
+    /* Reupload untouched pixels from the shadow NEXT frame, even if
+       no actors move. Direct-VRAM low-memory fallback needs static
+       restoration because there is no shadow buffer. */
     mov byte ptr [upload_tiles+bx],1
+    cmp word ptr [frame_seg],0xb800
+    jne laser21_overlay_only
+    mov byte ptr [dirty_tiles+bx],1
+laser21_overlay_only:
     /* Convert x/y to mode-4 CGA interleaved address. */
     xor bx,bx
     mov bl,dh
