@@ -652,24 +652,29 @@ tactical_enemy_plan:
     je tactical_enemy_orders
     cmp byte ptr [bonus_type],7
     je tactical_enemy_orders
-    mov al,[bonus_col]
-    shl al,1
-    shl al,1
-    shl al,1
-    shl al,1
-    sub al,[enemy_px+bx]
-    jnc 1f
-    neg al
+    mov dl,[bonus_col]
+    shl dl,1
+    shl dl,1
+    shl dl,1
+    shl dl,1
+    mov al,[enemy_px+bx]
+    cmp al,dl
+    jae 1f
+    xchg al,dl
 1:
+    sub al,dl
     cmp al,48
     ja tactical_enemy_orders
     mov al,[bonus_row]
     mov cl,12
     mul cl
-    sub al,[enemy_py+bx]
-    jnc 1f
-    neg al
+    mov dl,al
+    mov al,[enemy_py+bx]
+    cmp al,dl
+    jae 1f
+    xchg al,dl
 1:
+    sub al,dl
     cmp al,36
     ja tactical_enemy_orders
     mov dl,[bonus_col]
