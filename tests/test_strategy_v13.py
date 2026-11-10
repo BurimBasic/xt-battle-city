@@ -77,7 +77,7 @@ class StrategicV13(unittest.TestCase):
     def test_memory_and_isa_budget(self):
         binfile=ROOT/'build/TANKS.COM'
         if not binfile.exists():binfile=ROOT/'dist/TANKS.COM'
-        if binfile.exists():self.assertLess(binfile.stat().st_size, 60416)
+        if binfile.exists():self.assertLess(binfile.stat().st_size, 57344)
         self.assertIn('.code16',SRC)
         self.assertIn('strategy_v13.inc',SRC)
         self.assertEqual(SRC.count('.ifdef TRACE_BUILD'), 3)
