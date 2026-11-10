@@ -48,12 +48,14 @@ class BonusFreezeSteelV22(unittest.TestCase):
         self.assertIn("cmp byte ptr [si],'T'",body)
         self.assertIn("cmp byte ptr [si],'B'",body)
         self.assertNotIn("call projectile_probe",body)
-    def test_bonus_pursuit_is_bounded_to_preserve_headquarters(self):
+    def test_bonus_pursuit_preserves_hq_and_legacy_safe_search(self):
         flow=(ROOT/"src/dos/strategy_v13.inc").read_text()
         body=flow.split("bonus_route_check_threat:",1)[1].split("bonus_route_threat_loop:",1)[0]
-        self.assertIn("cmp al,48",body)
-        self.assertIn("cmp al,36",body)
-        self.assertIn("jmp bonus_route_fail",body)
+        self.assertNotIn("cmp al,48",body)
+        self.assertIn("whole-map BFS",body)
+        threats=flow.split("bonus_route_threat_loop:",1)[1].split("bonus_route_next_threat:",1)[0]
+        self.assertIn("cmp byte ptr [enemy_py+bx],140",threats)
+        self.assertIn("jmp bonus_route_fail",threats)
     def test_native_8086_pickup_phases(self):
         for number in (94,95):
             self.assertIn(f"mov byte ptr [test_phase],{number}",GAME)
