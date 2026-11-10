@@ -5651,6 +5651,32 @@ smoke_bonus_replay:
     jmp smoke_extra_fail
 9:
     pop es
+    /* Phase 87: execute the real 16-band introduction, including time
+       pacing. The whole field is recovered from the shadow buffer. */
+    mov byte ptr [test_phase],87
+    mov byte ptr [stage],1
+    mov byte ptr [transition_pending],1
+    mov byte ptr [test_mode],0
+    call transition20_open
+    mov byte ptr [test_mode],1
+    cmp byte ptr [transition_pending],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 88: the exit wipes the arena before results lettering. */
+    mov byte ptr [test_phase],88
+    mov byte ptr [test_mode],0
+    call transition20_close
+    mov byte ptr [test_mode],1
+    push es
+    mov ax,0xb800
+    mov es,ax
+    cmp word ptr es:[0],0
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    pop es
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
