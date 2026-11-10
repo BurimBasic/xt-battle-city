@@ -5536,11 +5536,13 @@ smoke_bonus_replay:
     mov byte ptr [laser_flash_ticks],2
     mov byte ptr [game_tick],0
     call laser17_paint
-    cmp byte ptr [dirty_tiles+98],1
+    /* Post-commit laser overlay leaves the shadow pristine and queues
+       uploads rather than polluting the dirty/static composition. */
+    cmp byte ptr [upload_tiles+98],1
     je 9f
     jmp smoke_extra_fail
 9:
-    cmp byte ptr [dirty_tiles+101],1
+    cmp byte ptr [upload_tiles+101],1
     je 9f
     jmp smoke_extra_fail
 9:
