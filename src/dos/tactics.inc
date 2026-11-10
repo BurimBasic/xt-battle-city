@@ -95,7 +95,7 @@ tactical_defense_orders:
     jnc tactical_bonus_objective
     cmp byte ptr [enemy_py+bx],136
     jae tactical_no_bonus_route
-    cmp byte ptr [enemy_py+bx],100
+    cmp byte ptr [enemy_py+bx],76
     jb tactical_bonus_objective
     mov al,[enemy_px+bx]
     cmp al,72
