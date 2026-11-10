@@ -1,3 +1,14 @@
+## v0.23 — Ricochet, four-way barrage, hyper-shell and tactical pursuit (2026-11-10)
+
+- **Two compatible pickup doctrines:** collect within 1.5 tiles, including while stationary, and follow the whole-map bonus flow when there is no imminent HQ danger. Enemy pressure near the center cancels dangerous detours. Clear enemy firing lanes outrank pickup movement.
+- AUTO uses a separate cached enemy-hunt BFS so pursuit (laser rush, final hidden enemy) never corrupts the route to the real active bonus. Freeze does not stop the player's attacks. With an accessible shot AUTO fires; steel behind obstacles still blocks futile shots.
+- **14 distinct bonuses total.** Newly added: independent fast 10-second ping-pong ricochet, lethal to enemy and player alike (single ball until expiry); four real directional shots; full-penetration color-alternating super-shell. All are playable with 8086 physics, not decorative sprites.
+- Real enemy-owned temporary weapon abilities (laser, burst, homing, super, hazardous ricochet), enemy clock slowing P1, and existing prohibition against stealing hearts or V reserve.
+- Repeated hits damage heavy tank tracks (black tread dots, half movement speed). CGA stage curtains/scan/sweep transitions now stay visible longer at stage boundaries only.
+- Removed unused legacy sprite copies and encoded all 35 original maps with compact RLE; shipping **52,860-byte** DOS .COM stays under strict 56KiB cap.
+- **GitHub Actions PASS:** 136 Python tests, 35 maps validated, 8086 ISA. **SLOW1 actual DOSBox-X** installed candidates /TEST and 2048-tick /TRACE PASS: **20/20 kills, STAGE CLEAR, HQ survives**. Performance-gate comparison against v0.19 is documented in `releases/v0.23/RELEASE-NOTES.md`.
+- Full controls, 14-bonus encyclopedia and real CGA screenshot with clearly labeled compatibility limitations on the updated [README homepage](README.md). Binary at `dist/TANKS.COM`; versioned ZIP under `releases/v0.23/`.
+
 ## v0.22 — Nearby power-ups, active AUTO during freeze, steel-aware fire (2026-11-10)
 
 - Player collects any active bonus within **1.5 cells** (24x18 pixels), including without moving after a bonus appears; uses real pixel coordinates rather than exact equality of 16x12 cells.
