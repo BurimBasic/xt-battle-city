@@ -6,6 +6,9 @@
 .section .text
 
 transition20_open:
+    cmp byte ptr [transition_pending],0
+    je trans20_return   /* unpause / HUD refresh is not a new stage */
+    mov byte ptr [transition_pending],0
     cmp byte ptr [test_mode],0
     jne trans20_return
     /* A real off-screen CGA buffer is needed to reveal a composed frame.
@@ -168,4 +171,5 @@ trans20_reveal: .byte 0
 trans20_step: .byte 0
 trans20_inner: .byte 0
 transition_done: .byte 0
+transition_pending: .byte 1
 .section .text
