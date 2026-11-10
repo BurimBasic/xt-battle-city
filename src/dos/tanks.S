@@ -5765,6 +5765,8 @@ smoke_bonus_replay:
     mov byte ptr [enemy_active],1
     mov byte ptr [enemy_col],5
     mov byte ptr [enemy_row],10
+    mov byte ptr [enemy_px],80
+    mov byte ptr [enemy_py],120
     mov byte ptr [bonus_col],5
     mov byte ptr [bonus_row],10
     mov byte ptr [bonus_active],1
