@@ -189,24 +189,28 @@ load_stage:
     shl bx, 1
     mov si, [stage_ptrs+bx]
     mov di, offset level_data
-    mov cx, 128
+    mov cx,256
 unpack_stage_loop:
     lodsb
-    mov dh,al                  /* upper nibble = second tile */
+    mov dh,al             /* high nibble: run length minus one */
     and al,15
     xor bx,bx
     mov bl,al
     mov al,[stage_tile_codes+bx]
+    mov dl,dh
+    shr dl,1
+    shr dl,1
+    shr dl,1
+    shr dl,1
+    inc dl
+unpack_stage_repeat:
     stosb
-    mov al,dh
-    shr al,1
-    shr al,1
-    shr al,1
-    shr al,1
-    mov bl,al
-    mov al,[stage_tile_codes+bx]
-    stosb
-    loop unpack_stage_loop
+    dec cx
+    jz unpack_stage_done
+    dec dl
+    jnz unpack_stage_repeat
+    jmp unpack_stage_loop
+unpack_stage_done:
     pop es
     /* Strip static E/P markers, replace with dynamic entities. */
     mov di, offset level_data
@@ -6099,19 +6103,6 @@ shot_row: .space 4
 shot_dir: .space 4
 shot_active: .space 4
 shot_delay: .space 4
-draw_sprite_ptr: .word 0
-player_sprite_ptrs:
-    .word sprite_player_up, sprite_player_right, sprite_player_down, sprite_player_left
-player_shield_sprite_ptrs:
-    .word sprite_player_shield_up, sprite_player_shield_right, sprite_player_shield_down, sprite_player_shield_left
-enemy_sprite_ptrs:
-    .word sprite_enemy_up, sprite_enemy_right, sprite_enemy, sprite_enemy_left
-fast_sprite_ptrs:
-    .word sprite_fast_up, sprite_fast_right, sprite_fast_down, sprite_fast_left
-power_sprite_ptrs:
-    .word sprite_power_up, sprite_power_right, sprite_power_down, sprite_power_left
-armor_sprite_ptrs:
-    .word sprite_armor_up, sprite_armor_right, sprite_armor_down, sprite_armor_left
 hud_remaining: .byte 20
 /* Bonus HUD: star, helmet, grenade, shovel, clock, extra life. */
 hud_bonus_ptrs: .word hud_star_icon, hud_bonus_helmet, hud_bonus_grenade, hud_bonus_shovel, hud_bonus_clock, hud_bonus_life
