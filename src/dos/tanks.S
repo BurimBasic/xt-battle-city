@@ -658,7 +658,12 @@ tick_no_ai:
     call spawn_enemy
 tick_no_spawn:
 tick_frozen:
-    call enemy21_collect_bonus   /* also collect when enemies are frozen */
+    /* Four-tick cadence: even the fastest tank takes >=8 ticks to
+       cross a 16px tile. Avoid bonus AABB loops on 75% of frames. */
+    test byte ptr [game_tick],3
+    jnz tick21_pickup_skipped
+    call enemy21_collect_bonus
+tick21_pickup_skipped:
     call check_stage_complete
     ret
 
