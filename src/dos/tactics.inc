@@ -89,10 +89,14 @@ tactical_freeze_vertical:
 tactical_freeze_go:
     jmp tactical_player_steer
 tactical_defense_orders:
-    /* Base breach takes priority over the pickup, but normal firing
-       is independent of BOTH and runs after every movement tick. */
+    /* A real clear firing lane outranks even an attractive pickup.
+       A steel-blocked shot does NOT hold our player in place. */
     call tactical_find_target
     jnc tactical_bonus_objective
+    call tactical_player_aim_if_aligned
+    jnc tactical23_defend_route
+    jmp tactical_player_hold_and_fire
+tactical23_defend_route:
     cmp byte ptr [enemy_py+bx],136
     jae tactical_no_bonus_route
     cmp byte ptr [enemy_py+bx],76
