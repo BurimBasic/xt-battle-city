@@ -8,7 +8,7 @@
 - Three original short **stage-boundary** CGA transitions: row scan, column sweep, and symmetric curtains. Open before gameplay starts, close before stage-clear/game-over lettering; no effect inside the steady-state game loop. Pausing/unpausing does not replay intro.
 - Preserved the v0.19 8088 CGA optimization. Matched SLOW1 384 full-frame benchmark: 240 cycles/ms v0.19 40.124s vs v0.20 41.057s (**2.3% longer, within the 5% gate**); 500 cycles/ms 20.035s vs 20.039s. Same 6 kills and game state. Real XT timing remains unmeasured.
 - Added root **AGENTS.md** release requirements: strict performance baseline, 8086 ISA, true **56 KiB** DOS COM ceiling, cassette/diskless RAM-only state and direct SLOW1 deployment/rollback.
-- GitHub CI: **108 Python tests**, 35 authored maps, 8086 instruction audit. SLOW1 DOSBox-X: **86 /TEST phases PASS**, real 2048-tick replay: first stage **20/20 kills / STAGE CLEAR / HQ saved**.
+- GitHub CI: **108 Python tests**, 35 authored maps, 8086 instruction audit. SLOW1 DOSBox-X: **88 /TEST phases PASS**, real 2048-tick replay: first stage **20/20 kills / STAGE CLEAR / HQ saved**.
 
 ## v0.19 — XT 8088 speed, clean laser line, RAM-only palette (2026-11-10)
 
