@@ -5361,6 +5361,15 @@ smoke_bonus_replay:
     mov byte ptr [player_px],96
     mov byte ptr [player_py],136
     call ally17_spawn
+    jnc 9f
+    jmp smoke_extra_fail
+9:
+    /* The new deploy point is by HQ, not magically at the player's feet. */
+    mov al,[ally_px]
+    mov [enemy_px],al
+    mov al,[ally_py]
+    sub al,40
+    mov [enemy_py],al
     call ally17_tick
     cmp byte ptr [extra_active],1
     je 9f
