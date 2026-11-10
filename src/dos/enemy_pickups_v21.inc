@@ -44,7 +44,9 @@ enemy21_live:
 1:
     sub al,dl
     cmp al,24
-    ja enemy21_next
+    jbe 2f
+    jmp enemy21_next
+2:
     mov dl,ch
     mov al,[enemy_py+bx]
     cmp al,dl
@@ -53,7 +55,9 @@ enemy21_live:
 1:
     sub al,dl
     cmp al,18
-    ja enemy21_next
+    jbe 2f
+    jmp enemy21_next
+2:
 enemy21_row_ok:
     mov byte ptr [bonus_active],0
     mov byte ptr [bonus_timer],0
