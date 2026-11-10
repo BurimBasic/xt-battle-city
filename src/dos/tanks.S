@@ -4496,6 +4496,17 @@ test_wave_complete:
     mov [player_col], al
     mov al, [bonus_row]
     mov [player_row], al
+    /* Legacy smoke fixture must also move the actual pixel tank. */
+    mov al,[bonus_col]
+    shl al,1
+    shl al,1
+    shl al,1
+    shl al,1
+    mov [player_px],al
+    mov al,[bonus_row]
+    mov bl,12
+    mul bl
+    mov [player_py],al
     call check_bonus_pickup
     cmp byte ptr [player_upgrade], 1
     je 1f
