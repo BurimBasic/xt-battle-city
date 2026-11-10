@@ -37,5 +37,5 @@ class CampaignTests(unittest.TestCase):
         inc=(ROOT/'src'/'dos'/'cga_assets.inc').read_text(encoding='ascii')
         self.assertIn('level35_template:',inc)
         self.assertEqual(inc.count('    .byte 0x'), 0) if False else self.assertIn('stage_ptrs:',inc)
-        self.assertIn('level_end - level_template) != 128', inc)
+        self.assertIn('level_end - level_template) > 128', inc)
 if __name__=='__main__':unittest.main()

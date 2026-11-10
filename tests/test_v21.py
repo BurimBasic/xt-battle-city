@@ -45,14 +45,15 @@ class VisualFixesV21(unittest.TestCase):
         self.assertIn('cmp byte ptr [bonus_type],7',ENEMY)
         for effect in ('inc byte ptr [enemy_hp+bx]','mov word ptr [ally_ticks],0',
                        'call restore_hq','mov byte ptr [freeze_ticks],0',
-                       'mov byte ptr [enemy_type+bx],1','mov byte ptr [enemy_type+bx],2',
+                       'mov [enemy_weapon_kind+bx],al',
+                       'mov byte ptr [enemy_weapon_ticks+bx],180',
                        'mov byte ptr [frenzy_ticks],0'):
             self.assertIn(effect,ENEMY)
         self.assertIn('call enemy21_collect_bonus',GAME)
     def test_companion_identity_is_not_infinite_shield(self):
         c=code(GAME,'paint_enemy_finished:','paint_ally_done:')
         self.assertIn('smooth_player_ptrs+bx',c)
-        self.assertIn('smooth_shield_ptrs+bx',c)
+        self.assertIn('smooth_shield_outline',c)
         self.assertIn('call ally21_draw_mark',c)
         self.assertIn('test byte ptr [game_tick],4',c)
         self.assertIn('cmp byte ptr [ally_shield],0',c)
@@ -81,7 +82,7 @@ class VisualFixesV21(unittest.TestCase):
         self.assertNotIn('inc byte ptr [enemy_hp+bx]',collect)
         self.assertIn('inc byte ptr [enemy_hp+bx]',ENEMY.split('enemy21_armor:',1)[1])
     def test_shipped_version_label(self):
-        self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_2',GAME)
+        self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_3',GAME)
 
 if __name__=='__main__':
     unittest.main()

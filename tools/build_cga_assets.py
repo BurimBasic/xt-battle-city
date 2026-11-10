@@ -126,6 +126,9 @@ BONUS_LETTERS = {
     'triple':  ('3.3.3.3', '3.3.3.3', '.3.3.3.', '.3.3.3.', '3.3.3.3', '3.3.3.3'),
     'homing':  ('.33333.', '3.....3', '3.333.3', '3.3.3.3', '3.333.3', '.33333.'),
     'frenzy':  ('3..3..3', '.3.3.3.', '..333..', '3333333', '.3...3.', '3.....3'),
+    'pong':    ('..333..', '.3...3.', '3.....3', '3.....3', '.3...3.', '..333..'),
+    'quad':    ('...3...', '...3...', '3333333', '...3...', '...3...', '...3...'),
+    'super':   ('3.3.3.3', '.33333.', '3333333', '3333333', '.33333.', '3.3.3.3'),
 }
 def bonus_sprite(kind):
     # Clean white square border and a 7x6 centered high-contrast pictogram.
@@ -295,6 +298,7 @@ BULLET = sprite(
  '.......33.......', *(['.'*16] * 4))
 
 SPRITES = {
+    'shield_outline': shield_sprite(EMPTY),
     'empty': EMPTY,
     'brick': BRICK,
     'steel': STEEL,
@@ -355,7 +359,6 @@ def pack(rows):
 # without allocating a 16 KB off-screen framebuffer. 4*12*10=480 bytes.
 SMOOTH_SPRITES = [
     'player_up','player_right','player_down','player_left',
-    'player_shield_up','player_shield_right','player_shield_down','player_shield_left',
     'enemy_up','enemy_right','enemy','enemy_left',
     'fast_up','fast_right','fast_down','fast_left',
     'power_up','power_right','power_down','power_left',
@@ -363,8 +366,7 @@ SMOOTH_SPRITES = [
     'bullet','enemy_bullet',
     'bonus_star','bonus_helmet','bonus_grenade','bonus_shovel','bonus_clock','bonus_life',
     'bonus_laser','bonus_ally','bonus_triple','bonus_homing','bonus_frenzy',
-    'bonus_frame_erase',
-    *TRACK_SPRITES.keys(),
+    'bonus_frame_erase','bonus_pong','bonus_quad','bonus_super','shield_outline',
     *EXPLOSIONS.keys(),
 ]
 
@@ -509,9 +511,23 @@ def packed_map(rows):
     assert len(data)==128
     return data
 
+def compressed_map(rows):
+    """8088-friendly 1-byte runs: count (1..16) in high nibble, material low."""
+    cells=''.join(rows)
+    data=[]
+    i=0
+    while i<len(cells):
+        end=i+1
+        while end<len(cells) and end-i<16 and cells[end]==cells[i]:
+            end+=1
+        data.append(((end-i-1)<<4)|MAP_NIBBLES.index(cells[i]))
+        i=end
+    assert sum((x>>4)+1 for x in data)==256
+    return data
+
 def emit_packed_map(lines, rows):
-    data=packed_map(rows)
-    for pos in range(0,128,8):
+    data=compressed_map(rows)
+    for pos in range(0,len(data),8):
         lines.append('    .byte ' + ', '.join(f'0x{n:02x}' for n in data[pos:pos+8]))
 
 def generate(map_path):
@@ -521,10 +537,6 @@ def generate(map_path):
         '.p2align 1',
         'brick_sprite_ptrs:',
         '    .word ' + ', '.join('sprite_brick_mask_'+str(i) for i in range(16)),
-        'bonus_sprite_ptrs:',
-        '    .word ' + ', '.join('sprite_bonus_'+k for k in BONUS_LETTERS),
-        'sprite_table:',
-        '    .word ' + ', '.join('sprite_' + name for name in SPRITES),
         'tile_row_offsets:',
         '    .word ' + ', '.join(str(480*i) for i in range(16)),
         'level_template:',
@@ -532,8 +544,8 @@ def generate(map_path):
     rows = get_map(map_path)
     emit_packed_map(lines, rows)
     lines.append('level_end:')
-    lines.append('    .if (level_end - level_template) != 128')
-    lines.append('    .error "Level must have exactly 256 cells"')
+    lines.append('    .if (level_end - level_template) > 128')
+    lines.append('    .error "RLE level exceeds original packed size"')
     lines.append('    .endif')
     for stage in range(2, 36):
         staged = get_map(ROOT / 'assets' / 'maps' / f'level{stage:02}.map')
@@ -543,7 +555,13 @@ def generate(map_path):
     lines.append('    .word ' + ', '.join(
         'level_template' if i == 1 else f'level{i}_template'
         for i in range(1,36)))
-    for name, rows in SPRITES.items():
+    # Keep only the true opaque tile atlas. The legacy sprite table and
+    # old tank, bullet and bonus opaque copies were never referenced by
+    # the masked smooth renderer; retain one star used by DOS smoke.
+    static_names = ["empty", "steel", "water", "forest", "ice", "base",
+                    "bonus_star"] + [f"brick_mask_{i}" for i in range(16)]
+    for name in static_names:
+        rows=SPRITES[name]
         lines.append('sprite_' + name + ':')
         data = pack(rows)
         for i in range(0, len(data), 12):

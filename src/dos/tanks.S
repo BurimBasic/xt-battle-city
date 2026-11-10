@@ -189,24 +189,28 @@ load_stage:
     shl bx, 1
     mov si, [stage_ptrs+bx]
     mov di, offset level_data
-    mov cx, 128
+    mov cx,256
 unpack_stage_loop:
     lodsb
-    mov dh,al                  /* upper nibble = second tile */
+    mov dh,al             /* run length minus one, high nibble */
     and al,15
     xor bx,bx
     mov bl,al
     mov al,[stage_tile_codes+bx]
+    mov dl,dh
+    shr dl,1
+    shr dl,1
+    shr dl,1
+    shr dl,1
+    inc dl
+unpack_stage_repeat:
     stosb
-    mov al,dh
-    shr al,1
-    shr al,1
-    shr al,1
-    shr al,1
-    mov bl,al
-    mov al,[stage_tile_codes+bx]
-    stosb
-    loop unpack_stage_loop
+    dec cx
+    jz unpack_stage_done
+    dec dl
+    jnz unpack_stage_repeat
+    jmp unpack_stage_loop
+unpack_stage_done:
     pop es
     /* Strip static E/P markers, replace with dynamic entities. */
     mov di, offset level_data
@@ -248,10 +252,18 @@ marker_next:
     mov byte ptr [multi_ticks], 0
     mov byte ptr [homing_ticks], 0
     mov byte ptr [frenzy_ticks], 0
+    mov byte ptr [quad_ticks],0
+    mov byte ptr [super_ticks],0
+    mov byte ptr [super_bullet_active],0
+    mov byte ptr [pong_ticks],0
+    mov byte ptr [pong_active],0
+    mov byte ptr [player_slow_ticks],0
+    mov byte ptr [paint_pong_valid],0
     mov byte ptr [laser_flash_ticks], 0
     mov word ptr [ally_ticks], 0
     mov byte ptr [extra_active], 0
     mov byte ptr [extra_active+1], 0
+    mov byte ptr [extra_active+2], 0
     mov byte ptr [freeze_ticks], 0
     mov byte ptr [hq_shield], 0
     mov byte ptr [slide_ticks], 0
@@ -267,6 +279,10 @@ marker_next:
     mov byte ptr [paint_bullet_valid], 0
     mov byte ptr [paint_extra_valid], 0
     mov byte ptr [paint_extra_valid+1], 0
+    mov byte ptr [paint_extra_valid+2], 0
+    mov byte ptr [shot_active+4],0
+    mov byte ptr [shot_active+5],0
+    mov byte ptr [shot_active+6],0
     mov byte ptr [paint_ally_valid], 0
     mov byte ptr [paint_bonus_valid], 0
     mov di,offset grenade_fx_ticks
@@ -281,7 +297,7 @@ marker_next:
     xor al, al
     rep stosb
     mov di, offset paint_shot_valid
-    mov cx, 4
+    mov cx, 7
     rep stosb
     mov di, offset dirty_tiles
     mov cx, 256
@@ -628,6 +644,8 @@ game_tick_step:
     call grenade17_fx_tick
     call tick_powerups
     call bonus17_tick
+    call bonus23_tick
+    call enemy23_tick
     call ally20_pickup
     call slide_player_smooth
     cmp byte ptr [player_shield], 0
@@ -726,7 +744,7 @@ bonus21_drop_open:
 bonus21_type_ok:
     mov [bonus_type],al
     inc byte ptr [bonus_sequence]
-    cmp byte ptr [bonus_sequence],11
+    cmp byte ptr [bonus_sequence],14
     jb bonus21_sequence_ok
     mov byte ptr [bonus_sequence],0
 bonus21_sequence_ok:
@@ -859,7 +877,23 @@ pickup_not_triple:
     mov byte ptr [homing_ticks],180
     jmp bonus17_timed
 pickup_not_homing:
+    cmp al,10
+    jne pickup23_not_frenzy
     mov byte ptr [frenzy_ticks],180
+    jmp bonus17_timed
+pickup23_not_frenzy:
+    cmp al,11
+    jne pickup23_not_pong
+    mov byte ptr [pong_ticks],180
+    mov byte ptr [pong_active],0
+    jmp bonus17_timed
+pickup23_not_pong:
+    cmp al,12
+    jne pickup23_not_quad
+    mov byte ptr [quad_ticks],180
+    jmp bonus17_timed
+pickup23_not_quad:
+    mov byte ptr [super_ticks],180
 bonus17_timed:
     mov byte ptr [bonus_flash_ticks],180
 bonus20_applied:
@@ -1310,8 +1344,13 @@ spawn_class_ready:
 spawn_basic_health:
     mov byte ptr [enemy_active+bx], 1
     mov byte ptr [enemy_hold+bx], 0
+    mov byte ptr [enemy_track_damage+bx],0
     mov byte ptr [enemy_blocked+bx], 0
     mov byte ptr [shot_active+bx], 0
+    mov byte ptr [enemy_weapon_kind+bx],0
+    mov byte ptr [enemy_weapon_ticks+bx],0
+    mov byte ptr [shot_owner+bx],bl
+    mov byte ptr [shot_super+bx],0
     inc byte ptr [enemy_spawned]
     call draw_cell
 spawn_abort:
@@ -1438,9 +1477,13 @@ enemy_fire_cycle:
     xor bx, bx
 enemy_fire_loop:
     cmp byte ptr [enemy_active+bx], 0
-    je enemy_fire_next
+    jne 9f
+    jmp enemy_fire_next
+9:
     cmp byte ptr [shot_active+bx], 0
-    jne enemy_fire_next
+    je 9f
+    jmp enemy_fire_next
+9:
     cmp byte ptr [frenzy_ticks],0
     je enemy_fire_normal
     call frenzy17_target
@@ -1448,7 +1491,9 @@ enemy_fire_loop:
     jmp enemy_fire_now
 enemy_fire_normal:
     call tactical_safe_fire
-    jnc enemy_fire_next
+    jc 9f
+    jmp enemy_fire_next
+9:
     cmp byte ptr [enemy_hold+bx], 0
     jne enemy_fire_now
     cmp byte ptr [enemy_type+bx], 2
@@ -1465,6 +1510,8 @@ enemy_fire_now:
     mov [shot_dir+bx], al
     mov byte ptr [shot_active+bx], 1
     mov byte ptr [shot_delay+bx], 1
+    mov byte ptr [shot_super+bx],0
+    mov [shot_owner+bx],bl
     cmp byte ptr [test_mode], 0
     je enemy_fire_smooth_init
     call advance_enemy_shot
@@ -1474,14 +1521,47 @@ enemy_fire_smooth_init:
     mov [shot_px+bx], al
     mov al, [enemy_py+bx]
     mov [shot_py+bx], al
+    cmp byte ptr [enemy_weapon_ticks+bx],0
+    jne 9f
+    jmp enemy_fire_next
+9:
+    mov al,[enemy_weapon_kind+bx]
+    cmp al,6
+    jne enemy23_fire_not_laser
+    call enemy23_laser
+    jmp enemy_fire_next
+enemy23_fire_not_laser:
+    cmp al,8
+    je enemy23_fire_spread
+    cmp al,12
+    jne enemy23_fire_not_spread
+enemy23_fire_spread:
+    call enemy23_burst
+    jmp enemy_fire_next
+enemy23_fire_not_spread:
+    cmp al,13
+    je 9f
+    jmp enemy_fire_next
+9:
+    mov byte ptr [shot_super+bx],1
 enemy_fire_next:
     inc bx
     cmp bx, 4
-    jb enemy_fire_loop
+    jae 9f
+    jmp enemy_fire_loop
+9:
     ret
 
 /* Player projectile: one at a time, one cell per two simulated frames. */
 do_fire:
+    cmp byte ptr [pong_ticks],0
+    je do_fire_normal
+    cmp byte ptr [pong_active],0
+    jne fire_done     /* exactly one ricochet until it expires */
+    xor al,al
+    call pong23_launch
+    ret
+do_fire_normal:
     cmp byte ptr [bullet_active], 0
     je fire_primary
     call extra17_player_fire
@@ -1503,10 +1583,21 @@ fire_primary:
     call advance_bullet
     jmp fire_done
 fire_smooth_init:
+    mov byte ptr [super_bullet_active],0
+    cmp byte ptr [super_ticks],0
+    je fire23_standard
+    mov byte ptr [super_bullet_active],1
+fire23_standard:
     mov al, [player_px]
     mov [bullet_px], al
     mov al, [player_py]
     mov [bullet_py], al
+    cmp byte ptr [quad_ticks],0
+    je fire23_not_quad
+    call quad23_spawn
+fire23_not_quad:
+    cmp byte ptr [super_bullet_active],0
+    jne fire_done
     cmp byte ptr [laser_ticks],0
     je fire_done
     call laser17_fire
@@ -2031,6 +2122,12 @@ move_smooth_enemy_loop:
     test byte ptr [game_tick], 1
     jnz move_smooth_enemy_next
 move_smooth_enemy_ready:
+    /* A crippled track halves the original travel rate. */
+    cmp byte ptr [enemy_track_damage+bx],0
+    je move_smooth_track_ok
+    test byte ptr [game_tick],1
+    jnz move_smooth_enemy_next
+move_smooth_track_ok:
     cmp byte ptr [enemy_hold+bx], 0
     je move_smooth_enemy_active
     dec byte ptr [enemy_hold+bx]
@@ -2281,7 +2378,11 @@ smooth_bullet_substep:
     call projectile_probe
     cmp al, 0
     je 1f
+    cmp byte ptr [super_bullet_active],0
+    jne 9f
     jmp smooth_bullet_terrain
+9:
+    call super23_terrain
 1:
     /* Hit enemy shell within 3 pixels of both axes. */
     xor bx, bx
@@ -2299,31 +2400,53 @@ smooth_bullet_vs_shot:
     cmp al, 6
     ja smooth_bullet_next_shot
     mov byte ptr [shot_active+bx], 0
+    cmp byte ptr [super_bullet_active],0
+    jne smooth_bullet_next_shot
     jmp smooth_bullet_out
 smooth_bullet_next_shot:
     inc bx
-    cmp bx, 4
+    cmp bx, 7
     jb smooth_bullet_vs_shot
     /* Hit an enemy tank, center point inside rectangle. */
     xor bx, bx
 smooth_bullet_enemy_check:
     cmp byte ptr [enemy_active+bx], 0
-    je smooth_bullet_enemy_next
+    jne 9f
+    jmp smooth_bullet_enemy_next
+9:
     mov al, [bullet_px]
     add al, 8
     sub al, [enemy_px+bx]
     add al, 2           /* includes both tread edges */
     cmp al, 20
-    jae smooth_bullet_enemy_next
+    jb 9f
+    jmp smooth_bullet_enemy_next
+9:
     mov al, [bullet_py]
     add al, 6
     sub al, [enemy_py+bx]
     add al, 2
     cmp al, 16
-    jae smooth_bullet_enemy_next
+    jb 9f
+    jmp smooth_bullet_enemy_next
+9:
     cmp byte ptr [enemy_hp+bx], 1
     jbe smooth_enemy_destroyed
+    /* Only a true tread-edge strike damages mobility. A durable tank
+       keeps fighting, but moves at half speed and gets black tread dots. */
+    mov al,[bullet_px]
+    add al,8
+    sub al,[enemy_px+bx]
+    cmp al,5
+    jb smooth_enemy_track_hit
+    cmp al,11
+    jbe smooth_enemy_track_ok
+smooth_enemy_track_hit:
+    mov byte ptr [enemy_track_damage+bx],1
+smooth_enemy_track_ok:
     dec byte ptr [enemy_hp+bx]
+    cmp byte ptr [super_bullet_active],0
+    jne smooth_bullet_enemy_next
     jmp smooth_bullet_impact
 smooth_enemy_destroyed:
     mov byte ptr [enemy_active+bx], 0
@@ -2344,11 +2467,15 @@ smooth_enemy_destroyed:
     mul cl
     add [score], ax
     call draw_hud
+    cmp byte ptr [super_bullet_active],0
+    jne smooth_bullet_enemy_next
     jmp smooth_bullet_impact
 smooth_bullet_enemy_next:
     inc bx
     cmp bx, 4
-    jb smooth_bullet_enemy_check
+    jae 9f
+    jmp smooth_bullet_enemy_check
+9:
     dec byte ptr [bullet_substeps]
     jz 1f
     jmp smooth_bullet_substep
@@ -2384,6 +2511,7 @@ smooth_bullet_impact:
     call sound_play
 smooth_bullet_out:
     mov byte ptr [bullet_active], 0
+    mov byte ptr [super_bullet_active],0
     ret
 
 update_enemy_shots_smooth:
@@ -2396,10 +2524,12 @@ smooth_shot_loop:
     pop bx
 smooth_shot_next:
     inc bx
-    cmp bx, 4
+    cmp bx, 7
     jb smooth_shot_loop
     ret
 advance_enemy_shot_smooth:
+    /* Projectile may track P1 while enemy homing bonus is active. */
+    call enemy23_home
     mov byte ptr [shot_substeps], 2
 smooth_shot_substep:
     mov dl, [shot_px+bx]
@@ -2416,7 +2546,13 @@ smooth_shot_substep:
     call projectile_probe
     cmp al, 0
     je 1f
+    cmp byte ptr [shot_super+bx],0
+    jne 9f
     jmp smooth_shot_terrain
+9:
+    push bx
+    call super23_terrain
+    pop bx
 1:
     /* Bullet-vs-bullet suppression */
     cmp byte ptr [bullet_active], 0
@@ -2432,10 +2568,14 @@ smooth_shot_substep:
     cmp al, 6
     ja smooth_shot_no_bullet
     mov byte ptr [bullet_active], 0
+    cmp byte ptr [shot_super+bx],0
+    jne smooth_shot_no_bullet
     jmp smooth_shot_out
 smooth_shot_no_bullet:
     call shot_hits_other_enemy
     jnc smooth_shot_no_friend
+    cmp byte ptr [shot_super+bx],0
+    jne smooth_shot_no_friend
     jmp smooth_shot_out
 smooth_shot_no_friend:
     mov al, [shot_px+bx]
@@ -2462,6 +2602,8 @@ smooth_shot_no_friend:
     mov byte ptr [player_dir], 0
     mov byte ptr [player_shield], 60
     call draw_hud
+    cmp byte ptr [shot_super+bx],0
+    jne smooth_shot_no_player
     jmp smooth_shot_out
 smooth_player_dead:
     mov byte ptr [game_state], 2
@@ -2514,6 +2656,7 @@ smooth_shot_impact:
     call sound_play
 smooth_shot_out:
     mov byte ptr [shot_active+bx], 0
+    mov byte ptr [shot_super+bx],0
     ret
 
 /* All enemy shells are live projectiles, including against OTHER enemies.
@@ -2527,7 +2670,9 @@ shot_hits_other_enemy:
     push dx
     xor si, si
 friendly_target_loop:
-    cmp si, bx
+    mov al,[shot_owner+bx]
+    xor ah,ah
+    cmp si,ax
     je friendly_target_next
     cmp byte ptr [enemy_active+si], 0
     je friendly_target_next
@@ -2546,6 +2691,16 @@ friendly_target_loop:
 friendly_target_hit:
     cmp byte ptr [enemy_hp+si],1
     jbe friendly_target_destroyed
+    mov al,[shot_px+bx]
+    add al,8
+    sub al,[enemy_px+si]
+    cmp al,5
+    jb friendly_tread_damaged
+    cmp al,11
+    jbe friendly_tread_ok
+friendly_tread_damaged:
+    mov byte ptr [enemy_track_damage+si],1
+friendly_tread_ok:
     dec byte ptr [enemy_hp+si]
     jmp friendly_target_fx
 friendly_target_destroyed:
@@ -2568,7 +2723,9 @@ friendly_target_fx:
 friendly_target_next:
     inc si
     cmp si, 4
-    jb friendly_target_loop
+    jae 9f
+    jmp friendly_target_loop
+9:
     clc
 friendly_target_done:
     pop dx
@@ -2887,6 +3044,13 @@ apply_cga_palette:
  * AABB movement is checked against four world corners and other tanks.
  */
 move_player_smooth:
+    /* An enemy that steals the clock slows P1 for ~6.6 seconds. */
+    cmp byte ptr [player_slow_ticks],0
+    je move_player_not_slow
+    test byte ptr [game_tick],1
+    jz move_player_not_slow
+    ret
+move_player_not_slow:
     cmp byte ptr [game_state], 0
     jne player_smooth_done
     mov al, [held_keys]
@@ -2915,6 +3079,10 @@ player_smooth_selected:
     push ax
     call player_move_pixel
     pop ax
+    call player_move_pixel
+    /* Laser mobility buff: 3 px/tick instead of 2, collisions retained. */
+    cmp byte ptr [laser_ticks],0
+    je player_smooth_done
     call player_move_pixel
 player_smooth_done:
     ret
@@ -3214,6 +3382,13 @@ mark_old_sprites:
     call mark_dirty_rect
 old_player_done:
     mov byte ptr [paint_player_valid], 0
+    cmp byte ptr [paint_pong_valid],0
+    je old_pong_done
+    mov dl,[paint_pong_x]
+    mov dh,[paint_pong_y]
+    call mark_dirty_rect
+old_pong_done:
+    mov byte ptr [paint_pong_valid],0
     cmp byte ptr [paint_bullet_valid], 0
     je old_bullet_done
     mov dl, [paint_bullet_x]
@@ -3233,7 +3408,7 @@ old_extra_loop:
 old_extra_next:
     mov byte ptr [paint_extra_valid+bx],0
     inc bx
-    cmp bx,2
+    cmp bx,3
     jb old_extra_loop
     cmp byte ptr [paint_ally_valid],0
     je old_ally_done
@@ -3484,6 +3659,87 @@ smooth_byte:
     pop bp
     ret
 
+/* One tiny animated highlight on each physical tread. On a disabled
+ * enemy track, the same four points are BLACK damage spots. AL=heading,
+ * AH=damage flag, DL/DH=top-left. The active hull already marks dirty.
+ * This replaces 3,840 bytes of old 4-phase masked tread sprites. */
+draw_track_dots:
+    push ax
+    push bx
+    push cx
+    push dx
+    mov [track23_mode],ah
+    mov bx,ax            /* BL heading, BH damaged flag */
+    mov cx,dx            /* CL x, CH y */
+    test bl,1
+    jnz track23_horizontal
+    add dl,2
+    add dh,3
+    call track23_pixel
+    add dl,11
+    call track23_pixel
+    add dh,5
+    call track23_pixel
+    sub dl,11
+    call track23_pixel
+    jmp track23_done
+track23_horizontal:
+    add dl,3
+    add dh,2
+    call track23_pixel
+    add dh,8
+    call track23_pixel
+    add dl,8
+    call track23_pixel
+    sub dh,8
+    call track23_pixel
+track23_done:
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+track23_pixel:
+    push ax
+    push bx
+    push dx
+    push di
+    push es
+    /* Shift one pixel every other frame, but never outside 16x12. */
+    mov al,[game_tick]
+    and al,1
+    add dl,al
+    xor ax,ax
+    mov al,dh
+    shl ax,1
+    mov di,ax
+    mov di,[cga_scanline_offsets+di]
+    xor ax,ax
+    mov al,dl
+    mov bl,al
+    shr al,1
+    shr al,1
+    xor ah,ah
+    add di,ax
+    and bl,3
+    xor bh,bh
+    mov ax,[frame_seg]
+    mov es,ax
+    mov al,[laser19_masks+bx]
+    not al
+    and al,es:[di]
+    cmp byte ptr [track23_mode],0
+    jne track23_store
+    or al,[laser19_color3+bx]
+track23_store:
+    mov es:[di],al
+    pop es
+    pop di
+    pop dx
+    pop bx
+    pop ax
+    ret
+
 /* Called after each simulated tick, and once after switching a stage. */
 render_frame:
     push ax
@@ -3558,22 +3814,13 @@ paint_enemy_standard:
     mov si, [smooth_enemy_ptrs+si]
 paint_enemy_selected:
     call draw_smooth_sprite
-    /* Tread phase is tied to position: stops immediately if tank stops. */
-    mov dl, [enemy_px+bx]
-    mov dh, [enemy_py+bx]
-    xor ax, ax
-    mov al, [enemy_dir+bx]
-    shl al, 1
-    mov ah, [enemy_px+bx]
-    xor ah, [enemy_py+bx]
-    shr ah, 1
-    and ah, 1
-    or al, ah
-    xor ah, ah
-    shl ax, 1
-    mov si, ax
-    mov si, [smooth_tread_ptrs+si]
-    call draw_smooth_sprite
+    /* The new track painter keeps animated highlights for healthy
+       treads and stamps permanent black dots on a damaged track. */
+    mov dl,[enemy_px+bx]
+    mov dh,[enemy_py+bx]
+    mov al,[enemy_dir+bx]
+    mov ah,[enemy_track_damage+bx]
+    call draw_track_dots
     pop bx
 paint_enemy_next:
     inc bx
@@ -3592,18 +3839,15 @@ paint_enemy_finished:
     xor bx,bx
     mov bl,[ally_dir]
     shl bx,1
-    /* Ally identity is its tiny magenta cockpit mark, not a permanent
-       shield. A real spawn shield flashes for the first 48 ticks. */
+    mov si,[smooth_player_ptrs+bx]
+    call draw_smooth_sprite
     cmp byte ptr [ally_shield],0
     je paint_ally_no_shield
     test byte ptr [game_tick],4
     jnz paint_ally_no_shield
-    mov si,[smooth_shield_ptrs+bx]
-    jmp paint_ally_body
-paint_ally_no_shield:
-    mov si,[smooth_player_ptrs+bx]
-paint_ally_body:
+    mov si,offset smooth_shield_outline
     call draw_smooth_sprite
+paint_ally_no_shield:
     call ally21_draw_mark
 paint_ally_done:
     /* Player's tank. */
@@ -3615,31 +3859,22 @@ paint_ally_done:
     xor bx, bx
     mov bl, [player_dir]
     shl bx, 1
-    cmp byte ptr [player_shield], 0
-    je paint_player_normal
-    /* Only the shield halo blinks; the tank chassis is drawn every frame. */
-    test byte ptr [game_tick],4
-    jnz paint_player_normal
-    mov si, [smooth_shield_ptrs+bx]
-    jmp paint_player_smooth
 paint_player_normal:
     mov si, [smooth_player_ptrs+bx]
-paint_player_smooth:
     call draw_smooth_sprite
-    /* Moving tread overlay, with no extra per-frame dynamic buffers. */
-    mov dl, [player_px]
-    mov dh, [player_py]
-    xor bx, bx
-    mov bl, [player_dir]
-    shl bx, 1
-    mov al, [player_px]
-    xor al, [player_py]
-    shr al, 1
-    and al, 1
-    or bl, al
-    shl bx, 1
-    mov si, [smooth_tread_ptrs+bx]
+    cmp byte ptr [player_shield],0
+    je paint_player_no_shield
+    test byte ptr [game_tick],4
+    jnz paint_player_no_shield
+    mov si,offset smooth_shield_outline
     call draw_smooth_sprite
+paint_player_no_shield:
+    /* Moving tread overlay generated in RAM, no 8x480-byte atlas. */
+    mov dl,[player_px]
+    mov dh,[player_py]
+    mov al,[player_dir]
+    xor ah,ah
+    call draw_track_dots
     /* Player projectile and up to four enemy projectiles. */
     cmp byte ptr [bullet_active], 0
     je paint_no_bullet
@@ -3649,6 +3884,13 @@ paint_player_smooth:
     mov [paint_bullet_y], dh
     mov byte ptr [paint_bullet_valid], 1
     mov si, offset smooth_bullet
+    cmp byte ptr [super_bullet_active],0
+    je paint_primary_normal
+    test byte ptr [game_tick],1
+    jz paint_primary_bullet
+    mov si,offset smooth_enemy_bullet
+    jmp paint_primary_bullet
+paint_primary_normal:
     cmp byte ptr [homing_ticks],0
     je paint_primary_bullet
     test byte ptr [game_tick],4
@@ -3657,6 +3899,7 @@ paint_player_smooth:
 paint_primary_bullet:
     call draw_smooth_sprite
 paint_no_bullet:
+    call pong23_paint
     xor bx,bx
 paint_extra_loop:
     cmp byte ptr [extra_active+bx],0
@@ -3678,7 +3921,7 @@ paint_extra_visible:
     pop bx
 paint_extra_next:
     inc bx
-    cmp bx,2
+    cmp bx,3
     jb paint_extra_loop
     xor bx, bx
 paint_shot_loop:
@@ -3690,10 +3933,16 @@ paint_shot_loop:
     mov [paint_shot_y+bx], dh
     mov byte ptr [paint_shot_valid+bx], 1
     mov si, offset smooth_enemy_bullet
+    cmp byte ptr [shot_super+bx],0
+    je paint_enemy_projectile_ready
+    test byte ptr [game_tick],1
+    jz paint_enemy_projectile_ready
+    mov si,offset smooth_bullet
+paint_enemy_projectile_ready:
     call draw_smooth_sprite
 paint_next_shot:
     inc bx
-    cmp bx, 4
+    cmp bx, 7
     jb paint_shot_loop
     /* One bounded four-phase explosion: debris expands without full-screen redraw. */
     cmp byte ptr [explosion_ticks], 0
@@ -3735,16 +3984,13 @@ paint_explosion_done:
 .section .data
 .p2align 1
 smooth_player_ptrs: .word smooth_player_up, smooth_player_right, smooth_player_down, smooth_player_left
-smooth_shield_ptrs: .word smooth_player_shield_up, smooth_player_shield_right, smooth_player_shield_down, smooth_player_shield_left
 smooth_enemy_ptrs: .word smooth_enemy_up, smooth_enemy_right, smooth_enemy, smooth_enemy_left
 smooth_fast_ptrs: .word smooth_fast_up, smooth_fast_right, smooth_fast_down, smooth_fast_left
 smooth_power_ptrs: .word smooth_power_up, smooth_power_right, smooth_power_down, smooth_power_left
 smooth_armor_ptrs: .word smooth_armor_up, smooth_armor_right, smooth_armor_down, smooth_armor_left
 smooth_bonus_ptrs: .word smooth_bonus_star, smooth_bonus_helmet, smooth_bonus_grenade, smooth_bonus_shovel, smooth_bonus_clock, smooth_bonus_life
     .word smooth_bonus_laser, smooth_bonus_ally, smooth_bonus_triple, smooth_bonus_homing, smooth_bonus_frenzy
-smooth_tread_ptrs:
-    .word smooth_tread_0_0, smooth_tread_0_1, smooth_tread_1_0, smooth_tread_1_1
-    .word smooth_tread_2_0, smooth_tread_2_1, smooth_tread_3_0, smooth_tread_3_1
+    .word smooth_bonus_pong, smooth_bonus_quad, smooth_bonus_super
 smooth_explosion_ptrs: .word smooth_explosion_0, smooth_explosion_1, smooth_explosion_2, smooth_explosion_3
 .section .text
 
@@ -5875,6 +6121,76 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
+    /* Phase 96: ping-pong launches exactly one dangerous independent ball. */
+    mov byte ptr [test_phase],96
+    call reset_campaign
+    mov byte ptr [pong_ticks],180
+    mov byte ptr [pong_active],0
+    call do_fire
+    cmp byte ptr [pong_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* A second fire request cannot create another moving ball. */
+    mov byte ptr [pong_px],42
+    call do_fire
+    cmp byte ptr [pong_px],42
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 97: four-way shot creates primary and THREE independent slots. */
+    mov byte ptr [test_phase],97
+    call reset_campaign
+    mov byte ptr [test_mode],0
+    mov byte ptr [quad_ticks],180
+    call do_fire
+    mov byte ptr [test_mode],1
+    cmp byte ptr [bullet_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [extra_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [extra_active+1],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [extra_active+2],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 98: super-shell remains active and can pierce steel. */
+    mov byte ptr [test_phase],98
+    call reset_campaign
+    mov byte ptr [test_mode],0
+    mov byte ptr [super_ticks],180
+    call do_fire
+    mov byte ptr [test_mode],1
+    cmp byte ptr [super_bullet_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 99: enemy really gains temporary guided weapon capability. */
+    mov byte ptr [test_phase],99
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_py],120
+    mov byte ptr [bonus_col],7
+    mov byte ptr [bonus_row],10
+    mov byte ptr [bonus_type],9
+    mov byte ptr [bonus_active],1
+    call enemy21_collect_bonus
+    cmp byte ptr [enemy_weapon_kind],9
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [enemy_weapon_ticks],180
+    je 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
@@ -6014,6 +6330,7 @@ trace_record_done:
 .include "src/dos/transitions_v20.inc"
 .include "src/dos/enemy_pickups_v21.inc"
 .include "src/dos/ally_marker_v21.inc"
+.include "src/dos/bonus_v23.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -6021,6 +6338,7 @@ trace_filename: .asciz "V16TRACE.BIN"
 trace_count: .byte 0
 trace_buffer: .space 2048
 .endif
+track23_mode: .byte 0
 kills_by_type: .space 4
 stage: .byte 1
 /* Six original effects in a new arrangement; all durations are BIOS ticks. */
@@ -6034,7 +6352,7 @@ bonus_sequence: .byte 0
 bonus_flash_type: .byte 0
 bonus_flash_ticks: .byte 0
 bonus_columns: .byte 2, 10, 4, 8, 1, 11, 6, 12, 5, 9, 3
-bonus_drop_order: .byte 0, 5, 7, 1, 6, 8, 3, 4, 2, 9, 10
+bonus_drop_order: .byte 0, 5, 7, 1, 6, 8, 3, 4, 2, 9, 10, 11, 12, 13
 /* Heart at second pickup, ally third; no more fixed center-row spawn. */
 ally_stock: .byte 1        /* reserve V calls: max nine */
 ally_call_pending: .byte 0 /* keyboard ISR, distinct from movement keys */
@@ -6094,28 +6412,23 @@ enemy_dir: .space 4
 enemy_active: .space 4
 enemy_type: .space 4
 enemy_hp: .space 4
+enemy_track_damage: .space 4
 shot_col: .space 4
 shot_row: .space 4
-shot_dir: .space 4
-shot_active: .space 4
-shot_delay: .space 4
-draw_sprite_ptr: .word 0
-player_sprite_ptrs:
-    .word sprite_player_up, sprite_player_right, sprite_player_down, sprite_player_left
-player_shield_sprite_ptrs:
-    .word sprite_player_shield_up, sprite_player_shield_right, sprite_player_shield_down, sprite_player_shield_left
-enemy_sprite_ptrs:
-    .word sprite_enemy_up, sprite_enemy_right, sprite_enemy, sprite_enemy_left
-fast_sprite_ptrs:
-    .word sprite_fast_up, sprite_fast_right, sprite_fast_down, sprite_fast_left
-power_sprite_ptrs:
-    .word sprite_power_up, sprite_power_right, sprite_power_down, sprite_power_left
-armor_sprite_ptrs:
-    .word sprite_armor_up, sprite_armor_right, sprite_armor_down, sprite_armor_left
+shot_dir: .space 7
+shot_active: .space 7
+shot_delay: .space 7
 hud_remaining: .byte 20
 /* Bonus HUD: star, helmet, grenade, shovel, clock, extra life. */
 hud_bonus_ptrs: .word hud_star_icon, hud_bonus_helmet, hud_bonus_grenade, hud_bonus_shovel, hud_bonus_clock, hud_bonus_life
     .word hud_bonus_laser, hud_bonus_ally, hud_bonus_triple, hud_bonus_homing, hud_bonus_frenzy
+    .word hud_bonus_pong, hud_bonus_quad, hud_bonus_super
+hud_bonus_pong:
+    .byte 0x3f,0xfc,0xc0,0x03,0x03,0xc0,0x0c,0x30,0x0c,0x30,0x03,0xc0,0xc0,0x03,0x3f,0xfc
+hud_bonus_quad:
+    .byte 0x0f,0xf0,0x0c,0x30,0xcc,0x33,0xff,0xff,0xff,0xff,0xcc,0x33,0x0c,0x30,0x0f,0xf0
+hud_bonus_super:
+    .byte 0x03,0xc0,0x0f,0xf0,0x3f,0xfc,0xff,0xff,0xff,0xff,0x3f,0xfc,0x0f,0xf0,0x03,0xc0
 hud_bonus_laser:
     .byte 0xfc, 0x3f, 0xfc, 0x3f, 0xc0, 0x03, 0x00, 0x00, 0xfc, 0x3f, 0xc3, 0xc3, 0x0f, 0xf0, 0xff, 0xff
 hud_bonus_ally:
@@ -6152,7 +6465,7 @@ tactical_auto_glyphs: .word hud_blank_icon, hud_blank_icon, hud_a_char, hud_u_ch
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_a_char, hud_s_char, hud_i_char, hud_c_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_2
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_3
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
@@ -6171,8 +6484,8 @@ enemy_px: .space 4
 enemy_py: .space 4
 bullet_px: .byte 0
 bullet_py: .byte 0
-shot_px: .space 4
-shot_py: .space 4
+shot_px: .space 7
+shot_py: .space 7
 candidate_x: .byte 0
 candidate_y: .byte 0
 probe_x_original: .byte 0
@@ -6221,9 +6534,9 @@ paint_bonus_y: .byte 0
 paint_enemy_valid: .space 4
 paint_enemy_x: .space 4
 paint_enemy_y: .space 4
-paint_shot_valid: .space 4
-paint_shot_x: .space 4
-paint_shot_y: .space 4
+paint_shot_valid: .space 7
+paint_shot_x: .space 7
+paint_shot_y: .space 7
 level_data: .space 256
 .include "src/dos/cga_assets.inc"
 

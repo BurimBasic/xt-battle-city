@@ -359,6 +359,10 @@ strategy_bonus_heading:
     push dx
     push si
     push di
+    cmp byte ptr [tactical23_hunting],0
+    je bonus_route_real_check
+    jmp bonus_route_ready_to_choose
+bonus_route_real_check:
     cmp byte ptr [bonus_active],0
     jne bonus_route_check_threat
     jmp bonus_route_fail
@@ -416,6 +420,7 @@ bonus_route_next_threat:
     inc bx
     cmp bx,4
     jb bonus_route_threat_loop
+bonus_route_ready_to_choose:
     /* Verify the current map cell has a connected route. */
     mov al,[player_px]
     shr al,1

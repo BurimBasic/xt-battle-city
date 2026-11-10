@@ -75,11 +75,13 @@ trans20_cell_next:
     inc byte ptr [trans20_inner]
     cmp byte ptr [trans20_inner],16
     jb trans20_cell
-    /* 8 distinct visible phases, about half a second for all 16 bands. */
-    test byte ptr [trans20_step],1
-    jnz trans20_no_delay
+    /* 20 visible BIOS-tick intervals per wipe (~1.1 seconds), rather
+       than eight intervals too fast to recognize. Never in game loop. */
+    test byte ptr [trans20_step],3
+    jnz trans20_one_wait
     call transition20_wait_tick
-trans20_no_delay:
+trans20_one_wait:
+    call transition20_wait_tick
     inc byte ptr [trans20_step]
     cmp byte ptr [trans20_step],16
     jb trans20_pass

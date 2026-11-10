@@ -24,6 +24,43 @@ tactical_player_decide:
     jnc tactical_dodge_done
     jmp tactical_player_steer
 tactical_dodge_done:
+    /* Laser is an assault window: pursue the nearest reachable enemy
+       instead of holding the HQ indefinitely. Closing distance also
+       improves the instant laser's line of fire. */
+    cmp byte ptr [laser_ticks],0
+    je tactical23_check_final
+    cmp byte ptr [bonus_active],0
+    jne tactical23_check_final
+    call tactical_find_target
+    jnc tactical23_check_final
+    call tactical_player_aim_if_aligned
+    jnc 9f
+    jmp tactical_player_hold_and_fire
+9:
+    call tactical23_hunt
+    jnc 9f
+    jmp tactical_player_steer
+9:
+tactical23_check_final:
+    /* A sole defender hidden behind steel must not cause deadlock.
+       Navigate around the obstacle using the cached reverse BFS. */
+    cmp byte ptr [enemy_spawned],20
+    jne tactical23_normal_orders
+    cmp byte ptr [enemy_killed],19
+    jb tactical23_normal_orders
+    cmp byte ptr [bonus_active],0
+    jne tactical23_normal_orders
+    call tactical_find_target
+    jnc tactical23_normal_orders
+    call tactical_player_aim_if_aligned
+    jnc 9f
+    jmp tactical_player_hold_and_fire
+9:
+    call tactical23_hunt
+    jnc 9f
+    jmp tactical_player_steer
+9:
+tactical23_normal_orders:
     /* Freeze creates an offensive window: chase the immobilized enemy. */
     cmp byte ptr [freeze_ticks],0
     je tactical_defense_orders
