@@ -29,6 +29,10 @@ b17_no_flash:
     je b20_flash_done
     dec byte ptr [ally_life_flash]
 b20_flash_done:
+    cmp byte ptr [ally_shield],0
+    je b21_no_shield
+    dec byte ptr [ally_shield]
+b21_no_shield:
     cmp word ptr [ally_ticks],0
     je b17_done
     dec word ptr [ally_ticks]
@@ -290,6 +294,7 @@ ally20_base_candidate:
 ally20_spawn_clear:
     mov byte ptr [ally_dir],0
     mov word ptr [ally_ticks],270     /* 15 seconds * 18 BIOS ticks */
+    mov byte ptr [ally_shield],48    /* ~2.6-second spawn protection */
     mov byte ptr [ally_cooldown],0
     clc
     jmp ally20_base_done
@@ -721,6 +726,7 @@ saved_bullet_dir: .byte 0
 home_best: .word 0xffff
 home_target: .byte 0xff
 ally_ticks: .word 0
+ally_shield: .byte 0
 /* HQ-side deployment positions, tried in order for blocked base exits. */
 ally20_spawn_x: .byte 112,96,128,112
 ally20_spawn_y: .byte 144,144,144,132
