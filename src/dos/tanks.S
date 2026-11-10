@@ -54,6 +54,7 @@ buffer_unavailable:
     call draw_sidebar_background
     call draw_hud
     call draw_mode_indicator
+    call draw_bonus_indicator /* initial Vx1 is visible before first tick */
     /* /AUDIO: DOS errorlevel 0 when OPL2 detected, 1 for speaker fallback.
        Safe to use for emulator acceptance without playing a stage. */
     cmp byte ptr [0x80], 7
