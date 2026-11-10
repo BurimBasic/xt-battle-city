@@ -363,6 +363,37 @@ strategy_bonus_heading:
     jne bonus_route_check_threat
     jmp bonus_route_fail
 bonus_route_check_threat:
+    /* The defensive AUTO tank must not leave the HQ line for a far
+       bonus. Near pickups within three cells remain a top priority. */
+    mov dl,[bonus_col]
+    shl dl,1
+    shl dl,1
+    shl dl,1
+    shl dl,1
+    mov al,[player_px]
+    cmp al,dl
+    jae 1f
+    xchg al,dl
+1:
+    sub al,dl
+    cmp al,48
+    jbe 1f
+    jmp bonus_route_fail
+1:
+    mov al,[bonus_row]
+    mov cl,12
+    mul cl
+    mov dl,al
+    mov al,[player_py]
+    cmp al,dl
+    jae 1f
+    xchg al,dl
+1:
+    sub al,dl
+    cmp al,36
+    jbe 1f
+    jmp bonus_route_fail
+1:
     xor bx,bx
 bonus_route_threat_loop:
     cmp byte ptr [enemy_active+bx],0
