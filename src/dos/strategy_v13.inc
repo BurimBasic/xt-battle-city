@@ -384,7 +384,7 @@ bonus_route_threat_loop:
     jb bonus_route_check_center
     jmp bonus_route_fail
  bonus_route_check_center:
-    cmp byte ptr [enemy_py+bx],104
+    cmp byte ptr [enemy_py+bx],76
     jb bonus_route_next_threat
     mov al,[enemy_px+bx]
     cmp al,72
