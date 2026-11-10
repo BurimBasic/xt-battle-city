@@ -5518,8 +5518,12 @@ smoke_bonus_replay:
     mov byte ptr [game_tick],4
     mov byte ptr [auto_mode],1
     call tactical_player_tick
+    /* AUTO can either move toward the pickup or hold a real firing lane;
+       independent AUTO fire must work in BOTH states. */
     cmp byte ptr [held_keys],0
     jne 9f
+    cmp byte ptr [tactical_fire_request],1
+    je 9f
     jmp smoke_extra_fail
 9:
     call tactical_player_autofire
