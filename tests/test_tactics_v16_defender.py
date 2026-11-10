@@ -17,10 +17,9 @@ class AutonomousDefence(unittest.TestCase):
     def test_wall_ray_is_checked_before_holding_a_fire_lane(self):
         aim=AI[AI.index('tactical_player_aim_if_aligned:'):AI.index('tactical_player_path_open:')]
         self.assertIn('call tactical_player_line_clear',aim)
-        self.assertIn('pixel_y_tile_lookup+bx',aim)
-        self.assertIn('level_data+bx',aim)
-        self.assertIn("cmp al,'T'",aim)
-        self.assertIn("cmp al,'B'",aim)
+        self.assertIn('mov si,offset level_data',aim)
+        self.assertIn("cmp byte ptr [si],'T'",aim)
+        self.assertIn("cmp byte ptr [si],'B'",aim)
         self.assertIn('mov byte ptr [test_phase],60',T)
         self.assertIn('mov byte ptr [test_phase],61',T)
     def test_our_hq_is_prioritized_before_bonus_and_guard_is_offset(self):
