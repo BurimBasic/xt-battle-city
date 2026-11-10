@@ -66,14 +66,20 @@ class CombatV23(unittest.TestCase):
     def test_last_enemy_uses_bfs_even_across_bricks(self):
         self.assertIn('cmp byte ptr [enemy_killed],19',AI)
         self.assertIn('call tactical23_hunt',AI)
-        self.assertIn('call strategy_bonus_spawn',B)
+        self.assertIn('call strategy_fill',B)
+        self.assertIn('mov di,offset route_hunt',B)
         self.assertIn('tactical23_hunting:',B)
+        self.assertIn('route_hunt: .space 256',S)
+        hunt=B.split('tactical23_hunt:',1)[1].split('enemy23_tick:',1)[0]
+        self.assertNotIn('mov [bonus_col],dl',hunt)
+        self.assertNotIn('call strategy_bonus_spawn',hunt)
         self.assertIn('cmp byte ptr [tactical23_hunting],0',S)
     def test_laser_assault_and_legacy_bonus_priority(self):
         laser=AI.split('tactical_dodge_done:',1)[1].split('tactical23_check_final:',1)[0]
         self.assertIn('cmp byte ptr [laser_ticks],0',laser)
         self.assertNotIn('cmp byte ptr [bonus_active],0',laser)
         self.assertIn('call strategy_bonus_heading',AI)
+        self.assertIn('mov word ptr [route_active_field],offset route_hunt',S)
         bonus_route=S.split('bonus_route_check_threat:',1)[1].split('bonus_route_threat_loop:',1)[0]
         self.assertNotIn('cmp al,48',bonus_route)
         self.assertNotIn('cmp al,36',bonus_route)
