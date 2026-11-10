@@ -343,13 +343,6 @@ tactical_player_aim_if_aligned:
 /* Independent fire control runs after movement each tick, even while
  * driving to a pickup. Choose the deepest aligned hostile shot. */
 tactical_player_autofire:
-    /* AUTO steering already refreshes every four BIOS ticks. Bound
-       repeated full LOS queries to the same cadence to protect XT FPS.
-       Motion/projectiles keep advancing on all intermediate ticks. */
-    test byte ptr [game_tick],3
-    jz tactical_autofire_cadence_ready
-    ret
-tactical_autofire_cadence_ready:
     cmp byte ptr [bullet_active],0
     je tactical_autofire_start
     /* Triple-shot AUTO fills both spare slots while existing bullets fly. */
@@ -400,9 +393,10 @@ tactical_autofire_skip:
 /* The shell may chip brick, but never penetrate steel or HQ.
  * Scan the first up to 72 pixels of its actual center trajectory and
  * stop before the target (to ignore walls located BEHIND it). */
-/* Steel-line guard: traverse just the map cells along a complete ray.
- * Fixed maximum 12-pixel stride can't skip any solid steel tile; fewer
- * samples and no expensive pixel projectile_probe() division per sample. */
+/* Fast and complete steel guard. The actor and target share a row or
+ * column (checked by caller). Convert to map-cell indices ONCE, then
+ * walk 1 tile per step; no per-pixel DIV and no repeated sprite probes.
+ * Steel and HQ interrupt the ray; destructible bricks do not. */
 tactical_player_line_clear:
     push ax
     push bx
@@ -410,57 +404,118 @@ tactical_player_line_clear:
     push dx
     push si
     mov [tactical_lane_dir],al
+    cmp byte ptr [tactical_aim_distance],8
+    ja 1f
+    stc
+    jmp tactical_lane_done
+1:
     mov dl,[player_px]
     add dl,8
-    mov dh,[player_py]
-    add dh,6
-    xor ch,ch
-    mov cl,[tactical_aim_distance]
-    cmp cl,8
-    jbe tactical_lane_clear
-    sub cl,8
-tactical_lane_probe:
-    mov al,12
-    cmp cl,12
-    jae 1f
-    mov al,cl
+    shr dl,1
+    shr dl,1
+    shr dl,1
+    shr dl,1
+    mov al,[player_py]
+    add al,6
+    xor ah,ah
+    mov ch,12
+    div ch
+    mov dh,al
+    xor ah,ah
+    shl ax,1
+    shl ax,1
+    shl ax,1
+    shl ax,1
+    add al,dl
+    mov si,offset level_data
+    add si,ax
+    mov al,[tactical_lane_dir]
+    cmp al,0
+    je tactical_lane_up
+    cmp al,1
+    je tactical_lane_right
+    cmp al,2
+    je tactical_lane_down
+    jmp tactical_lane_left
+tactical_lane_up:
+    mov al,[enemy_py+bx]
+    add al,6
+    xor ah,ah
+    div ch
+    mov cl,al
+    cmp dh,cl
+    ja 1f
+    jmp tactical_lane_clear
 1:
-    sub cl,al
-    mov ah,[tactical_lane_dir]
-    cmp ah,0
-    jne tactical_lane_right
-    sub dh,al
-    jmp tactical_lane_tile
+    sub si,16
+    dec dh
+    cmp byte ptr [si],'T'
+    je tactical_lane_blocked
+    cmp byte ptr [si],'B'
+    je tactical_lane_blocked
+    cmp dh,cl
+    jne 1b
+    jmp tactical_lane_clear
 tactical_lane_right:
-    cmp ah,1
-    jne tactical_lane_down
-    add dl,al
-    jmp tactical_lane_tile
+    mov al,[enemy_px+bx]
+    add al,8
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov cl,al
+    cmp dl,cl
+    jb 1f
+    jmp tactical_lane_clear
+1:
+    inc si
+    inc dl
+    cmp byte ptr [si],'T'
+    je tactical_lane_blocked
+    cmp byte ptr [si],'B'
+    je tactical_lane_blocked
+    cmp dl,cl
+    jne 1b
+    jmp tactical_lane_clear
 tactical_lane_down:
-    cmp ah,2
-    jne tactical_lane_left
-    add dh,al
-    jmp tactical_lane_tile
+    mov al,[enemy_py+bx]
+    add al,6
+    xor ah,ah
+    div ch
+    mov cl,al
+    cmp dh,cl
+    jb 1f
+    jmp tactical_lane_clear
+1:
+    add si,16
+    inc dh
+    cmp byte ptr [si],'T'
+    je tactical_lane_blocked
+    cmp byte ptr [si],'B'
+    je tactical_lane_blocked
+    cmp dh,cl
+    jne 1b
+    jmp tactical_lane_clear
 tactical_lane_left:
-    sub dl,al
-tactical_lane_tile:
-    xor bx,bx
-    mov bl,dh
-    mov ah,[pixel_y_tile_lookup+bx]
-    and ah,0xf0
-    mov bl,dl
-    shr bl,1
-    shr bl,1
-    shr bl,1
-    shr bl,1
-    or bl,ah
-    mov al,[level_data+bx]
-    cmp al,'T'
+    mov al,[enemy_px+bx]
+    add al,8
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov cl,al
+    cmp dl,cl
+    ja 1f
+    jmp tactical_lane_clear
+1:
+    dec si
+    dec dl
+    cmp byte ptr [si],'T'
     je tactical_lane_blocked
-    cmp al,'B'
+    cmp byte ptr [si],'B'
     je tactical_lane_blocked
-    test cl,cl
-    jnz tactical_lane_probe
+    cmp dl,cl
+    jne 1b
 tactical_lane_clear:
     stc
     jmp tactical_lane_done
