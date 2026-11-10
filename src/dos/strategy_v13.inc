@@ -367,37 +367,11 @@ bonus_route_real_check:
     jne bonus_route_check_threat
     jmp bonus_route_fail
 bonus_route_check_threat:
-    /* The defensive AUTO tank must not leave the HQ line for a far
-       bonus. Near pickups within three cells remain a top priority. */
-    mov dl,[bonus_col]
-    shl dl,1
-    shl dl,1
-    shl dl,1
-    shl dl,1
-    mov al,[player_px]
-    cmp al,dl
-    jae 1f
-    xchg al,dl
-1:
-    sub al,dl
-    cmp al,48
-    jbe 1f
-    jmp bonus_route_fail
-1:
-    mov al,[bonus_row]
-    mov cl,12
-    mul cl
-    mov dl,al
-    mov al,[player_py]
-    cmp al,dl
-    jae 1f
-    xchg al,dl
-1:
-    sub al,dl
-    cmp al,36
-    jbe 1f
-    jmp bonus_route_fail
-1:
+    /* Combine BOTH bonus doctrines: 1.5-cell pickup wins immediately;
+       if no enemy threatens HQ, seek distant bonus using the cached
+       whole-map BFS as the original AUTO did.  Any nearby defender risk
+       vetoes the trip via the scan below.  Lone-enemy pursuit bypasses
+       this threat gate through tactical23_hunting. */
     xor bx,bx
 bonus_route_threat_loop:
     cmp byte ptr [enemy_active+bx],0
