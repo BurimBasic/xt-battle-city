@@ -6,7 +6,7 @@
 - Real enemy-owned temporary weapon abilities (laser, burst, homing, super, hazardous ricochet), enemy clock slowing P1, and existing prohibition against stealing hearts or V reserve.
 - Repeated hits damage heavy tank tracks (black tread dots, half movement speed). CGA stage curtains/scan/sweep transitions now stay visible longer at stage boundaries only.
 - Removed unused legacy sprite copies and encoded all 35 original maps with compact RLE; shipping **52,860-byte** DOS .COM stays under strict 56KiB cap.
-- **GitHub Actions PASS:** 136 Python tests, 35 maps validated, 8086 ISA. **SLOW1 actual DOSBox-X** installed candidates /TEST and 2048-tick /TRACE PASS: **20/20 kills, STAGE CLEAR, HQ survives**. Performance-gate comparison against v0.19 is documented in `releases/v0.23/RELEASE-NOTES.md`.
+- **GitHub Actions PASS:** 136 Python tests, 35 maps validated, 8086 ISA. **SLOW1 DOSBox-X /TEST PASS** and 2048-tick /TRACE **20/20 kills, STAGE CLEAR, HQ saved**. Matched ABBA 384-frame 8086/CGA speed gate **PASS**: at 240 cycles/ms v0.23 mean **57.748 s** vs v0.19 **68.520 s** (15.7% faster in these runs); at 500 cycles/ms **24.074 vs 30.347 s** (20.7%). Variable host load; no physical XT performance claim. **Installed atomically on SLOW1** at `C:\XT-Battle-City\run\TANKS.COM`, installed DOS /TEST PASS. Rollback: `run\TANKS-v022-backup-20261110-232330.COM` (SHA-256 `F1705EFC784818691A3E69E4E778185C4BF00A2FB7C5F5AF64F7D0E3B1CAD917`).
 - Full controls, 14-bonus encyclopedia and real CGA screenshot with clearly labeled compatibility limitations on the updated [README homepage](README.md). Binary at `dist/TANKS.COM`; versioned ZIP under `releases/v0.23/`.
 
 ## v0.22 — Nearby power-ups, active AUTO during freeze, steel-aware fire (2026-11-10)
