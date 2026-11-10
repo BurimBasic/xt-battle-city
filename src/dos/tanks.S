@@ -5831,6 +5831,39 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
+    /* Phase 94: P1 obtains a heart from a neighboring 1.5-cell radius. */
+    mov byte ptr [test_phase],94
+    call reset_campaign
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_type],5
+    mov byte ptr [bonus_col],8
+    mov byte ptr [bonus_row],14
+    mov byte ptr [lives],3
+    call check_bonus_pickup
+    cmp byte ptr [lives],4
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 95: enemy collects an adjacent clock with real pixel coords. */
+    mov byte ptr [test_phase],95
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_py],120
+    mov byte ptr [bonus_col],7
+    mov byte ptr [bonus_row],10
+    mov byte ptr [bonus_type],4
+    mov byte ptr [bonus_active],1
+    mov byte ptr [freeze_ticks],120
+    call enemy21_collect_bonus
+    cmp byte ptr [bonus_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [freeze_ticks],0
+    je 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
