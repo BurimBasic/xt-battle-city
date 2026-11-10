@@ -41,12 +41,9 @@ enemy21_row_ok:
     mov dl,[bonus_col]
     mov dh,[bonus_row]
     call draw_cell
-    /* Every eligible pickup gives an armor point; distinct types
-       also apply lightweight useful effects to the enemy team. */
-    cmp byte ptr [enemy_hp+bx],9
-    jae enemy21_buff_type
-    inc byte ptr [enemy_hp+bx]
-enemy21_buff_type:
+    /* Apply ONLY the specific effect of the stolen pickup. Giving
+       generic armor for every type compounded 6+ stolen bonuses and
+       made even stage 1 unwinnable for AUTO (17/20 before game-over). */
     mov al,[bonus_type]
     cmp al,0              /* star: extra armor */
     je enemy21_armor
