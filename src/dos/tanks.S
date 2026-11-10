@@ -648,7 +648,6 @@ bullet17_standard:
     jne tick_frozen
     call update_enemy_shots_smooth
     call move_enemies_smooth
-    call enemy21_collect_bonus
     test byte ptr [game_tick], 15
     jnz tick_no_ai
     call enemy_fire_cycle
@@ -5842,6 +5841,7 @@ trace_record_done:
 .include "src/dos/bonuses_v17.inc"
 .include "src/dos/ally_v20.inc"
 .include "src/dos/transitions_v20.inc"
+.include "src/dos/enemy_pickups_v21.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -5980,7 +5980,7 @@ tactical_auto_glyphs: .word hud_blank_icon, hud_blank_icon, hud_a_char, hud_u_ch
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_a_char, hud_s_char, hud_i_char, hud_c_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_0
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_1
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
