@@ -15,7 +15,7 @@ def bitmap_occupied(mask: int, x: int, y: int) -> bool:
 
 class PixelEngineTests(unittest.TestCase):
     def test_sprite_mask_colours_are_consistent(self):
-        self.assertEqual(len(a.SMOOTH_SPRITES), 50)
+        self.assertEqual(len(a.SMOOTH_SPRITES), 42)
         for name in a.SMOOTH_SPRITES:
             data = a.pack_smooth(a.SPRITES[name])
             self.assertEqual(len(data), 4 * 12 * 10)

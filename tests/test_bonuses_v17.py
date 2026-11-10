@@ -12,12 +12,12 @@ AI=(R/'src/dos/tactics.inc').read_text()
 
 class TacticalBonusV17(unittest.TestCase):
     def test_eleven_unique_pickups(self):
-        self.assertEqual(len(art.BONUS_LETTERS),11)
+        self.assertEqual(len(art.BONUS_LETTERS),14)
         names=('laser','ally','triple','homing','frenzy')
         for name in names:
             self.assertIn('bonus_'+name,art.SMOOTH_SPRITES)
             self.assertIn('hud_bonus_'+name+':',GAME)
-        self.assertEqual(len({tuple(art.SPRITES['bonus_'+n]) for n in art.BONUS_LETTERS}),11)
+        self.assertEqual(len({tuple(art.SPRITES['bonus_'+n]) for n in art.BONUS_LETTERS}),14)
     def test_timing_and_hud_seconds(self):
         self.assertIn('mov byte ptr [bonus_flash_ticks],180',GAME)
         self.assertIn('bonus17_tick:',EXT)

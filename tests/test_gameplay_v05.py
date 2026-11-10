@@ -10,9 +10,9 @@ import build_cga_assets as a
 
 class GameplayWave5(unittest.TestCase):
     def test_six_distinct_original_bonus_sprites(self):
-        self.assertEqual(len(a.BONUS_LETTERS), 11)
+        self.assertEqual(len(a.BONUS_LETTERS), 14)
         names = [f'bonus_{kind}' for kind in a.BONUS_LETTERS]
-        self.assertEqual(len({tuple(a.SPRITES[n]) for n in names}), 11)
+        self.assertEqual(len({tuple(a.SPRITES[n]) for n in names}), 14)
         self.assertTrue(all(len(a.pack(a.SPRITES[n])) == 48 for n in names))
 
     def test_brick_mask_preserves_quadrants(self):
@@ -65,7 +65,7 @@ class GameplayWave5(unittest.TestCase):
         self.assertIn('mov byte ptr [test_phase], 20', src)
 
     def test_cga_memory_layout_with_many_sprites(self):
-        self.assertEqual(len(a.SPRITES), 73)
+        self.assertEqual(len(a.SPRITES), 77)
         self.assertLessEqual(len(a.SPRITES) * 48, 4096)
         self.assertLess(0 + 15*480 + 5*80 + 0x2000 + 4*12+4, 16384)
 

@@ -359,41 +359,21 @@ strategy_bonus_heading:
     push dx
     push si
     push di
+    mov word ptr [route_active_field],offset route_bonus
+    cmp byte ptr [tactical23_hunting],0
+    je bonus_route_real_check
+    mov word ptr [route_active_field],offset route_hunt
+    jmp bonus_route_ready_to_choose
+bonus_route_real_check:
     cmp byte ptr [bonus_active],0
     jne bonus_route_check_threat
     jmp bonus_route_fail
 bonus_route_check_threat:
-    /* The defensive AUTO tank must not leave the HQ line for a far
-       bonus. Near pickups within three cells remain a top priority. */
-    mov dl,[bonus_col]
-    shl dl,1
-    shl dl,1
-    shl dl,1
-    shl dl,1
-    mov al,[player_px]
-    cmp al,dl
-    jae 1f
-    xchg al,dl
-1:
-    sub al,dl
-    cmp al,48
-    jbe 1f
-    jmp bonus_route_fail
-1:
-    mov al,[bonus_row]
-    mov cl,12
-    mul cl
-    mov dl,al
-    mov al,[player_py]
-    cmp al,dl
-    jae 1f
-    xchg al,dl
-1:
-    sub al,dl
-    cmp al,36
-    jbe 1f
-    jmp bonus_route_fail
-1:
+    /* Combine BOTH bonus doctrines: 1.5-cell pickup wins immediately;
+       if no enemy threatens HQ, seek distant bonus using the cached
+       whole-map BFS as the original AUTO did.  Any nearby defender risk
+       vetoes the trip via the scan below.  Lone-enemy pursuit bypasses
+       this threat gate through tactical23_hunting. */
     xor bx,bx
 bonus_route_threat_loop:
     cmp byte ptr [enemy_active+bx],0
@@ -404,7 +384,7 @@ bonus_route_threat_loop:
     jb bonus_route_check_center
     jmp bonus_route_fail
  bonus_route_check_center:
-    cmp byte ptr [enemy_py+bx],104
+    cmp byte ptr [enemy_py+bx],76
     jb bonus_route_next_threat
     mov al,[enemy_px+bx]
     cmp al,72
@@ -416,6 +396,7 @@ bonus_route_next_threat:
     inc bx
     cmp bx,4
     jb bonus_route_threat_loop
+bonus_route_ready_to_choose:
     /* Verify the current map cell has a connected route. */
     mov al,[player_px]
     shr al,1
@@ -434,7 +415,8 @@ bonus_route_next_threat:
     add al,dl
     xor bx,bx
     mov bl,al
-    cmp byte ptr [route_bonus+bx],0xff
+    mov di,[route_active_field]
+    cmp byte ptr [di+bx],0xff
     jne bonus_route_connected
     jmp bonus_route_fail
 bonus_route_connected:
@@ -474,7 +456,8 @@ bonus_route_step:
     add al,cl
     xor bx,bx
     mov bl,al
-    mov al,[route_bonus+bx]
+    mov di,[route_active_field]
+    mov al,[di+bx]
     cmp al,0xff
     je bonus_route_skip
     xor ah,ah
@@ -487,6 +470,10 @@ bonus_route_step:
     mov di,ax
     /* Local tie-break: move towards the bonus's top-left anchor. */
     mov al,[bonus_col]
+    cmp byte ptr [tactical23_hunting],0
+    je 1f
+    mov al,[tactical23_hunt_col]
+1:
     shl al,1
     shl al,1
     shl al,1
@@ -501,6 +488,10 @@ bonus_route_abs_x:
     xor ah,ah
     add di,ax
     mov al,[bonus_row]
+    cmp byte ptr [tactical23_hunting],0
+    je 1f
+    mov al,[tactical23_hunt_row]
+1:
     mov bl,12
     mul bl
     sub al,[bonus_probe_y]
@@ -564,6 +555,7 @@ route_queue: .space 256
 
 .section .bss
 route_bonus: .space 256
+route_hunt: .space 256
 bonus_best_direction: .byte 0
 bonus_best_cost: .word 0
 bonus_probe_x: .byte 0

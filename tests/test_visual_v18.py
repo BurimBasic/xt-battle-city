@@ -50,7 +50,7 @@ class VisualV18(unittest.TestCase):
     def test_shield_blinks_but_plain_tank_stays(self):
         segment=SRC[SRC.index('/* Player\'s tank. */'):SRC.index('/* Moving tread overlay')]
         self.assertIn('test byte ptr [game_tick],4',segment)
-        self.assertIn('jnz paint_player_normal',segment)
+        self.assertIn('jnz paint_player_no_shield',segment)
         self.assertIn('mov si, [smooth_player_ptrs+bx]',segment)
     def test_brand_and_centered_auto(self):
         self.assertIn('hud_blank_icon, hud_blank_icon, hud_a_char, hud_u_char',SRC)
@@ -58,7 +58,7 @@ class VisualV18(unittest.TestCase):
         self.assertIn('brand_copyright_glyphs:',SRC)
         self.assertIn('brand_basic_glyphs:',SRC)
         self.assertIn('brand_version_glyphs:',SRC)
-        self.assertRegex(SRC, r'brand_version_glyphs:.*hud_digit_2, hud_digit_2')
+        self.assertRegex(SRC, r'brand_version_glyphs:.*hud_digit_2, hud_digit_3')
         self.assertIn('call draw_branding',SRC)
         self.assertIn('draw_hud_glyph_inverted:',SRC)
         for ch in ('k','i','c','v','.'):

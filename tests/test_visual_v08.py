@@ -26,7 +26,7 @@ class VisualV08Tests(unittest.TestCase):
                   'cga_palettes: .byte 0x20, 0x00, 0x30, 0x10',
                   'shot_hits_other_enemy:', 'friendly_target_loop:',
                   'spawn_explosion:', 'tick_explosion:',
-                  'smooth_tread_ptrs:', 'smooth_explosion_ptrs:',
+                  'draw_track_dots:', 'smooth_explosion_ptrs:',
                   'mov byte ptr [test_phase], 29',
                   'mov byte ptr [test_phase], 30'):
             self.assertIn(k,s)

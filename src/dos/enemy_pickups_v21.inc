@@ -88,21 +88,33 @@ enemy21_clock:
     cmp al,4              /* clock: release frozen enemy troops */
     jne enemy21_laser
     mov byte ptr [freeze_ticks],0
+    mov byte ptr [player_slow_ticks],120
     jmp enemy21_picked
 enemy21_laser:
-    cmp al,6              /* laser: stronger firing class */
-    je enemy21_power
-    cmp al,8              /* triple: stronger firing class */
-    je enemy21_power
-    cmp al,9              /* homing: fast tracking class */
+    /* Real one-slot time-limited weapon, not a permanent tank-class lie. */
+    cmp al,6
+    je enemy23_weapon_pickup
+    cmp al,8
+    je enemy23_weapon_pickup
+    cmp al,9
+    je enemy23_weapon_pickup
+    cmp al,12
+    je enemy23_weapon_pickup
+    cmp al,13
+    je enemy23_weapon_pickup
+    cmp al,11
     jne enemy21_frenzy
-    mov byte ptr [enemy_type+bx],1
+    /* An enemy can release the very same dangerous ricochet. */
+    mov byte ptr [pong_ticks],180
+    mov byte ptr [pong_active],0
+    mov al,1
+    call pong23_launch
     jmp enemy21_picked
-enemy21_power:
-    mov byte ptr [enemy_type+bx],2
+enemy23_weapon_pickup:
+    mov [enemy_weapon_kind+bx],al
+    mov byte ptr [enemy_weapon_ticks+bx],180
     jmp enemy21_picked
 enemy21_frenzy:
-    /* Cancel dangerous intra-enemy fighting. */
     mov byte ptr [frenzy_ticks],0
     jmp enemy21_picked
 enemy21_armor:

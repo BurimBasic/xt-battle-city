@@ -50,7 +50,7 @@ extra17_slot:
     cmp byte ptr [extra_active+bx],0
     je extra17_create
     inc bx
-    cmp bx,2
+    cmp bx,3
     jb extra17_slot
 extra17_fail:
     ret
@@ -81,7 +81,7 @@ extra17_ally_find:
     cmp byte ptr [extra_active+bx],0
     je extra17_ally_spawn
     inc bx
-    cmp bx,2
+    cmp bx,3
     jb extra17_ally_find
     ret
 extra17_ally_spawn:
@@ -107,7 +107,9 @@ extra17_advance:
     xor si,si
 extra17_step_loop:
     cmp byte ptr [extra_active+si],0
-    je extra17_next
+    jne 9f
+    jmp extra17_next
+9:
     mov al,[bullet_active]
     mov [saved_bullet_active],al
     mov al,[bullet_px]
@@ -116,6 +118,9 @@ extra17_step_loop:
     mov [saved_bullet_y],al
     mov al,[bullet_dir]
     mov [saved_bullet_dir],al
+    mov al,[super_bullet_active]
+    mov [saved_super_active],al
+    mov byte ptr [super_bullet_active],0
     mov al,[extra_active+si]
     mov [bullet_active],al
     mov al,[extra_px+si]
@@ -147,9 +152,11 @@ extra17_no_home:
     mov [bullet_py],al
     mov al,[saved_bullet_dir]
     mov [bullet_dir],al
+    mov al,[saved_super_active]
+    mov [super_bullet_active],al
 extra17_next:
     inc si
-    cmp si,2
+    cmp si,3
     jae 1f
     jmp extra17_step_loop
 1:
@@ -714,15 +721,16 @@ laser_start_x: .byte 0
 laser_start_y: .byte 0
 laser_end_x: .byte 0
 laser_end_y: .byte 0
-extra_active: .space 2
-extra_px: .space 2
-extra_py: .space 2
-extra_dir: .space 2
-extra_homing: .space 2
+extra_active: .space 3
+extra_px: .space 3
+extra_py: .space 3
+extra_dir: .space 3
+extra_homing: .space 3
 saved_bullet_active: .byte 0
 saved_bullet_x: .byte 0
 saved_bullet_y: .byte 0
 saved_bullet_dir: .byte 0
+saved_super_active: .byte 0
 home_best: .word 0xffff
 home_target: .byte 0xff
 ally_ticks: .word 0
@@ -743,9 +751,9 @@ frenzy_target: .word 0x00ff
 grenade_fx_ticks: .space 4
 grenade_fx_x: .space 4
 grenade_fx_y: .space 4
-paint_extra_valid: .space 2
-paint_extra_x: .space 2
-paint_extra_y: .space 2
+paint_extra_valid: .space 3
+paint_extra_x: .space 3
+paint_extra_y: .space 3
 paint_ally_valid: .byte 0
 paint_ally_x: .byte 0
 paint_ally_y: .byte 0
