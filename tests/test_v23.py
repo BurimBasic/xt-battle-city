@@ -70,10 +70,16 @@ class CombatV23(unittest.TestCase):
         self.assertIn('tactical23_hunting:',B)
         self.assertIn('cmp byte ptr [tactical23_hunting],0',S)
     def test_laser_assault_and_legacy_bonus_priority(self):
-        self.assertIn('cmp byte ptr [laser_ticks],0',AI.split('tactical_dodge_done:',1)[1].split('tactical23_check_final:',1)[0])
+        laser=AI.split('tactical_dodge_done:',1)[1].split('tactical23_check_final:',1)[0]
+        self.assertIn('cmp byte ptr [laser_ticks],0',laser)
+        self.assertNotIn('cmp byte ptr [bonus_active],0',laser)
         self.assertIn('call strategy_bonus_heading',AI)
+        bonus_route=S.split('bonus_route_check_threat:',1)[1].split('bonus_route_threat_loop:',1)[0]
+        self.assertNotIn('cmp al,48',bonus_route)
+        self.assertNotIn('cmp al,36',bonus_route)
         self.assertIn('bonus_route_threat_loop:',S)
         self.assertIn('cmp byte ptr [enemy_py+bx],140',S)
+        self.assertIn('bonus_drop_order: .byte 0, 5, 7, 6, 11, 12, 13, 1',T)
     def test_20_phase_wipes_no_per_frame_wait(self):
         self.assertIn('cmp byte ptr [trans20_step],16',X) if False else None
         self.assertIn('call transition20_wait_tick',X)
