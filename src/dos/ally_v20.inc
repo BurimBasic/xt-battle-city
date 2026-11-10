@@ -46,6 +46,7 @@ ally20_collect_ready:
     je ally20_collect_done
     dec byte ptr [ally_stock]
     mov word ptr [ally_ticks],270
+    mov byte ptr [ally_shield],48
     jmp ally20_collect_done
 ally20_auto_spawn:
     call ally20_try_call

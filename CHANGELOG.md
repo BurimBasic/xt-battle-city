@@ -1,3 +1,15 @@
+## v0.21 — Artifact-free laser, enemy wreck pickups and temporary ally protection (2026-11-10)
+
+- **No persistent laser ghosts:** the colored continuous 1px beam is drawn only into actual CGA B800h **after** committing the RAM shadow frame. It never corrupts the untouched composition buffer. Each affected tile is scheduled for background restoration on the next rendered frame, including after the laser expires.
+- The extra-life pickup is a recognizable **heart** (not a cross); P1 / allied team earns exactly one additional life, capped at 9. Enemy tanks cannot steal hearts or V/companion reserves.
+- Instead of a fixed scripted bonus location, a pickup now appears at the actual defeated enemy's grid cell (subject to open terrain and the existing single-active-bonus limit). **Eight possible drops per 20 kills**, for a 1.6× opportunity frequency versus the prior five. Opportunities skipped while a bonus is already on the map are not queued.
+- Enemies can claim other dropped pickups for specific advantages: armor on star/helmet, heavier fire on weapon bonuses, freeing frozen troops with clock, canceling HQ protection with shovel, destroying an active companion with grenade and stopping friendly-fire frenzy. No artificial armor inflation for unrelated bonus types.
+- Companion uses the normal P1 chassis with a tiny contrasting **colored 2×2 cockpit marker**, not a permanent invulnerability halo. It has a real **48-tick (~2.6s) shield** after spawning/renewal: blinking visual indicator, real bullet protection, then expires while its 15-second lifetime continues.
+- AUTO guard doctrine updated: **do not abandon HQ** to chase front-line bonus drops in the upper eight map rows; the ally/enemies can still collect those. The first level returns to **STAGE CLEAR** despite stronger opponents.
+- **SLOW1 real DOSBox-X acceptance:** 118 Python tests and 93 built-in real-mode DOS /TEST phases PASS; full 2048-tick AUTO trace defeated **20/20 enemies**, HQ survived, stage clear appeared at about tick 1568.
+- **Preserved speed:** SLOW1 384 rendered-frame emulator comparison, 8086/CGA fixed 240 cycles/ms: v0.20 **41.111s** vs v0.21 **40.063s**; at 500 cycles/ms 20.032s vs 20.035s. These are not exactly the same gameplay workload (6 versus 5 kills at tick 384 due to changed pickup rules). No measured regression against the accepted v0.19 reference, but physical XT benchmarks remain outstanding.
+- **Directly installed** on SLOW1 at `C:\XT-Battle-City\run\TANKS.COM`, previous v0.20 backed up. Exact 8086 binary: **56,666 bytes**, SHA-256 `BCEE4E795F069A5A9A59E56DF0FE2B7DDF9E508288F3F6D4C08D14F3F515D75C`. No ZIP needed by the user.
+
 ## v0.20 — V companion reserve, HQ summons, cinematic stage wipes (2026-11-10)
 
 - One **free V summon** at campaign start; the sidebar shows V×N at far right. V summons a separate aggressively attacking AUTO tank from safe HQ-adjacent exits for **270 BIOS ticks (15 seconds)** or until an enemy shell destroys it.

@@ -243,6 +243,7 @@ marker_next:
     mov byte ptr [bonus_active], 0
     mov byte ptr [bonus_timer], 0
     mov byte ptr [bonus_flash_ticks], 0
+    mov byte ptr [ally_shield],0
     mov byte ptr [laser_ticks], 0
     mov byte ptr [multi_ticks], 0
     mov byte ptr [homing_ticks], 0
@@ -657,6 +658,12 @@ tick_no_ai:
     call spawn_enemy
 tick_no_spawn:
 tick_frozen:
+    /* Four-tick cadence: even the fastest tank takes >=8 ticks to
+       cross a 16px tile. Avoid bonus AABB loops on 75% of frames. */
+    test byte ptr [game_tick],3
+    jnz tick21_pickup_skipped
+    call enemy21_collect_bonus
+tick21_pickup_skipped:
     call check_stage_complete
     ret
 
@@ -664,51 +671,71 @@ tick_frozen:
  * 4 clock, 5 extra life. All spawn positions are open in authored maps.
  */
 maybe_drop_bonus:
+    /* 8 candidates in 20 kills, exactly 1.6x the old five.  The
+       dropped pickup belongs to the destroyed enemy's actual cell.
+       BX is the killed enemy slot, preserved for scoring. */
     push ax
     push bx
+    push cx
     push dx
     push si
-    cmp byte ptr [bonus_active], 0
-    jne bonus_drop_done
-    mov al, [enemy_killed]
-    and al, 3
-    jnz bonus_drop_done
-    xor bx, bx
-    mov bl, [bonus_sequence]
+    cmp byte ptr [bonus_active],0
+    je bonus21_check_due
+    jmp bonus21_drop_done
+bonus21_check_due:
+    mov al,[enemy_killed]
+    xor ah,ah
+    mov cl,5
+    div cl
+    cmp ah,0
+    je bonus21_drop_due
+    cmp ah,2
+    jne bonus21_drop_done
+bonus21_drop_due:
+    mov dl,[enemy_px+bx]
+    add dl,8
+    shr dl,1
+    shr dl,1
+    shr dl,1
+    shr dl,1
+    mov dh,[enemy_py+bx]
+    add dh,6
+    xor ax,ax
+    mov al,dh
+    mov cl,12
+    div cl
+    mov dh,al
+    call get_tile
+    cmp al,'.'
+    je bonus21_drop_open
+    cmp al,'F'
+    je bonus21_drop_open
+    cmp al,'I'
+    jne bonus21_drop_done
+bonus21_drop_open:
+    mov [bonus_col],dl
+    mov [bonus_row],dh
+    xor bx,bx
+    mov bl,[bonus_sequence]
     mov al,[bonus_drop_order+bx]
     cmp byte ptr [test_mode],0
-    je bonus_live_order
+    je bonus21_type_ok
     xor al,al
-bonus_live_order:
+bonus21_type_ok:
     mov [bonus_type],al
-    mov dl, [bonus_columns+bx]
-    mov dh, 10
-    call get_tile
-    cmp al, '.'
-    jne bonus_drop_done
-    call enemy_at
-    cmp al, 0xff
-    jne bonus_drop_done
-    cmp dh, [player_row]
-    jne bonus_drop_ready
-    cmp dl, [player_col]
-    je bonus_drop_done
-bonus_drop_ready:
-    mov [bonus_col], dl
-    mov [bonus_row], dh
-    mov byte ptr [bonus_active], 1
-    mov byte ptr [bonus_timer], 180
-    /* Plan the bonus route once on spawn, never per video frame. */
-    call strategy_bonus_spawn
     inc byte ptr [bonus_sequence]
-    cmp byte ptr [bonus_sequence], 11
-    jb bonus_cycle_valid
-    mov byte ptr [bonus_sequence], 0
-bonus_cycle_valid:
+    cmp byte ptr [bonus_sequence],11
+    jb bonus21_sequence_ok
+    mov byte ptr [bonus_sequence],0
+bonus21_sequence_ok:
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_timer],150
+    call strategy_bonus_spawn
     call draw_cell
-bonus_drop_done:
+bonus21_drop_done:
     pop si
     pop dx
+    pop cx
     pop bx
     pop ax
     ret
@@ -2435,6 +2462,8 @@ smooth_shot_no_player:
     add al,6
     cmp al,12
     jae smooth_shot_no_ally
+    cmp byte ptr [ally_shield],0
+    jne smooth_shot_out
     mov word ptr [ally_ticks],0
     mov dl,[ally_px]
     mov dh,[ally_py]
@@ -2505,6 +2534,10 @@ friendly_target_destroyed:
     mov byte ptr [enemy_active+si],0
     mov byte ptr [shot_active+si],0
     inc byte ptr [enemy_killed]
+    push bx
+    mov bx,si
+    call maybe_drop_bonus
+    pop bx
     call draw_hud
 friendly_target_fx:
     mov dl, [shot_px+bx]
@@ -3541,8 +3574,19 @@ paint_enemy_finished:
     xor bx,bx
     mov bl,[ally_dir]
     shl bx,1
+    /* Ally identity is its tiny magenta cockpit mark, not a permanent
+       shield. A real spawn shield flashes for the first 48 ticks. */
+    cmp byte ptr [ally_shield],0
+    je paint_ally_no_shield
+    test byte ptr [game_tick],4
+    jnz paint_ally_no_shield
     mov si,[smooth_shield_ptrs+bx]
+    jmp paint_ally_body
+paint_ally_no_shield:
+    mov si,[smooth_player_ptrs+bx]
+paint_ally_body:
     call draw_smooth_sprite
+    call ally21_draw_mark
 paint_ally_done:
     /* Player's tank. */
     mov dl, [player_px]
@@ -3655,10 +3699,11 @@ paint_explosion_valid_frame:
     call draw_smooth_sprite
 paint_explosion_done:
     call grenade17_fx_paint
-    call laser17_paint
-    /* One composed transfer after ALL actors. Never expose a partially
-       erased sprite in CGA memory between the restore and paint passes. */
+    /* Finish the actor/background composition first. The beam is a
+       transient VRAM-only overlay, NEVER written into the RAM shadow.
+       Next frame's pending tile upload scrubs it even after expiry. */
     call commit_dirty_tiles
+    call laser17_paint
     pop bp
     pop di
     pop si
@@ -4416,7 +4461,10 @@ test_wave_complete:
 
     mov byte ptr [test_phase], 12
     call reset_campaign
-    mov byte ptr [enemy_killed], 4
+    mov byte ptr [enemy_killed], 5
+    xor bx,bx
+    mov byte ptr [enemy_px],112
+    mov byte ptr [enemy_py],120
     call maybe_drop_bonus
     cmp byte ptr [bonus_active], 1
     je 1f
@@ -5493,11 +5541,13 @@ smoke_bonus_replay:
     mov byte ptr [laser_flash_ticks],2
     mov byte ptr [game_tick],0
     call laser17_paint
-    cmp byte ptr [dirty_tiles+98],1
+    /* Post-commit laser overlay leaves the shadow pristine and queues
+       uploads rather than polluting the dirty/static composition. */
+    cmp byte ptr [upload_tiles+98],1
     je 9f
     jmp smoke_extra_fail
 9:
-    cmp byte ptr [dirty_tiles+101],1
+    cmp byte ptr [upload_tiles+101],1
     je 9f
     jmp smoke_extra_fail
 9:
@@ -5677,6 +5727,90 @@ smoke_bonus_replay:
     jmp smoke_extra_fail
 9:
     pop es
+    /* Phase 89: the heart is a REAL +1 life, not an armor/heal icon. */
+    mov byte ptr [test_phase],89
+    call reset_campaign
+    mov byte ptr [lives],3
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_type],5
+    mov al,[player_col]
+    mov [bonus_col],al
+    mov al,[player_row]
+    mov [bonus_row],al
+    call check_bonus_pickup
+    cmp byte ptr [lives],4
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 90: enemies MUST leave hearts and V/ally calls for player. */
+    mov byte ptr [test_phase],90
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_col],5
+    mov byte ptr [enemy_row],10
+    mov byte ptr [bonus_col],5
+    mov byte ptr [bonus_row],10
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_type],5
+    call enemy21_collect_bonus
+    cmp byte ptr [bonus_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [bonus_type],7
+    call enemy21_collect_bonus
+    cmp byte ptr [bonus_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 91: enemy steals clock and releases frozen teammates. */
+    mov byte ptr [test_phase],91
+    mov byte ptr [bonus_type],4
+    mov byte ptr [freeze_ticks],120
+    call enemy21_collect_bonus
+    cmp byte ptr [bonus_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [freeze_ticks],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 92: bonus lands on the actual enemy wreck tile (5,10). */
+    mov byte ptr [test_phase],92
+    call reset_campaign
+    mov byte ptr [enemy_killed],5
+    mov byte ptr [enemy_px],80
+    mov byte ptr [enemy_py],120
+    xor bx,bx
+    call maybe_drop_bonus
+    cmp byte ptr [bonus_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bonus_col],5
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bonus_row],10
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 93: ally's actual spawn shield expires after 48 ticks. */
+    mov byte ptr [test_phase],93
+    call ally17_spawn
+    jnc 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [ally_shield],48
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [ally_shield],1
+    call bonus17_tick
+    cmp byte ptr [ally_shield],0
+    je 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
@@ -5814,6 +5948,8 @@ trace_record_done:
 .include "src/dos/bonuses_v17.inc"
 .include "src/dos/ally_v20.inc"
 .include "src/dos/transitions_v20.inc"
+.include "src/dos/enemy_pickups_v21.inc"
+.include "src/dos/ally_marker_v21.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -5834,7 +5970,8 @@ bonus_sequence: .byte 0
 bonus_flash_type: .byte 0
 bonus_flash_ticks: .byte 0
 bonus_columns: .byte 2, 10, 4, 8, 1, 11, 6, 12, 5, 9, 3
-bonus_drop_order: .byte 0, 1, 2, 6, 7, 4, 8, 9, 10, 3, 5
+bonus_drop_order: .byte 0, 5, 7, 1, 6, 8, 3, 4, 2, 9, 10
+/* Heart at second pickup, ally third; no more fixed center-row spawn. */
 ally_stock: .byte 1        /* reserve V calls: max nine */
 ally_call_pending: .byte 0 /* keyboard ISR, distinct from movement keys */
 hq_wall_indices: .word 230, 232, 246, 248
@@ -5951,7 +6088,7 @@ tactical_auto_glyphs: .word hud_blank_icon, hud_blank_icon, hud_a_char, hud_u_ch
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_a_char, hud_s_char, hud_i_char, hud_c_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_0
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_1
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
