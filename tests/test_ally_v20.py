@@ -80,7 +80,7 @@ class AllyAndTransitions(unittest.TestCase):
         self.assertIn("240 cycles/ms",RULES)
         self.assertIn("5% regression",RULES)
         self.assertIn("cannot depend on files",RULES)
-        self.assertIn("60416",RULES.replace(",",""))
+        self.assertIn("57344",RULES.replace(",",""))
     def test_dos_real_mode_tests_to_86(self):
         for i in range(79,87):
             self.assertIn("mov byte ptr [test_phase],"+str(i),T)
