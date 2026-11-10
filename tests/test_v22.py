@@ -40,11 +40,13 @@ class BonusFreezeSteelV22(unittest.TestCase):
         body=TACTICS.split("tactical_player_line_clear:",1)[1].split("tactical_player_path_open:",1)[0]
         self.assertNotIn("cmp cl,72",body)
         self.assertNotIn("cmp al,1\n    je tactical_lane_clear",body)
-        self.assertIn("mov al,12",body)
-        self.assertIn("pixel_y_tile_lookup+bx",body)
-        self.assertIn("level_data+bx",body)
-        self.assertIn("cmp al,'T'",body)
-        self.assertIn("cmp al,'B'",body)
+        self.assertIn("mov si,offset level_data",body)
+        self.assertIn("sub si,16",body)
+        self.assertIn("add si,16",body)
+        self.assertIn("inc si",body)
+        self.assertIn("dec si",body)
+        self.assertIn("cmp byte ptr [si],'T'",body)
+        self.assertIn("cmp byte ptr [si],'B'",body)
         self.assertNotIn("call projectile_probe",body)
     def test_bonus_pursuit_is_bounded_to_preserve_headquarters(self):
         flow=(ROOT/"src/dos/strategy_v13.inc").read_text()
