@@ -114,3 +114,33 @@ The ally stock, signed-time short wipes, V keyboard handler and 16-bit
 15-second timer are additional features. They do not run a full-field
 transition inside `game_tick_step`; start/end effects use a bounded
 ~8 BIOS-tick per-boundary budget and the existing CGA shadow buffer.
+
+
+## v0.21 comparison and combat-regression gate (2026-11-10)
+
+### Emulator timing
+Two 384-frame real-mode full-draw runs on SLOW1, DOSBox-X, 8086 / CGA:
+
+| Fixed cycles/ms | v0.20 | v0.21 | Change |
+|---|---:|---:|---:|
+| 240 | 41.111 s | 40.063 s | **−2.5% elapsed** |
+| 500 | 20.032 s | 20.035 s | **+0.02% elapsed** |
+
+Because bonus drops moved onto enemy wrecks and AI chooses new priorities,
+these are **not mathematically identical simulated combat trajectories**:
+at tick 384, v0.20 destroyed 6 enemies and v0.21 destroyed 5 (both state 0).
+The timing evidence supports no obvious regression, not precise 8088 cycle
+equivalence. Compare again on hardware / with a frozen no-pickup benchmark.
+
+### Full first-stage replay
+On the finalized v0.21 at SLOW1, the 2048-tick real-mode trace reaches
+**20/20 destroyed / STAGE CLEAR**, HQ intact, about tick **1568**.
+An earlier candidate with unbounded bonus-chasing lost at 17/20, and the
+guard against distant pickups was added specifically after that failure.
+That full replay is a **required release gate**, alongside the normal /TEST,
+not a substitute for manual review of all 35 levels.
+
+The laser blits directly to B800h **after** committing background sprites,
+leaves the RAM composition frame unchanged and flags video tiles to be copied
+from clean RAM on the next rendered frame. This prevents the vertical
+streaks that survived earlier laser implementations.
