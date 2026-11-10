@@ -393,8 +393,12 @@ tactical_autofire_skip:
 /* The shell may chip brick, but never penetrate steel or HQ.
  * Scan the first up to 72 pixels of its actual center trajectory and
  * stop before the target (to ignore walls located BEHIND it). */
+/* Steel-line guard: traverse just the map cells along a complete ray.
+ * Fixed maximum 12-pixel stride can't skip any solid steel tile; fewer
+ * samples and no expensive pixel projectile_probe() division per sample. */
 tactical_player_line_clear:
     push ax
+    push bx
     push cx
     push dx
     push si
@@ -408,35 +412,58 @@ tactical_player_line_clear:
     cmp cl,8
     jbe tactical_lane_clear
     sub cl,8
-    /* Cover the entire shot ray at four-pixel intervals: solid
-       steel tiles are at least 12 px high; brick can be destroyed. */
-    shr cl,1
-    shr cl,1
-    jz tactical_lane_clear
- tactical_lane_probe:
-    mov al,[tactical_lane_dir]
-    call step_pixel
-    call step_pixel
-    call step_pixel
-    call step_pixel
-    push dx
-    call projectile_probe
-    pop dx
-    cmp al,2
+tactical_lane_probe:
+    mov al,12
+    cmp cl,12
+    jae 1f
+    mov al,cl
+1:
+    sub cl,al
+    mov ah,[tactical_lane_dir]
+    cmp ah,0
+    jne tactical_lane_right
+    sub dh,al
+    jmp tactical_lane_tile
+tactical_lane_right:
+    cmp ah,1
+    jne tactical_lane_down
+    add dl,al
+    jmp tactical_lane_tile
+tactical_lane_down:
+    cmp ah,2
+    jne tactical_lane_left
+    add dh,al
+    jmp tactical_lane_tile
+tactical_lane_left:
+    sub dl,al
+tactical_lane_tile:
+    xor bx,bx
+    mov bl,dh
+    mov ah,[pixel_y_tile_lookup+bx]
+    and ah,0xf0
+    mov bl,dl
+    shr bl,1
+    shr bl,1
+    shr bl,1
+    shr bl,1
+    or bl,ah
+    mov al,[level_data+bx]
+    cmp al,'T'
     je tactical_lane_blocked
-    cmp al,3
+    cmp al,'B'
     je tactical_lane_blocked
-    dec cl
+    test cl,cl
     jnz tactical_lane_probe
- tactical_lane_clear:
+tactical_lane_clear:
     stc
     jmp tactical_lane_done
- tactical_lane_blocked:
+tactical_lane_blocked:
     clc
- tactical_lane_done:
+tactical_lane_done:
     pop si
     pop dx
     pop cx
+    pop bx
     pop ax
     ret
 
