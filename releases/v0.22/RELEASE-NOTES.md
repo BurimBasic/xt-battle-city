@@ -20,10 +20,10 @@ Release date: **2026-11-10**. DOS 8086/8088, CGA, 16×12 pixel map cells.
 - SLOW1 DOSBox-X `/TEST`: **PASS**, including new proximity phases 94/95.
 - SLOW1 DOSBox-X `/TRACE`: **PASS**, 2048 ticks, 20/20 enemies eliminated, player base survives, `STAGE CLEAR`.
 - GitHub CI: **125 Python tests PASS**, 35 authored maps validated, strict 8086 ISA and COM-size checks PASS.
-- Timing validation: repeat matched real-mode 384-frame CGA benchmarks with v0.19 at 240 and 500 cycles/ms; emulator measurements depend on SLOW1 host load. Do not claim physical XT/Poisk hardware timing or an FPS guarantee without an on-hardware measurement.
+- **SLOW1 timing gate PASS** (DOSBox-X 2026.10.01, emulated 8086/CGA, each run 384 complete rendered frames, alternating v0.22/v0.19/v0.19/v0.22): fixed **240 cycles/ms**: v0.22 **40.058 / 52.683 s** (mean **46.371 s**), v0.19 **48.757 / 53.271 s** (mean **51.014 s**), v0.22 **9.1% faster** in this pair; fixed **500 cycles/ms**: v0.22 **20.421 / 27.826 s** (mean **24.124 s**), v0.19 **22.787 / 27.851 s** (mean **25.319 s**), v0.22 **4.7% faster**. Host load changed markedly within each series; the AI/pickup changes mean the deterministic frame count is matched but gameplay workload/kills need not be identical. These are emulator elapsed times, not a measured physical 4.77MHz 8088 FPS guarantee.
 
 ## Installation and rollback
 
-Launch with DOSBox-X in CGA mode from `C:\XT-Battle-City\run\TANKS.COM`. Keep the previous v0.21 executable as a backup before replacing it. The game uses no disk writes for its visual settings; physical 4.77 MHz 8088, tape, native EGA/Hercules/Poisk modes are not certified.
+**Deployed atomically on SLOW1** at `C:\XT-Battle-City\run\TANKS.COM`, with the exact tested SHA-256 and size verified after replacement. **Installed copy re-tested successfully** with DOSBox-X `TANKS.COM /TEST` (PASS). Rollback copy: `C:\XT-Battle-City\run\TANKS-v021-backup-20261110-203600.COM`, SHA-256 `BCEE4E795F069A5A9A59E56DF0FE2B7DDF9E508288F3F6D4C08D14F3F515D75C`. Launch/restart using `C:\XT-Battle-City\RUN-CGA.cmd`. The game uses no disk writes for its visual settings; physical 4.77 MHz 8088, tape, native EGA/Hercules/Poisk modes are not certified.
 
 Development and release rules: `AGENTS.md`.
