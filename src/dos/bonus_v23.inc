@@ -276,8 +276,8 @@ tactical23_hunt:
     mov cl,12
     div cl
     mov dh,al
-    mov [bonus_col],dl
-    mov [bonus_row],dh
+    mov [tactical23_hunt_col],dl
+    mov [tactical23_hunt_row],dh
     shl al,1
     shl al,1
     shl al,1
@@ -289,7 +289,8 @@ tactical23_hunt:
     jnz tactical23_route_valid
 tactical23_rebuild_route:
     mov [tactical23_last_cell],al
-    call strategy_bonus_spawn
+    mov di,offset route_hunt
+    call strategy_fill
 tactical23_route_valid:
     mov byte ptr [tactical23_hunting],1
     call strategy_bonus_heading
@@ -445,6 +446,8 @@ enemy23_home_done:
 .section .data
 tactical23_hunting: .byte 0
 tactical23_last_cell: .byte 0xff
+tactical23_hunt_col: .byte 0
+tactical23_hunt_row: .byte 0
 tactical23_heading: .byte 0
 quad_ticks: .byte 0
 super_ticks: .byte 0
