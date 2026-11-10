@@ -509,9 +509,23 @@ def packed_map(rows):
     assert len(data)==128
     return data
 
+def compressed_map(rows):
+    """One run in one byte: count-minus-one (high), material (low)."""
+    cells=''.join(rows)
+    data=[]
+    i=0
+    while i<len(cells):
+        end=i+1
+        while end<len(cells) and end-i<16 and cells[end]==cells[i]:
+            end+=1
+        data.append(((end-i-1)<<4)|MAP_NIBBLES.index(cells[i]))
+        i=end
+    assert sum((x>>4)+1 for x in data)==256
+    return data
+
 def emit_packed_map(lines, rows):
-    data=packed_map(rows)
-    for pos in range(0,128,8):
+    data=compressed_map(rows)
+    for pos in range(0,len(data),8):
         lines.append('    .byte ' + ', '.join(f'0x{n:02x}' for n in data[pos:pos+8]))
 
 def generate(map_path):
@@ -521,10 +535,6 @@ def generate(map_path):
         '.p2align 1',
         'brick_sprite_ptrs:',
         '    .word ' + ', '.join('sprite_brick_mask_'+str(i) for i in range(16)),
-        'bonus_sprite_ptrs:',
-        '    .word ' + ', '.join('sprite_bonus_'+k for k in BONUS_LETTERS),
-        'sprite_table:',
-        '    .word ' + ', '.join('sprite_' + name for name in SPRITES),
         'tile_row_offsets:',
         '    .word ' + ', '.join(str(480*i) for i in range(16)),
         'level_template:',
@@ -532,8 +542,8 @@ def generate(map_path):
     rows = get_map(map_path)
     emit_packed_map(lines, rows)
     lines.append('level_end:')
-    lines.append('    .if (level_end - level_template) != 128')
-    lines.append('    .error "Level must have exactly 256 cells"')
+    lines.append('    .if (level_end - level_template) > 128')
+    lines.append('    .error "RLE level exceeds original packed size"')
     lines.append('    .endif')
     for stage in range(2, 36):
         staged = get_map(ROOT / 'assets' / 'maps' / f'level{stage:02}.map')
@@ -543,7 +553,11 @@ def generate(map_path):
     lines.append('    .word ' + ', '.join(
         'level_template' if i == 1 else f'level{i}_template'
         for i in range(1,36)))
-    for name, rows in SPRITES.items():
+    # Opaque vintage actor/shell copies and the old tables are unused.
+    # The masked blitter already owns its complete moving-sprite atlas.
+    static_names = ['empty','steel','water','forest','ice','base','bonus_star'] + [f'brick_mask_{i}' for i in range(16)]
+    for name in static_names:
+        rows=SPRITES[name]
         lines.append('sprite_' + name + ':')
         data = pack(rows)
         for i in range(0, len(data), 12):
