@@ -1,3 +1,15 @@
+## v0.20 — V companion reserve, HQ summons, cinematic stage wipes (2026-11-10)
+
+- One **free V summon** at campaign start; the sidebar shows V×N at far right. V summons a separate aggressively attacking AUTO tank from safe HQ-adjacent exits for **270 BIOS ticks (15 seconds)** or until an enemy shell destroys it.
+- Each companion bonus increases V reserve (capped at 9). In **AUTO**, an allied pickup immediately dispatches a companion or renews the current ally for 15 seconds; **manual** mode saves it for V. Stock persists across levels and resets for a new campaign.
+- When stock is empty, V may pay **one of the player's own lives**, but never the last life. V flashes for one second after the life expenditure. Failed summons due to blocked exits do not charge lives or stock.
+- Companion seeks and fires at enemies using the existing genuine allied projectile and collision engine; its shots cannot damage P1. It collects pickups independently, sharing team effects; existing enemy bullets can destroy the ally.
+- Combined HUD y96: collected bonus icon at **far left x256**, active ally or bonus countdown in **middle x272/280**, V and stock **x296..319**. The 15-second companion timer uses 16-bit storage, since 270 ticks exceed a byte.
+- Three original short **stage-boundary** CGA transitions: row scan, column sweep, and symmetric curtains. Open before gameplay starts, close before stage-clear/game-over lettering; no effect inside the steady-state game loop. Pausing/unpausing does not replay intro.
+- Preserved the v0.19 8088 CGA optimization. Matched SLOW1 384 full-frame benchmark: 240 cycles/ms v0.19 40.124s vs v0.20 41.057s (**2.3% longer, within the 5% gate**); 500 cycles/ms 20.035s vs 20.039s. Same 6 kills and game state. Real XT timing remains unmeasured.
+- Added root **AGENTS.md** release requirements: strict performance baseline, 8086 ISA, true **56 KiB** DOS COM ceiling, cassette/diskless RAM-only state and direct SLOW1 deployment/rollback.
+- GitHub CI: **108 Python tests**, 35 authored maps, 8086 instruction audit. SLOW1 DOSBox-X: **86 /TEST phases PASS**, real 2048-tick replay: first stage **20/20 kills / STAGE CLEAR / HQ saved**.
+
 ## v0.19 — XT 8088 speed, clean laser line, RAM-only palette (2026-11-10)
 
 - Reduced complete real-mode frame rendering time on SLOW1: at fixed 240 DOSBox-X cycles/ms, **384 full frames: 56.123s (v0.18) → 40.051s (v0.19), 28.6% elapsed-time reduction**. At fixed 500 cycles/ms: 28.088s → 20.033s, 28.7% reduction. Both replays have identical 24 snapshots/6 kills at 384 ticks. This is emulator timing, not proof of physical 4.77MHz 8088 FPS.
