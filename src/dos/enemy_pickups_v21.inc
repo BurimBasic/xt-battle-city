@@ -6,24 +6,36 @@
 .section .text
 enemy21_collect_bonus:
     cmp byte ptr [bonus_active],0
-    je enemy21_done
+    jne enemy21_have_bonus
+    ret
+enemy21_have_bonus:
     cmp byte ptr [bonus_type],5
-    je enemy21_done
+    jne enemy21_not_heart
+    ret
+enemy21_not_heart:
     cmp byte ptr [bonus_type],7
-    je enemy21_done
+    jne enemy21_eligible
+    ret
+enemy21_eligible:
     push ax
     push bx
     push dx
     xor bx,bx
 enemy21_scan:
     cmp byte ptr [enemy_active+bx],0
-    je enemy21_next
+    jne enemy21_live
+    jmp enemy21_next
+enemy21_live:
     mov al,[enemy_col+bx]
     cmp al,[bonus_col]
-    jne enemy21_next
+    je enemy21_col_ok
+    jmp enemy21_next
+enemy21_col_ok:
     mov al,[enemy_row+bx]
     cmp al,[bonus_row]
-    jne enemy21_next
+    je enemy21_row_ok
+    jmp enemy21_next
+enemy21_row_ok:
     mov byte ptr [bonus_active],0
     mov byte ptr [bonus_timer],0
     mov dl,[bonus_col]
@@ -82,7 +94,8 @@ enemy21_picked:
 enemy21_next:
     inc bx
     cmp bx,4
-    jb enemy21_scan
+    jae enemy21_exit
+    jmp enemy21_scan
 enemy21_exit:
     pop dx
     pop bx
