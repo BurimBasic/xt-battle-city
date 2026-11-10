@@ -68,7 +68,7 @@ class XT19(unittest.TestCase):
         brand=fragment(T,'draw_branding:','draw_brand_row:')
         self.assertIn('mov di,6147',brand)
         self.assertIn('mov di,6787',brand)
-        self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_1',T)
+        self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_2',T)
         # 6147 is x268/y152; 6787 x268/y168. 8px empty gap.
         self.assertEqual((6787-6147)//80,8)
     def test_real_dos_regressions(self):
