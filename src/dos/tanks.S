@@ -233,6 +233,8 @@ marker_next:
     mov byte ptr [demo_timer], 0
     mov byte ptr [game_tick], 0
     mov byte ptr [transition_done],0
+    mov byte ptr [transition_pending],1
+    mov byte ptr [ally_life_flash],0
     mov byte ptr [enemy_ai_phase], 0
     mov byte ptr [squad_alert], 0
     mov byte ptr [squad_target_x], 112
