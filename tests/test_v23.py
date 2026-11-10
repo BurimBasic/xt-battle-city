@@ -87,7 +87,7 @@ class CombatV23(unittest.TestCase):
         self.assertIn('cmp byte ptr [enemy_py+bx],140',S)
         self.assertIn('cmp byte ptr [enemy_py+bx],76',S)
         self.assertIn('cmp byte ptr [enemy_py+bx],76',AI)
-        self.assertIn('bonus_drop_order: .byte 0, 5, 7, 6, 11, 12, 13, 1',T)
+        self.assertIn('bonus_drop_order: .byte 0, 5, 7, 1, 6, 8, 3, 4',T)
     def test_20_phase_wipes_no_per_frame_wait(self):
         self.assertIn('cmp byte ptr [trans20_step],16',X) if False else None
         self.assertIn('call transition20_wait_tick',X)
