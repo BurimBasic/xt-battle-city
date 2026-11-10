@@ -1,0 +1,32 @@
+name: Import verified v0.23 development patch
+on:
+  push:
+    branches: [feat/v023-release]
+    paths: [tools/v023-import.patch.gz.b64]
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Apply development patch to clean main baseline
+        run: |
+          base64 -d tools/v023-import.patch.gz.b64 | gzip -dc | patch --batch -p1
+          python tools/build_cga_assets.py
+          make clean all test
+          make build/TANKS-TRACE.COM build/TANKS-PERF.COM
+          test "$(wc -c < build/TANKS.COM)" -lt 57344
+      - name: Commit expanded reviewable source and remove transfer artifact
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/dos tools/build_cga_assets.py Makefile tests
+          git rm tools/v023-import.patch.gz.b64
+          git commit -m "feat(v0.23): ricochets, quad/super shells, combat damage and AUTO tactics"
+          git push origin HEAD:feat/v023-release
