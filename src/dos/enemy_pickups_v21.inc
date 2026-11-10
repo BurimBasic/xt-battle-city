@@ -19,22 +19,45 @@ enemy21_not_heart:
 enemy21_eligible:
     push ax
     push bx
+    push cx
     push dx
+    mov cl,[bonus_col]
+    shl cl,1
+    shl cl,1
+    shl cl,1
+    shl cl,1
+    mov al,[bonus_row]
+    mov dl,12
+    mul dl
+    mov ch,al
     xor bx,bx
 enemy21_scan:
     cmp byte ptr [enemy_active+bx],0
     jne enemy21_live
     jmp enemy21_next
 enemy21_live:
-    mov al,[enemy_col+bx]
-    cmp al,[bonus_col]
-    je enemy21_col_ok
+    mov dl,cl
+    mov al,[enemy_px+bx]
+    cmp al,dl
+    jae 1f
+    xchg al,dl
+1:
+    sub al,dl
+    cmp al,24
+    jbe 2f
     jmp enemy21_next
-enemy21_col_ok:
-    mov al,[enemy_row+bx]
-    cmp al,[bonus_row]
-    je enemy21_row_ok
+2:
+    mov dl,ch
+    mov al,[enemy_py+bx]
+    cmp al,dl
+    jae 1f
+    xchg al,dl
+1:
+    sub al,dl
+    cmp al,18
+    jbe 2f
     jmp enemy21_next
+2:
 enemy21_row_ok:
     mov byte ptr [bonus_active],0
     mov byte ptr [bonus_timer],0
@@ -95,6 +118,7 @@ enemy21_next:
     jmp enemy21_scan
 enemy21_exit:
     pop dx
+    pop cx
     pop bx
     pop ax
 enemy21_done:

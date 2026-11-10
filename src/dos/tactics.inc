@@ -24,6 +24,35 @@ tactical_player_decide:
     jnc tactical_dodge_done
     jmp tactical_player_steer
 tactical_dodge_done:
+    /* Freeze creates an offensive window: chase the immobilized enemy. */
+    cmp byte ptr [freeze_ticks],0
+    je tactical_defense_orders
+    call tactical_find_target
+    jnc tactical_bonus_objective
+    call tactical_player_aim_if_aligned
+    jnc tactical_freeze_seek
+    jmp tactical_player_hold_and_fire
+tactical_freeze_seek:
+    mov al,[enemy_px+bx]
+    sub al,[player_px]
+    add al,9
+    cmp al,19
+    jbe tactical_freeze_vertical
+    mov al,1
+    mov dl,[enemy_px+bx]
+    cmp dl,[player_px]
+    ja tactical_freeze_go
+    mov al,3
+    jmp tactical_freeze_go
+tactical_freeze_vertical:
+    mov al,0
+    mov dl,[enemy_py+bx]
+    cmp dl,[player_py]
+    jb tactical_freeze_go
+    mov al,2
+tactical_freeze_go:
+    jmp tactical_player_steer
+tactical_defense_orders:
     /* Base breach takes priority over the pickup, but normal firing
        is independent of BOTH and runs after every movement tick. */
     call tactical_find_target
@@ -38,14 +67,8 @@ tactical_dodge_done:
     cmp al,168
     jbe tactical_no_bonus_route
 tactical_bonus_objective:
-    /* A front-line kill may drop a pickup at the very top of the map.
-       The AUTO defender must not abandon headquarters for a distant
-       prize; the attacking ally can pursue it independently. */
-    cmp byte ptr [bonus_active],0
-    je tactical21_bonus_try
-    cmp byte ptr [bonus_row],8
-    jae tactical21_bonus_try
-    jmp tactical_no_bonus_route
+    /* Chase a reachable pickup even in an upper-row enemy wreck.
+       strategy_bonus_heading already vetoes immediate threats to HQ. */
 tactical21_bonus_try:
     call strategy_bonus_heading
     jnc tactical_no_bonus_route
@@ -370,48 +393,145 @@ tactical_autofire_skip:
 /* The shell may chip brick, but never penetrate steel or HQ.
  * Scan the first up to 72 pixels of its actual center trajectory and
  * stop before the target (to ignore walls located BEHIND it). */
+/* Fast and complete steel guard. The actor and target share a row or
+ * column (checked by caller). Convert to map-cell indices ONCE, then
+ * walk 1 tile per step; no per-pixel DIV and no repeated sprite probes.
+ * Steel and HQ interrupt the ray; destructible bricks do not. */
 tactical_player_line_clear:
     push ax
+    push bx
     push cx
     push dx
     push si
     mov [tactical_lane_dir],al
-    mov dl,[player_px]
-    add dl,8
-    mov dh,[player_py]
-    add dh,6
-    xor ch,ch
-    mov cl,[tactical_aim_distance]
-    cmp cl,8
-    jbe tactical_lane_clear
-    sub cl,8
-    cmp cl,72
-    jbe tactical_lane_probe
-    mov cl,72
- tactical_lane_probe:
-    mov al,[tactical_lane_dir]
-    call step_pixel
-    jc tactical_lane_clear
-    push dx
-    call projectile_probe
-    pop dx
-    cmp al,2
-    je tactical_lane_blocked
-    cmp al,3
-    je tactical_lane_blocked
-    cmp al,1
-    je tactical_lane_clear
-    dec cl
-    jnz tactical_lane_probe
- tactical_lane_clear:
+    cmp byte ptr [tactical_aim_distance],8
+    ja 1f
     stc
     jmp tactical_lane_done
- tactical_lane_blocked:
+1:
+    mov dl,[player_px]
+    add dl,8
+    shr dl,1
+    shr dl,1
+    shr dl,1
+    shr dl,1
+    mov al,[player_py]
+    add al,6
+    xor ah,ah
+    mov ch,12
+    div ch
+    mov dh,al
+    xor ah,ah
+    shl ax,1
+    shl ax,1
+    shl ax,1
+    shl ax,1
+    add al,dl
+    mov si,offset level_data
+    add si,ax
+    mov al,[tactical_lane_dir]
+    cmp al,0
+    je tactical_lane_up
+    cmp al,1
+    je tactical_lane_right
+    cmp al,2
+    je tactical_lane_down
+    jmp tactical_lane_left
+tactical_lane_up:
+    mov al,[enemy_py+bx]
+    add al,6
+    xor ah,ah
+    div ch
+    mov cl,al
+    cmp dh,cl
+    ja 1f
+    jmp tactical_lane_clear
+1:
+    sub si,16
+    dec dh
+    cmp byte ptr [si],'T'
+    je tactical_lane_up_blocked
+    cmp byte ptr [si],'B'
+    je tactical_lane_up_blocked
+    cmp dh,cl
+    jne 1b
+    jmp tactical_lane_clear
+tactical_lane_up_blocked:
+    jmp tactical_lane_blocked
+tactical_lane_right:
+    mov al,[enemy_px+bx]
+    add al,8
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov cl,al
+    cmp dl,cl
+    jb 1f
+    jmp tactical_lane_clear
+1:
+    inc si
+    inc dl
+    cmp byte ptr [si],'T'
+    je tactical_lane_right_blocked
+    cmp byte ptr [si],'B'
+    je tactical_lane_right_blocked
+    cmp dl,cl
+    jne 1b
+    jmp tactical_lane_clear
+tactical_lane_right_blocked:
+    jmp tactical_lane_blocked
+tactical_lane_down:
+    mov al,[enemy_py+bx]
+    add al,6
+    xor ah,ah
+    div ch
+    mov cl,al
+    cmp dh,cl
+    jb 1f
+    jmp tactical_lane_clear
+1:
+    add si,16
+    inc dh
+    cmp byte ptr [si],'T'
+    je tactical_lane_down_blocked
+    cmp byte ptr [si],'B'
+    je tactical_lane_down_blocked
+    cmp dh,cl
+    jne 1b
+    jmp tactical_lane_clear
+tactical_lane_down_blocked:
+    jmp tactical_lane_blocked
+tactical_lane_left:
+    mov al,[enemy_px+bx]
+    add al,8
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov cl,al
+    cmp dl,cl
+    ja 1f
+    jmp tactical_lane_clear
+1:
+    dec si
+    dec dl
+    cmp byte ptr [si],'T'
+    je tactical_lane_blocked
+    cmp byte ptr [si],'B'
+    je tactical_lane_blocked
+    cmp dl,cl
+    jne 1b
+tactical_lane_clear:
+    stc
+    jmp tactical_lane_done
+tactical_lane_blocked:
     clc
- tactical_lane_done:
+tactical_lane_done:
     pop si
     pop dx
     pop cx
+    pop bx
     pop ax
     ret
 
@@ -620,6 +740,50 @@ tactical_enemy_turn:
     jc tactical_enemy_plan
     jmp tactical_enemy_assign
 tactical_enemy_plan:
+    /* Any enemy can break formation for a nearby usable bonus. */
+    cmp byte ptr [bonus_active],0
+    je tactical_enemy_orders
+    cmp byte ptr [bonus_type],5
+    je tactical_enemy_orders
+    cmp byte ptr [bonus_type],7
+    je tactical_enemy_orders
+    mov dl,[bonus_col]
+    shl dl,1
+    shl dl,1
+    shl dl,1
+    shl dl,1
+    mov al,[enemy_px+bx]
+    cmp al,dl
+    jae 1f
+    xchg al,dl
+1:
+    sub al,dl
+    cmp al,48
+    ja tactical_enemy_orders
+    mov al,[bonus_row]
+    mov cl,12
+    mul cl
+    mov dl,al
+    mov al,[enemy_py+bx]
+    cmp al,dl
+    jae 1f
+    xchg al,dl
+1:
+    sub al,dl
+    cmp al,36
+    ja tactical_enemy_orders
+    mov dl,[bonus_col]
+    shl dl,1
+    shl dl,1
+    shl dl,1
+    shl dl,1
+    mov al,[bonus_row]
+    mov cl,12
+    mul cl
+    mov dh,al
+    call tactical_route_choose
+    jmp tactical_enemy_assign
+tactical_enemy_orders:
     /* Three agents receive a shared, staged HQ operation; the interceptor
        alone hunts the exposed player. This prevents all four from randomly
        chasing the player while leaving the base unharmed. */
@@ -650,6 +814,10 @@ tactical_enemy_plan:
        otherwise intercept at the last disclosed P1 position, not omniscient
        live coordinates. When idle, guard the central base approach lane. */
     cmp byte ptr [bonus_active],0
+    je tactical_hunter_no_bonus
+    cmp byte ptr [bonus_type],5
+    je tactical_hunter_no_bonus
+    cmp byte ptr [bonus_type],7
     je tactical_hunter_no_bonus
     mov dl,[bonus_col]
     shl dl,1

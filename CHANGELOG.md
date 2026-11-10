@@ -1,3 +1,14 @@
+## v0.22 — Nearby power-ups, active AUTO during freeze, steel-aware fire (2026-11-10)
+
+- Player collects any active bonus within **1.5 cells** (24x18 pixels), including without moving after a bonus appears; uses real pixel coordinates rather than exact equality of 16x12 cells.
+- All enemy roles route towards nearby **usable** bonuses and collect within 1.5 cells. Hearts/lives and V ally reserves remain exclusively for the player.
+- AUTO uses the clock freeze window to pursue and fire at immobilized enemies, while dangerous far-away bonus distractions are vetoed to keep headquarters defended.
+- AUTO firing-lane obstruction detection covers every intervening map tile, ignoring destructible brick but suppressing shots through **steel** or headquarters. Efficient tile-index scanner preserves the normal per-tick auto attack cadence.
+- Strict GitHub CI: **125 Python tests**, **35 valid stages**, original CGA artwork, 8086 ISA audit, DOS .COM size ceiling PASS. Native SLOW1 DOSBox-X **/TEST PASS** through phase 95 and 2048-tick **/TRACE: 20/20 kills, STAGE CLEAR, base saved**.
+- **Performance gate PASS** on SLOW1: matched alternating 384 full-frame 8086/CGA runs at fixed 240 cycles/ms: v0.22 **40.058/52.683 s**, baseline v0.19 **48.757/53.271 s** (means **46.371 vs 51.014 s**). At fixed 500 cycles/ms: v0.22 **20.421/27.826 s**, v0.19 **22.787/27.851 s** (means **24.124 vs 25.319 s**). Host load changed substantially during runs; deterministic frames do not imply identical gameplay state, and physical XT timing is not proven.
+- **Installed atomically on SLOW1** at `C:\XT-Battle-City\run\TANKS.COM` and retested the installed copy: DOSBox-X **/TEST PASS**. Rollback at `run\TANKS-v021-backup-20261110-203600.COM` (old v0.21 SHA `BCEE4E795F069A5A9A59E56DF0FE2B7DDF9E508288F3F6D4C08D14F3F515D75C`). Exact new binary in `dist/TANKS.COM`: 56,666 bytes, SHA256 `F1705EFC784818691A3E69E4E778185C4BF00A2FB7C5F5AF64F7D0E3B1CAD917`.
+- See `releases/v0.22/RELEASE-NOTES.md` for gameplay, testing, hardware limitations and rollback.
+
 ## v0.21 — Artifact-free laser, enemy wreck pickups and temporary ally protection (2026-11-10)
 
 - **No persistent laser ghosts:** the colored continuous 1px beam is drawn only into actual CGA B800h **after** committing the RAM shadow frame. It never corrupts the untouched composition buffer. Each affected tile is scheduled for background restoration on the next rendered frame, including after the laser expires.

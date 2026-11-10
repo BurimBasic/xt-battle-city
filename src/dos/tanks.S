@@ -615,6 +615,8 @@ game_tick_step:
     dec byte ptr [squad_alert]
  game_tick_no_alert:
     call move_player_smooth
+    /* Pickups can appear when the tank is not moving. */
+    call check_bonus_pickup
     /* Autopilot shoots independently of navigation objectives and keeps
        aiming even when traveling directly toward a power-up. */
     cmp byte ptr [auto_mode],0
@@ -750,16 +752,32 @@ check_bonus_pickup:
     jne bonus_can_collect
     jmp bonus_pickup_done
 bonus_can_collect:
-    mov al, [player_col]
-    cmp al, [bonus_col]
-    je 1f
-    jmp bonus_pickup_done
+    /* 1.5-cell proximity (24 horizontal, 18 vertical pixels). */
+    mov dl,[bonus_col]
+    shl dl,1
+    shl dl,1
+    shl dl,1
+    shl dl,1
+    mov al,[player_px]
+    cmp al,dl
+    jae 1f
+    xchg al,dl
 1:
-    mov al, [player_row]
-    cmp al, [bonus_row]
-    je 1f
-    jmp bonus_pickup_done
+    sub al,dl
+    cmp al,24
+    ja bonus_pickup_done
+    mov al,[bonus_row]
+    mov bl,12
+    mul bl
+    mov dl,al
+    mov al,[player_py]
+    cmp al,dl
+    jae 1f
+    xchg al,dl
 1:
+    sub al,dl
+    cmp al,18
+    ja bonus_pickup_done
     call bonus20_apply
 bonus_pickup_done:
     pop dx
@@ -4478,6 +4496,17 @@ test_wave_complete:
     mov [player_col], al
     mov al, [bonus_row]
     mov [player_row], al
+    /* Legacy smoke fixture must also move the actual pixel tank. */
+    mov al,[bonus_col]
+    shl al,1
+    shl al,1
+    shl al,1
+    shl al,1
+    mov [player_px],al
+    mov al,[bonus_row]
+    mov bl,12
+    mul bl
+    mov [player_py],al
     call check_bonus_pickup
     cmp byte ptr [player_upgrade], 1
     je 1f
@@ -5747,6 +5776,8 @@ smoke_bonus_replay:
     mov byte ptr [enemy_active],1
     mov byte ptr [enemy_col],5
     mov byte ptr [enemy_row],10
+    mov byte ptr [enemy_px],80
+    mov byte ptr [enemy_py],120
     mov byte ptr [bonus_col],5
     mov byte ptr [bonus_row],10
     mov byte ptr [bonus_active],1
@@ -5808,6 +5839,39 @@ smoke_bonus_replay:
     mov byte ptr [ally_shield],1
     call bonus17_tick
     cmp byte ptr [ally_shield],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 94: P1 obtains a heart from a neighboring 1.5-cell radius. */
+    mov byte ptr [test_phase],94
+    call reset_campaign
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_type],5
+    mov byte ptr [bonus_col],8
+    mov byte ptr [bonus_row],14
+    mov byte ptr [lives],3
+    call check_bonus_pickup
+    cmp byte ptr [lives],4
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 95: enemy collects an adjacent clock with real pixel coords. */
+    mov byte ptr [test_phase],95
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_py],120
+    mov byte ptr [bonus_col],7
+    mov byte ptr [bonus_row],10
+    mov byte ptr [bonus_type],4
+    mov byte ptr [bonus_active],1
+    mov byte ptr [freeze_ticks],120
+    call enemy21_collect_bonus
+    cmp byte ptr [bonus_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [freeze_ticks],0
     je 9f
     jmp smoke_extra_fail
 9:
@@ -6088,7 +6152,7 @@ tactical_auto_glyphs: .word hud_blank_icon, hud_blank_icon, hud_a_char, hud_u_ch
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_a_char, hud_s_char, hud_i_char, hud_c_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_1
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_2
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0

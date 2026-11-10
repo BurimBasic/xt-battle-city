@@ -71,17 +71,17 @@ class VisualFixesV21(unittest.TestCase):
     def test_real_dos_phases_89_to_93(self):
         for phase in range(89,94):
             self.assertIn('mov byte ptr [test_phase],'+str(phase),GAME)
-    def test_auto_defender_prioritizes_base_over_far_pickups(self):
+    def test_auto_defender_can_pursue_upper_row_wreck_pickup(self):
         tactics=(R/'src/dos/tactics.inc').read_text()
         guard=tactics.split('tactical_bonus_objective:',1)[1].split('tactical21_bonus_try:',1)[0]
-        self.assertIn('cmp byte ptr [bonus_row],8',guard)
-        self.assertIn('jmp tactical_no_bonus_route',guard)
+        self.assertNotIn('cmp byte ptr [bonus_row],8',guard)
+        self.assertIn('strategy_bonus_heading',tactics)
     def test_enemy_pickups_are_effect_specific_not_compounding_armor(self):
         collect=ENEMY.split('enemy21_row_ok:',1)[1].split('enemy21_armor:',1)[0]
         self.assertNotIn('inc byte ptr [enemy_hp+bx]',collect)
         self.assertIn('inc byte ptr [enemy_hp+bx]',ENEMY.split('enemy21_armor:',1)[1])
     def test_shipped_version_label(self):
-        self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_1',GAME)
+        self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_2',GAME)
 
 if __name__=='__main__':
     unittest.main()
