@@ -674,7 +674,9 @@ maybe_drop_bonus:
     push dx
     push si
     cmp byte ptr [bonus_active],0
-    jne bonus21_drop_done
+    je bonus21_check_due
+    jmp bonus21_drop_done
+bonus21_check_due:
     mov al,[enemy_killed]
     xor ah,ah
     mov cl,5
