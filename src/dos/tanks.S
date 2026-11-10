@@ -648,6 +648,7 @@ bullet17_standard:
     jne tick_frozen
     call update_enemy_shots_smooth
     call move_enemies_smooth
+    call enemy21_collect_bonus
     test byte ptr [game_tick], 15
     jnz tick_no_ai
     call enemy_fire_cycle
@@ -657,6 +658,7 @@ tick_no_ai:
     call spawn_enemy
 tick_no_spawn:
 tick_frozen:
+    call enemy21_collect_bonus   /* also collect when enemies are frozen */
     call check_stage_complete
     ret
 
@@ -664,51 +666,69 @@ tick_frozen:
  * 4 clock, 5 extra life. All spawn positions are open in authored maps.
  */
 maybe_drop_bonus:
+    /* 8 candidates in 20 kills, exactly 1.6x the old five.  The
+       dropped pickup belongs to the destroyed enemy's actual cell.
+       BX is the killed enemy slot, preserved for scoring. */
     push ax
     push bx
+    push cx
     push dx
     push si
-    cmp byte ptr [bonus_active], 0
-    jne bonus_drop_done
-    mov al, [enemy_killed]
-    and al, 3
-    jnz bonus_drop_done
-    xor bx, bx
-    mov bl, [bonus_sequence]
+    cmp byte ptr [bonus_active],0
+    jne bonus21_drop_done
+    mov al,[enemy_killed]
+    xor ah,ah
+    mov cl,5
+    div cl
+    cmp ah,0
+    je bonus21_drop_due
+    cmp ah,2
+    jne bonus21_drop_done
+bonus21_drop_due:
+    mov dl,[enemy_px+bx]
+    add dl,8
+    shr dl,1
+    shr dl,1
+    shr dl,1
+    shr dl,1
+    mov dh,[enemy_py+bx]
+    add dh,6
+    xor ax,ax
+    mov al,dh
+    mov cl,12
+    div cl
+    mov dh,al
+    call get_tile
+    cmp al,'.'
+    je bonus21_drop_open
+    cmp al,'F'
+    je bonus21_drop_open
+    cmp al,'I'
+    jne bonus21_drop_done
+bonus21_drop_open:
+    mov [bonus_col],dl
+    mov [bonus_row],dh
+    xor bx,bx
+    mov bl,[bonus_sequence]
     mov al,[bonus_drop_order+bx]
     cmp byte ptr [test_mode],0
-    je bonus_live_order
+    je bonus21_type_ok
     xor al,al
-bonus_live_order:
+bonus21_type_ok:
     mov [bonus_type],al
-    mov dl, [bonus_columns+bx]
-    mov dh, 10
-    call get_tile
-    cmp al, '.'
-    jne bonus_drop_done
-    call enemy_at
-    cmp al, 0xff
-    jne bonus_drop_done
-    cmp dh, [player_row]
-    jne bonus_drop_ready
-    cmp dl, [player_col]
-    je bonus_drop_done
-bonus_drop_ready:
-    mov [bonus_col], dl
-    mov [bonus_row], dh
-    mov byte ptr [bonus_active], 1
-    mov byte ptr [bonus_timer], 180
-    /* Plan the bonus route once on spawn, never per video frame. */
-    call strategy_bonus_spawn
     inc byte ptr [bonus_sequence]
-    cmp byte ptr [bonus_sequence], 11
-    jb bonus_cycle_valid
-    mov byte ptr [bonus_sequence], 0
-bonus_cycle_valid:
+    cmp byte ptr [bonus_sequence],11
+    jb bonus21_sequence_ok
+    mov byte ptr [bonus_sequence],0
+bonus21_sequence_ok:
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_timer],150
+    call strategy_bonus_spawn
     call draw_cell
-bonus_drop_done:
+bonus21_drop_done:
     pop si
     pop dx
+    pop cx
     pop bx
     pop ax
     ret
@@ -2505,6 +2525,10 @@ friendly_target_destroyed:
     mov byte ptr [enemy_active+si],0
     mov byte ptr [shot_active+si],0
     inc byte ptr [enemy_killed]
+    push bx
+    mov bx,si
+    call maybe_drop_bonus
+    pop bx
     call draw_hud
 friendly_target_fx:
     mov dl, [shot_px+bx]
@@ -4417,7 +4441,10 @@ test_wave_complete:
 
     mov byte ptr [test_phase], 12
     call reset_campaign
-    mov byte ptr [enemy_killed], 4
+    mov byte ptr [enemy_killed], 5
+    xor bx,bx
+    mov byte ptr [enemy_px],112
+    mov byte ptr [enemy_py],120
     call maybe_drop_bonus
     cmp byte ptr [bonus_active], 1
     je 1f
@@ -5835,7 +5862,8 @@ bonus_sequence: .byte 0
 bonus_flash_type: .byte 0
 bonus_flash_ticks: .byte 0
 bonus_columns: .byte 2, 10, 4, 8, 1, 11, 6, 12, 5, 9, 3
-bonus_drop_order: .byte 0, 1, 2, 6, 7, 4, 8, 9, 10, 3, 5
+bonus_drop_order: .byte 0, 5, 7, 1, 6, 8, 3, 4, 2, 9, 10
+/* Heart at second pickup, ally third; no more fixed center-row spawn. */
 ally_stock: .byte 1        /* reserve V calls: max nine */
 ally_call_pending: .byte 0 /* keyboard ISR, distinct from movement keys */
 hq_wall_indices: .word 230, 232, 246, 248
