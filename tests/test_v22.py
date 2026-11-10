@@ -40,9 +40,18 @@ class BonusFreezeSteelV22(unittest.TestCase):
         body=TACTICS.split("tactical_player_line_clear:",1)[1].split("tactical_player_path_open:",1)[0]
         self.assertNotIn("cmp cl,72",body)
         self.assertNotIn("cmp al,1\n    je tactical_lane_clear",body)
-        self.assertIn("cmp al,2",body)
-        self.assertIn("cmp al,3",body)
-        self.assertEqual(body.count("call step_pixel"),4)
+        self.assertIn("mov al,12",body)
+        self.assertIn("pixel_y_tile_lookup+bx",body)
+        self.assertIn("level_data+bx",body)
+        self.assertIn("cmp al,'T'",body)
+        self.assertIn("cmp al,'B'",body)
+        self.assertNotIn("call projectile_probe",body)
+    def test_bonus_pursuit_is_bounded_to_preserve_headquarters(self):
+        flow=(ROOT/"src/dos/strategy_v13.inc").read_text()
+        body=flow.split("bonus_route_check_threat:",1)[1].split("bonus_route_threat_loop:",1)[0]
+        self.assertIn("cmp al,48",body)
+        self.assertIn("cmp al,36",body)
+        self.assertIn("jmp bonus_route_fail",body)
     def test_native_8086_pickup_phases(self):
         for number in (94,95):
             self.assertIn(f"mov byte ptr [test_phase],{number}",GAME)
