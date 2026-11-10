@@ -343,6 +343,13 @@ tactical_player_aim_if_aligned:
 /* Independent fire control runs after movement each tick, even while
  * driving to a pickup. Choose the deepest aligned hostile shot. */
 tactical_player_autofire:
+    /* AUTO steering already refreshes every four BIOS ticks. Bound
+       repeated full LOS queries to the same cadence to protect XT FPS.
+       Motion/projectiles keep advancing on all intermediate ticks. */
+    test byte ptr [game_tick],3
+    jz tactical_autofire_cadence_ready
+    ret
+tactical_autofire_cadence_ready:
     cmp byte ptr [bullet_active],0
     je tactical_autofire_start
     /* Triple-shot AUTO fills both spare slots while existing bullets fly. */
