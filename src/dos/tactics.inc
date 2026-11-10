@@ -450,12 +450,14 @@ tactical_lane_up:
     sub si,16
     dec dh
     cmp byte ptr [si],'T'
-    je tactical_lane_blocked
+    je tactical_lane_up_blocked
     cmp byte ptr [si],'B'
-    je tactical_lane_blocked
+    je tactical_lane_up_blocked
     cmp dh,cl
     jne 1b
     jmp tactical_lane_clear
+tactical_lane_up_blocked:
+    jmp tactical_lane_blocked
 tactical_lane_right:
     mov al,[enemy_px+bx]
     add al,8
@@ -471,12 +473,14 @@ tactical_lane_right:
     inc si
     inc dl
     cmp byte ptr [si],'T'
-    je tactical_lane_blocked
+    je tactical_lane_right_blocked
     cmp byte ptr [si],'B'
-    je tactical_lane_blocked
+    je tactical_lane_right_blocked
     cmp dl,cl
     jne 1b
     jmp tactical_lane_clear
+tactical_lane_right_blocked:
+    jmp tactical_lane_blocked
 tactical_lane_down:
     mov al,[enemy_py+bx]
     add al,6
@@ -490,12 +494,14 @@ tactical_lane_down:
     add si,16
     inc dh
     cmp byte ptr [si],'T'
-    je tactical_lane_blocked
+    je tactical_lane_down_blocked
     cmp byte ptr [si],'B'
-    je tactical_lane_blocked
+    je tactical_lane_down_blocked
     cmp dh,cl
     jne 1b
     jmp tactical_lane_clear
+tactical_lane_down_blocked:
+    jmp tactical_lane_blocked
 tactical_lane_left:
     mov al,[enemy_px+bx]
     add al,8
