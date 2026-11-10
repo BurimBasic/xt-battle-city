@@ -6352,7 +6352,7 @@ bonus_sequence: .byte 0
 bonus_flash_type: .byte 0
 bonus_flash_ticks: .byte 0
 bonus_columns: .byte 2, 10, 4, 8, 1, 11, 6, 12, 5, 9, 3
-bonus_drop_order: .byte 0, 5, 7, 1, 6, 8, 3, 4, 2, 9, 10, 11, 12, 13
+bonus_drop_order: .byte 0, 5, 7, 6, 11, 12, 13, 1, 8, 3, 4, 2, 9, 10
 /* Heart at second pickup, ally third; no more fixed center-row spawn. */
 ally_stock: .byte 1        /* reserve V calls: max nine */
 ally_call_pending: .byte 0 /* keyboard ISR, distinct from movement keys */
