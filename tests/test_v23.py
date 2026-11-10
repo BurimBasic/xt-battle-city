@@ -85,6 +85,8 @@ class CombatV23(unittest.TestCase):
         self.assertNotIn('cmp al,36',bonus_route)
         self.assertIn('bonus_route_threat_loop:',S)
         self.assertIn('cmp byte ptr [enemy_py+bx],140',S)
+        self.assertIn('cmp byte ptr [enemy_py+bx],76',S)
+        self.assertIn('cmp byte ptr [enemy_py+bx],76',AI)
         self.assertIn('bonus_drop_order: .byte 0, 5, 7, 6, 11, 12, 13, 1',T)
     def test_20_phase_wipes_no_per_frame_wait(self):
         self.assertIn('cmp byte ptr [trans20_step],16',X) if False else None
