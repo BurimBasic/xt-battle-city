@@ -29,8 +29,7 @@ tactical_dodge_done:
        improves the instant laser's line of fire. */
     cmp byte ptr [laser_ticks],0
     je tactical23_check_final
-    cmp byte ptr [bonus_active],0
-    jne tactical23_check_final
+    /* Laser outranks distant bonus detours: close for the kill now. */
     call tactical_find_target
     jnc tactical23_check_final
     call tactical_player_aim_if_aligned
