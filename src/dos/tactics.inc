@@ -24,6 +24,35 @@ tactical_player_decide:
     jnc tactical_dodge_done
     jmp tactical_player_steer
 tactical_dodge_done:
+    /* Freeze creates an offensive window: chase the immobilized enemy. */
+    cmp byte ptr [freeze_ticks],0
+    je tactical_defense_orders
+    call tactical_find_target
+    jnc tactical_bonus_objective
+    call tactical_player_aim_if_aligned
+    jnc tactical_freeze_seek
+    jmp tactical_player_hold_and_fire
+tactical_freeze_seek:
+    mov al,[enemy_px+bx]
+    sub al,[player_px]
+    add al,9
+    cmp al,19
+    jbe tactical_freeze_vertical
+    mov al,1
+    mov dl,[enemy_px+bx]
+    cmp dl,[player_px]
+    ja tactical_freeze_go
+    mov al,3
+    jmp tactical_freeze_go
+tactical_freeze_vertical:
+    mov al,0
+    mov dl,[enemy_py+bx]
+    cmp dl,[player_py]
+    jb tactical_freeze_go
+    mov al,2
+tactical_freeze_go:
+    jmp tactical_player_steer
+tactical_defense_orders:
     /* Base breach takes priority over the pickup, but normal firing
        is independent of BOTH and runs after every movement tick. */
     call tactical_find_target
@@ -38,14 +67,8 @@ tactical_dodge_done:
     cmp al,168
     jbe tactical_no_bonus_route
 tactical_bonus_objective:
-    /* A front-line kill may drop a pickup at the very top of the map.
-       The AUTO defender must not abandon headquarters for a distant
-       prize; the attacking ally can pursue it independently. */
-    cmp byte ptr [bonus_active],0
-    je tactical21_bonus_try
-    cmp byte ptr [bonus_row],8
-    jae tactical21_bonus_try
-    jmp tactical_no_bonus_route
+    /* Chase a reachable pickup even in an upper-row enemy wreck.
+       strategy_bonus_heading already vetoes immediate threats to HQ. */
 tactical21_bonus_try:
     call strategy_bonus_heading
     jnc tactical_no_bonus_route
@@ -385,13 +408,17 @@ tactical_player_line_clear:
     cmp cl,8
     jbe tactical_lane_clear
     sub cl,8
-    cmp cl,72
-    jbe tactical_lane_probe
-    mov cl,72
+    /* Cover the entire shot ray at four-pixel intervals: solid
+       steel tiles are at least 12 px high; brick can be destroyed. */
+    shr cl,1
+    shr cl,1
+    jz tactical_lane_clear
  tactical_lane_probe:
     mov al,[tactical_lane_dir]
     call step_pixel
-    jc tactical_lane_clear
+    call step_pixel
+    call step_pixel
+    call step_pixel
     push dx
     call projectile_probe
     pop dx
@@ -399,8 +426,6 @@ tactical_player_line_clear:
     je tactical_lane_blocked
     cmp al,3
     je tactical_lane_blocked
-    cmp al,1
-    je tactical_lane_clear
     dec cl
     jnz tactical_lane_probe
  tactical_lane_clear:
@@ -620,6 +645,45 @@ tactical_enemy_turn:
     jc tactical_enemy_plan
     jmp tactical_enemy_assign
 tactical_enemy_plan:
+    /* Any enemy can break formation for a nearby usable bonus. */
+    cmp byte ptr [bonus_active],0
+    je tactical_enemy_orders
+    cmp byte ptr [bonus_type],5
+    je tactical_enemy_orders
+    cmp byte ptr [bonus_type],7
+    je tactical_enemy_orders
+    mov al,[bonus_col]
+    shl al,1
+    shl al,1
+    shl al,1
+    shl al,1
+    sub al,[enemy_px+bx]
+    jnc 1f
+    neg al
+1:
+    cmp al,48
+    ja tactical_enemy_orders
+    mov al,[bonus_row]
+    mov cl,12
+    mul cl
+    sub al,[enemy_py+bx]
+    jnc 1f
+    neg al
+1:
+    cmp al,36
+    ja tactical_enemy_orders
+    mov dl,[bonus_col]
+    shl dl,1
+    shl dl,1
+    shl dl,1
+    shl dl,1
+    mov al,[bonus_row]
+    mov cl,12
+    mul cl
+    mov dh,al
+    call tactical_route_choose
+    jmp tactical_enemy_assign
+tactical_enemy_orders:
     /* Three agents receive a shared, staged HQ operation; the interceptor
        alone hunts the exposed player. This prevents all four from randomly
        chasing the player while leaving the base unharmed. */
@@ -650,6 +714,10 @@ tactical_enemy_plan:
        otherwise intercept at the last disclosed P1 position, not omniscient
        live coordinates. When idle, guard the central base approach lane. */
     cmp byte ptr [bonus_active],0
+    je tactical_hunter_no_bonus
+    cmp byte ptr [bonus_type],5
+    je tactical_hunter_no_bonus
+    cmp byte ptr [bonus_type],7
     je tactical_hunter_no_bonus
     mov dl,[bonus_col]
     shl dl,1
