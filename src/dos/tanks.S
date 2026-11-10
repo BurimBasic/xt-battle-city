@@ -54,6 +54,7 @@ buffer_unavailable:
     call draw_sidebar_background
     call draw_hud
     call draw_mode_indicator
+    call draw_bonus_indicator /* initial Vx1 is visible before first tick */
     /* /AUDIO: DOS errorlevel 0 when OPL2 detected, 1 for speaker fallback.
        Safe to use for emulator acceptance without playing a stage. */
     cmp byte ptr [0x80], 7
@@ -110,6 +111,7 @@ normal_play:
     mov byte ptr [squad_phase],1
 normal_play_doctrine_ready:
     call render_frame
+    call transition20_open
     call install_keyboard
     mov ah, 0
     int 0x1a
@@ -148,13 +150,20 @@ main_loop_auto_restart:
 main_loop_play:
     call game_tick_step
     call render_frame
-    /* The AUTO/MAN label changes only on a key event, not per tick. */
     call draw_bonus_indicator
-    cmp byte ptr [game_state], 2
-    jne no_end_overlay
+    /* Animate once, AFTER the last frame, BEFORE the result text. */
+    cmp byte ptr [game_state],0
+    je no_stage_overlay
+    cmp byte ptr [transition_done],0
+    jne no_stage_overlay
+    mov byte ptr [transition_done],1
+    call transition20_close
+    cmp byte ptr [game_state],2
+    jne stage_out_clear
     call game_over_hud
-no_end_overlay:
-    cmp byte ptr [game_state], 1
+    jmp no_stage_overlay
+stage_out_clear:
+    cmp byte ptr [game_state],1
     jne no_stage_overlay
     call stage_clear_hud
 no_stage_overlay:
@@ -162,6 +171,7 @@ no_stage_overlay:
 
 /* State: 0 playing, 1 won stage, 2 lost. */
 reset_campaign:
+    mov byte ptr [ally_stock],1   /* one free V summon per campaign */
     mov byte ptr [stage], 1
     mov byte ptr [lives], 3
     mov word ptr [score], 0
@@ -222,6 +232,9 @@ marker_next:
     mov byte ptr [game_state], 0
     mov byte ptr [demo_timer], 0
     mov byte ptr [game_tick], 0
+    mov byte ptr [transition_done],0
+    mov byte ptr [transition_pending],1
+    mov byte ptr [ally_life_flash],0
     mov byte ptr [enemy_ai_phase], 0
     mov byte ptr [squad_alert], 0
     mov byte ptr [squad_target_x], 112
@@ -235,7 +248,7 @@ marker_next:
     mov byte ptr [homing_ticks], 0
     mov byte ptr [frenzy_ticks], 0
     mov byte ptr [laser_flash_ticks], 0
-    mov byte ptr [ally_ticks], 0
+    mov word ptr [ally_ticks], 0
     mov byte ptr [extra_active], 0
     mov byte ptr [extra_active+1], 0
     mov byte ptr [freeze_ticks], 0
@@ -246,6 +259,7 @@ marker_next:
     mov byte ptr [manual_keys], 0
     mov byte ptr [pending_commands], 0
     mov byte ptr [auto_toggle_pending], 0
+    mov byte ptr [ally_call_pending],0
     mov byte ptr [player_px], 112
     mov byte ptr [player_py], 168
     mov byte ptr [paint_player_valid], 0
@@ -349,7 +363,9 @@ kb_pause:
     cmp byte ptr [game_state], 0
     je kb_pause_begin
     cmp byte ptr [game_state], 3
-    jne kb_return
+    je 1f
+    jmp kb_return
+1:
     mov byte ptr [game_state], 0
     call refresh_screen
     ret
@@ -361,7 +377,9 @@ kb_after_pause:
     cmp byte ptr [game_state], 1
     jne kb_not_won
     cmp al, ' '
-    jne kb_return
+    je 1f
+    jmp kb_return
+1:
     inc byte ptr [stage]
     cmp byte ptr [stage], 9
     jbe kb_next_level
@@ -372,7 +390,9 @@ kb_next_level:
     ret
 kb_not_won:
     cmp byte ptr [game_state], 0
-    jne kb_return
+    je 1f
+    jmp kb_return
+1:
     cmp al, ' '
     jne kb_not_shoot
     call do_fire
@@ -407,8 +427,15 @@ kb_not_s:
     jne kb_not_a
     jmp left_key
 kb_not_a:
+    cmp al,'V'
+    jne kb_not_ally
+    call ally20_try_call
+    ret
+kb_not_ally:
     cmp al, 'D'
-    jne kb_return
+    je 1f
+    jmp kb_return
+1:
     jmp right_key
 kb_return:
     ret
@@ -433,6 +460,7 @@ refresh_screen:
     call render_frame
     call draw_mode_indicator
     call draw_bonus_indicator
+    call transition20_open     /* only once per level / restarts */
     ret
 exit_game:
     call restore_keyboard
@@ -597,6 +625,7 @@ game_tick_step:
     call grenade17_fx_tick
     call tick_powerups
     call bonus17_tick
+    call ally20_pickup
     call slide_player_smooth
     cmp byte ptr [player_shield], 0
     je tick_no_shield
@@ -704,6 +733,16 @@ bonus_can_collect:
     je 1f
     jmp bonus_pickup_done
 1:
+    call bonus20_apply
+bonus_pickup_done:
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+/* Shared pickup applies equally to main tank and autonomous companion. */
+bonus20_apply:
     mov byte ptr [bonus_active], 0
     mov byte ptr [bonus_timer], 0
     mov al,[bonus_type]
@@ -716,44 +755,44 @@ bonus_can_collect:
     jne pickup_not_star
     cmp byte ptr [player_upgrade], 3
     jb 1f
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 1:
     inc byte ptr [player_upgrade]
     call draw_hud
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 pickup_not_star:
     cmp al, 1
     jne pickup_not_helmet
     mov byte ptr [player_shield], 150
     mov byte ptr [bonus_flash_ticks],150
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 pickup_not_helmet:
     cmp al, 2
     jne pickup_not_grenade
     call grenade_all_enemies
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 pickup_not_grenade:
     cmp al, 3
     jne pickup_not_shovel
     call protect_hq
     mov byte ptr [bonus_flash_ticks],160
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 pickup_not_shovel:
     cmp al, 4
     jne pickup_not_clock
     mov byte ptr [freeze_ticks], 120
     mov byte ptr [bonus_flash_ticks],120
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 pickup_not_clock:
     cmp al,5
     jne pickup_not_life
     cmp byte ptr [lives], 9
     jb 1f
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 1:
     inc byte ptr [lives]
     call draw_hud
-    jmp bonus_pickup_done
+    jmp bonus20_applied
 pickup_not_life:
     cmp al,6
     jne pickup_not_laser
@@ -762,8 +801,8 @@ pickup_not_life:
 pickup_not_laser:
     cmp al,7
     jne pickup_not_ally
-    call ally17_spawn
-    jmp bonus17_timed
+    call ally20_collect
+    jmp bonus20_applied
 pickup_not_ally:
     cmp al,8
     jne pickup_not_triple
@@ -778,11 +817,7 @@ pickup_not_homing:
     mov byte ptr [frenzy_ticks],180
 bonus17_timed:
     mov byte ptr [bonus_flash_ticks],180
-bonus_pickup_done:
-    pop dx
-    pop cx
-    pop bx
-    pop ax
+bonus20_applied:
     ret
 
 grenade_all_enemies:
@@ -1731,7 +1766,7 @@ check_stage_complete:
     cmp byte ptr [enemy_killed], 20
     jne stage_not_done
     mov byte ptr [game_state], 1
-    call stage_clear_hud
+    /* Main loop plays exit animation before the result overlay. */
 stage_not_done:
     ret
 /* Classic-style black-on-blackfield overlay for stage completion/game over.
@@ -2388,7 +2423,7 @@ smooth_player_dead:
     jmp smooth_shot_out
 smooth_shot_no_player:
     /* Ally is an independent target: enemy shots can destroy it. */
-    cmp byte ptr [ally_ticks],0
+    cmp word ptr [ally_ticks],0
     je smooth_shot_no_ally
     mov al,[shot_px+bx]
     sub al,[ally_px]
@@ -2400,7 +2435,7 @@ smooth_shot_no_player:
     add al,6
     cmp al,12
     jae smooth_shot_no_ally
-    mov byte ptr [ally_ticks],0
+    mov word ptr [ally_ticks],0
     mov dl,[ally_px]
     mov dh,[ally_py]
     call spawn_explosion
@@ -2552,11 +2587,17 @@ keyboard_irq:
     and al, 0x7f
     xor ah, ah
     cmp al, 0x48
-    je irq_up
+    jne 1f
+    jmp irq_up
+1:
     cmp al, 0x11
-    je irq_up
+    jne 1f
+    jmp irq_up
+1:
     cmp al, 0x4d
-    je irq_right
+    jne 1f
+    jmp irq_right
+1:
     cmp al, 0x20
     je irq_right
     cmp al, 0x50
@@ -2596,6 +2637,11 @@ irq_no_pgup:
     or byte ptr [pending_commands], 64
     jmp irq_ack
 irq_no_pgdn:
+    cmp al,0x2f              /* V = call attacking AUTO companion */
+    jne irq_not_ally
+    or byte ptr [ally_call_pending],1
+    jmp irq_ack
+irq_not_ally:
     cmp al, 0x2e             /* C: cycle CGA palette */
     jne irq_not_palette
     or byte ptr [pending_commands], 128
@@ -2674,7 +2720,13 @@ poll_controls:
     mov byte ptr [pending_commands], 0
     mov ah, [auto_toggle_pending]
     mov byte ptr [auto_toggle_pending], 0
+    mov dl,[ally_call_pending]
+    mov byte ptr [ally_call_pending],0
     popf
+    test dl,1
+    jz controls_no_ally_call
+    call ally20_try_call
+controls_no_ally_call:
     test ah, 1
     jz controls_no_auto_toggle
     xor byte ptr [auto_mode],1
@@ -3479,7 +3531,7 @@ paint_enemy_next:
     jmp paint_enemy_loop
 paint_enemy_finished:
     /* Attack-oriented allied AUTO tank: same chassis with a bright halo. */
-    cmp byte ptr [ally_ticks],0
+    cmp word ptr [ally_ticks],0
     je paint_ally_done
     mov dl,[ally_px]
     mov dh,[ally_py]
@@ -4045,61 +4097,88 @@ draw_bonus_indicator:
     push dx
     push si
     push di
-    mov di,3906       /* bonus icon x264, countdown x284..299 */
+    /* 64px right HUD row (y96):
+       bonus at x256 | seconds x272-287 | reserve V x N at x296-319. */
     mov si,offset hud_blank_icon
+    mov di,3906          /* separator x264 */
+    call draw_hud_glyph
+    mov di,3912          /* separator x288 */
+    call draw_hud_glyph
+    mov di,3904          /* icon starts at FAR LEFT edge */
+    cmp word ptr [ally_ticks],0
+    jne bonus20_ally_icon
     cmp byte ptr [bonus_flash_ticks],0
-    je bonus_hud_icon
+    je bonus20_icon_draw
     test byte ptr [game_tick],8
-    jnz bonus_hud_icon
+    jnz bonus20_icon_draw
     xor bx,bx
     mov bl,[bonus_flash_type]
     shl bx,1
     mov si,[hud_bonus_ptrs+bx]
-bonus_hud_icon:
-    call draw_hud_glyph
+    jmp bonus20_icon_draw
+bonus20_ally_icon:
+    /* Active ally always overrides old pickup pictogram. */
+    test byte ptr [game_tick],8
+    jnz bonus20_icon_hidden
+    mov si,offset hud_bonus_ally
+    jmp bonus20_icon_draw
+bonus20_icon_hidden:
     mov si,offset hud_blank_icon
-    mov di,3911
+bonus20_icon_draw:
+    call draw_hud_glyph
+    /* Always clear both digit glyphs so an expired timer leaves no 88. */
+    mov si,offset hud_blank_icon
+    mov di,3908
+    call draw_hud_glyph
+    mov di,3910
+    call draw_hud_glyph
+    cmp word ptr [ally_ticks],0
+    jne bonus20_timer_ally
     cmp byte ptr [bonus_flash_ticks],0
-    jne bonus_hud_time
-    call draw_hud_glyph
-    mov di,3913
-    call draw_hud_glyph
-    jmp bonus_hud_finish
-bonus_hud_time:
-    /* Permanent upgrades, instant grenade and extra life have no
-       expiry: show the icon briefly but never a false countdown. */
+    je bonus20_timer_done
     mov al,[bonus_flash_type]
     cmp al,0
-    je bonus_hud_time_static
+    je bonus20_timer_done
     cmp al,2
-    je bonus_hud_time_static
+    je bonus20_timer_done
     cmp al,5
-    je bonus_hud_time_static
-    jmp bonus_hud_time_digits
-bonus_hud_time_static:
-    mov si,offset hud_blank_icon
-    mov di,3911
-    call draw_hud_glyph
-    mov di,3913
-    call draw_hud_glyph
-    jmp bonus_hud_finish
-bonus_hud_time_digits:
-    /* BIOS ticks divided by 18. Countdown is rounded up in seconds. */
-    mov al,[bonus_flash_ticks]
-    add al,17
+    je bonus20_timer_done
+    cmp al,7          /* unused stock bonus never has a countdown */
+    je bonus20_timer_done
     xor ah,ah
+    mov al,[bonus_flash_ticks]
+    jmp bonus20_timer_convert
+bonus20_timer_ally:
+    mov ax,[ally_ticks]  /* 270 ticks = 15 seconds, cannot fit a byte */
+bonus20_timer_convert:
+    add ax,17
     mov bl,18
     div bl
     xor ah,ah
     mov bl,10
     div bl
     mov bh,ah
-    mov di,3911
+    mov di,3908         /* x272 tens */
     call draw_hud_digit
     mov al,bh
-    mov di,3913
+    mov di,3910         /* x280 ones */
     call draw_hud_digit
-bonus_hud_finish:
+bonus20_timer_done:
+    mov di,3914         /* x296 V */
+    mov si,offset hud_v_char
+    cmp byte ptr [ally_life_flash],0
+    je bonus20_v_draw
+    test byte ptr [game_tick],2
+    jz bonus20_v_draw
+    mov si,offset hud_blank_icon
+bonus20_v_draw:
+    call draw_hud_glyph
+    mov di,3916         /* x304 x */
+    mov si,offset hud_x_char
+    call draw_hud_glyph
+    mov di,3918         /* x312 available calls */
+    mov al,[ally_stock]
+    call draw_hud_digit
     pop di
     pop si
     pop dx
@@ -5149,7 +5228,7 @@ smoke_bonus_replay:
     jc 9f
     jmp smoke_extra_fail
 9:
-    /* Phase 62: collected helmet is drawn at x264, not the old x284. */
+    /* Phase 62: collected helmet icon now starts at far-left x256. */
     mov byte ptr [test_phase],62
     mov byte ptr [bonus_flash_type],1
     mov byte ptr [bonus_flash_ticks],112
@@ -5159,7 +5238,7 @@ smoke_bonus_replay:
     mov ax,0xb800
     mov es,ax
     mov ax,[hud_bonus_helmet]
-    cmp word ptr es:[3906],ax
+    cmp word ptr es:[3904],ax
     je 9f
     pop es
     jmp smoke_extra_fail
@@ -5284,6 +5363,15 @@ smoke_bonus_replay:
     mov byte ptr [player_px],96
     mov byte ptr [player_py],136
     call ally17_spawn
+    jnc 9f
+    jmp smoke_extra_fail
+9:
+    /* The new deploy point is by HQ, not magically at the player's feet. */
+    mov al,[ally_px]
+    mov [enemy_px],al
+    mov al,[ally_py]
+    sub al,40
+    mov [enemy_py],al
     call ally17_tick
     cmp byte ptr [extra_active],1
     je 9f
@@ -5437,6 +5525,158 @@ smoke_bonus_replay:
     jmp smoke_extra_fail
 9:
     pop es
+    /* Phase 79: one free V summon, 15s and unchanged lives. */
+    mov byte ptr [test_phase],79
+    call reset_campaign
+    mov byte ptr [auto_mode],0
+    call ally20_try_call
+    cmp byte ptr [ally_stock],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [lives],3
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp word ptr [ally_ticks],270
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 80: V with no stock spends life, never a final life. */
+    mov byte ptr [test_phase],80
+    mov word ptr [ally_ticks],0
+    mov byte ptr [ally_stock],0
+    call ally20_try_call
+    cmp byte ptr [lives],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [ally_life_flash],18
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [test_phase],81
+    mov word ptr [ally_ticks],0
+    mov byte ptr [lives],1
+    call ally20_try_call
+    cmp byte ptr [lives],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp word ptr [ally_ticks],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 82: manual pickup adds a V stock without forced activation. */
+    mov byte ptr [test_phase],82
+    mov byte ptr [ally_stock],1
+    mov byte ptr [auto_mode],0
+    call ally20_collect
+    cmp byte ptr [ally_stock],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp word ptr [ally_ticks],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 83: AUTO pickup immediately dispatches one companion. */
+    mov byte ptr [test_phase],83
+    mov byte ptr [auto_mode],1
+    call ally20_collect
+    cmp word ptr [ally_ticks],270
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [ally_stock],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 84: companion collects team powerups independently of P1. */
+    mov byte ptr [test_phase],84
+    mov byte ptr [auto_mode],0
+    mov byte ptr [ally_px],80
+    mov byte ptr [ally_py],120
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_col],5
+    mov byte ptr [bonus_row],10
+    mov byte ptr [bonus_type],5
+    mov byte ptr [lives],3
+    call ally20_pickup
+    cmp byte ptr [lives],4
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bonus_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 85: Vx2 on right, companion's remaining 15s centered. */
+    mov byte ptr [test_phase],85
+    mov byte ptr [game_tick],0
+    call draw_bonus_indicator
+    push es
+    mov ax,0xb800
+    mov es,ax
+    mov ax,[hud_digit_2]
+    cmp word ptr es:[3918],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    mov ax,[hud_digit_1]
+    cmp word ptr es:[3908],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    mov ax,[hud_digit_5]
+    cmp word ptr es:[3910],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    pop es
+    /* Phase 86: one physical CGA tile can be blanked for curtain wipes. */
+    mov byte ptr [test_phase],86
+    push es
+    mov ax,0xb800
+    mov es,ax
+    mov word ptr es:[0],0xffff
+    xor dx,dx
+    call transition20_blank_tile
+    cmp word ptr es:[0],0
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    pop es
+    /* Phase 87: execute the real 16-band introduction, including time
+       pacing. The whole field is recovered from the shadow buffer. */
+    mov byte ptr [test_phase],87
+    mov byte ptr [stage],1
+    mov byte ptr [transition_pending],1
+    mov byte ptr [test_mode],0
+    call transition20_open
+    mov byte ptr [test_mode],1
+    cmp byte ptr [transition_pending],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 88: the exit wipes the arena before results lettering. */
+    mov byte ptr [test_phase],88
+    mov byte ptr [test_mode],0
+    call transition20_close
+    mov byte ptr [test_mode],1
+    push es
+    mov ax,0xb800
+    mov es,ax
+    cmp word ptr es:[0],0
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    pop es
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
@@ -5572,6 +5812,8 @@ trace_record_done:
 .include "src/dos/tactics.inc"
 .include "src/dos/strategy_v13.inc"
 .include "src/dos/bonuses_v17.inc"
+.include "src/dos/ally_v20.inc"
+.include "src/dos/transitions_v20.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -5593,6 +5835,8 @@ bonus_flash_type: .byte 0
 bonus_flash_ticks: .byte 0
 bonus_columns: .byte 2, 10, 4, 8, 1, 11, 6, 12, 5, 9, 3
 bonus_drop_order: .byte 0, 1, 2, 6, 7, 4, 8, 9, 10, 3, 5
+ally_stock: .byte 1        /* reserve V calls: max nine */
+ally_call_pending: .byte 0 /* keyboard ISR, distinct from movement keys */
 hq_wall_indices: .word 230, 232, 246, 248
 hq_wall_columns: .byte 6, 8, 6, 8
 hq_wall_rows: .byte 14, 14, 15, 15
@@ -5707,7 +5951,7 @@ tactical_auto_glyphs: .word hud_blank_icon, hud_blank_icon, hud_a_char, hud_u_ch
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_a_char, hud_s_char, hud_i_char, hud_c_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_1, hud_digit_9
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_0
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0

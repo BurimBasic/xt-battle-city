@@ -25,9 +25,13 @@ b17_no_frenzy:
     je b17_no_flash
     dec byte ptr [laser_flash_ticks]
 b17_no_flash:
-    cmp byte ptr [ally_ticks],0
+    cmp byte ptr [ally_life_flash],0
+    je b20_flash_done
+    dec byte ptr [ally_life_flash]
+b20_flash_done:
+    cmp word ptr [ally_ticks],0
     je b17_done
-    dec byte ptr [ally_ticks]
+    dec word ptr [ally_ticks]
     jz b17_done
     call ally17_tick
 b17_done:
@@ -258,31 +262,46 @@ laser17_done:
     pop ax
     ret
 
-/* Companion tank: no own lives; lasts for 10 seconds and uses a distinctive
- * halo around the normal player tank. Seeks enemies aggressively and uses
- * a secondary projectile (never creates a fourth simultaneously). */
+/* Spawn from the HQ area; do not teleport beside the player.
+ * Try a few authored open exits and reject overlapping the main tank.
+ * Carry means the exits are blocked; the V token/life is NOT consumed. */
 ally17_spawn:
-    mov al,[player_px]
-    mov [ally_px],al
-    mov al,[player_py]
-    sub al,14
-    jnc ally17_try_place
-    xor al,al
-ally17_try_place:
-    mov [ally_py],al
-    mov dl,[ally_px]
-    mov dh,[ally_py]
+    push ax
+    push bx
+    push dx
+    xor bx,bx
+ally20_base_candidate:
+    mov dl,[ally20_spawn_x+bx]
+    mov dh,[ally20_spawn_y+bx]
+    mov [ally_px],dl
+    mov [ally_py],dh
     call rect_passable
-    jnc ally17_ready
-    mov al,[player_px]
-    add al,18
-    mov [ally_px],al
-    mov al,[player_py]
-    mov [ally_py],al
-ally17_ready:
+    jc ally20_base_next
+    mov al,dl
+    sub al,[player_px]
+    add al,15
+    cmp al,30
+    ja ally20_spawn_clear
+    mov al,dh
+    sub al,[player_py]
+    add al,11
+    cmp al,22
+    jbe ally20_base_next
+ally20_spawn_clear:
     mov byte ptr [ally_dir],0
-    mov byte ptr [ally_ticks],180
+    mov word ptr [ally_ticks],270     /* 15 seconds * 18 BIOS ticks */
     mov byte ptr [ally_cooldown],0
+    clc
+    jmp ally20_base_done
+ally20_base_next:
+    inc bx
+    cmp bx,4
+    jb ally20_base_candidate
+    stc
+ally20_base_done:
+    pop dx
+    pop bx
+    pop ax
     ret
 
 ally17_tick:
@@ -694,7 +713,10 @@ saved_bullet_y: .byte 0
 saved_bullet_dir: .byte 0
 home_best: .word 0xffff
 home_target: .byte 0xff
-ally_ticks: .byte 0
+ally_ticks: .word 0
+/* HQ-side deployment positions, tried in order for blocked base exits. */
+ally20_spawn_x: .byte 112,96,128,112
+ally20_spawn_y: .byte 144,144,144,132
 ally_px: .byte 0
 ally_py: .byte 0
 ally_dir: .byte 0

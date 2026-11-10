@@ -58,7 +58,7 @@ class VisualV18(unittest.TestCase):
         self.assertIn('brand_copyright_glyphs:',SRC)
         self.assertIn('brand_basic_glyphs:',SRC)
         self.assertIn('brand_version_glyphs:',SRC)
-        self.assertRegex(SRC, r'brand_version_glyphs:.*hud_digit_1, hud_digit_[89]')
+        self.assertRegex(SRC, r'brand_version_glyphs:.*hud_digit_2, hud_digit_0')
         self.assertIn('call draw_branding',SRC)
         self.assertIn('draw_hud_glyph_inverted:',SRC)
         for ch in ('k','i','c','v','.'):

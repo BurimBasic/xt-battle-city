@@ -22,8 +22,8 @@ class TacticalBonusV17(unittest.TestCase):
         self.assertIn('mov byte ptr [bonus_flash_ticks],180',GAME)
         self.assertIn('bonus17_tick:',EXT)
         self.assertIn('div bl',GAME[GAME.index('draw_bonus_indicator:'):GAME.index('draw_mode_indicator:')])
-        self.assertIn('mov di,3911',GAME)
-        self.assertIn('mov di,3913',GAME)
+        self.assertIn('mov di,3908',GAME)
+        self.assertIn('mov di,3910',GAME)
     def test_instant_laser_and_triple_fire(self):
         self.assertIn('laser17_fire:',EXT)
         self.assertIn('call advance_bullet_smooth',EXT[EXT.index('laser17_fire:'):EXT.index('ally17_spawn:')])
