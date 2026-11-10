@@ -23,7 +23,7 @@ jobs:
       - name: Verify compact 8086 programs
         run: |
           test "$(wc -c < build/XTINFO.COM)" -lt 16384
-          test "$(wc -c < build/TANKS.COM)" -lt 60416
+          test "$(wc -c < build/TANKS.COM)" -lt 57344
       - uses: actions/upload-artifact@v4
         with:
           name: dos-cga-tanks-prototype-and-diagnostic
