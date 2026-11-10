@@ -5722,6 +5722,90 @@ smoke_bonus_replay:
     jmp smoke_extra_fail
 9:
     pop es
+    /* Phase 89: the heart is a REAL +1 life, not an armor/heal icon. */
+    mov byte ptr [test_phase],89
+    call reset_campaign
+    mov byte ptr [lives],3
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_type],5
+    mov al,[player_col]
+    mov [bonus_col],al
+    mov al,[player_row]
+    mov [bonus_row],al
+    call check_bonus_pickup
+    cmp byte ptr [lives],4
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 90: enemies MUST leave hearts and V/ally calls for player. */
+    mov byte ptr [test_phase],90
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_col],5
+    mov byte ptr [enemy_row],10
+    mov byte ptr [bonus_col],5
+    mov byte ptr [bonus_row],10
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_type],5
+    call enemy21_collect_bonus
+    cmp byte ptr [bonus_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [bonus_type],7
+    call enemy21_collect_bonus
+    cmp byte ptr [bonus_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 91: enemy steals clock and releases frozen teammates. */
+    mov byte ptr [test_phase],91
+    mov byte ptr [bonus_type],4
+    mov byte ptr [freeze_ticks],120
+    call enemy21_collect_bonus
+    cmp byte ptr [bonus_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [freeze_ticks],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 92: bonus lands on the actual enemy wreck tile (5,10). */
+    mov byte ptr [test_phase],92
+    call reset_campaign
+    mov byte ptr [enemy_killed],5
+    mov byte ptr [enemy_px],80
+    mov byte ptr [enemy_py],120
+    xor bx,bx
+    call maybe_drop_bonus
+    cmp byte ptr [bonus_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bonus_col],5
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bonus_row],10
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 93: ally's actual spawn shield expires after 48 ticks. */
+    mov byte ptr [test_phase],93
+    call ally17_spawn
+    jnc 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [ally_shield],48
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [ally_shield],1
+    call bonus17_tick
+    cmp byte ptr [ally_shield],0
+    je 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
