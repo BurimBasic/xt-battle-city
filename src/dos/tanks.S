@@ -326,6 +326,7 @@ init_brick_store:
     loop init_bricks
     call strategy_reset
     call tactical24_reset
+    call bomber25_reset
     /* 2P uses the existing ally sprite but not its autonomous brain. */
     cmp byte ptr [coop_mode],0
     je load_stage_no_coop
@@ -355,118 +356,9 @@ spawn_initial:
     loop spawn_initial
     ret
 
+/* Legacy BIOS polling was dead after the XT IRQ1 held-key handler.
+ * Keep label for diagnostics; input arrives through poll_controls. */
 poll_keyboard:
-    mov ah, 1
-    int 0x16
-    jnz kb_ready
-    ret
-kb_ready:
-    xor ah, ah
-    int 0x16
-    cmp al, 27
-    jne kb_not_escape
-    jmp exit_game
-kb_not_escape:
-    cmp al, 'r'
-    je kb_restart
-    cmp al, 'R'
-    jne kb_not_restart
-kb_restart:
-    jmp do_restart
-kb_not_restart:
-    cmp al, 'm'
-    je toggle_sound
-    cmp al, 'M'
-    je toggle_sound
-    jmp kb_after_sound
-toggle_sound:
-    xor byte ptr [sound_muted], 1
-    call sound_stop
-    ret
-kb_after_sound:
-    cmp al, 'p'
-    je kb_pause
-    cmp al, 'P'
-    jne kb_after_pause
-kb_pause:
-    cmp byte ptr [game_state], 0
-    je kb_pause_begin
-    cmp byte ptr [game_state], 3
-    je 1f
-    jmp kb_return
-1:
-    mov byte ptr [game_state], 0
-    call refresh_screen
-    ret
-kb_pause_begin:
-    mov byte ptr [game_state], 3
-    call pause_hud
-    ret
-kb_after_pause:
-    cmp byte ptr [game_state], 1
-    jne kb_not_won
-    cmp al, ' '
-    je 1f
-    jmp kb_return
-1:
-    inc byte ptr [stage]
-    cmp byte ptr [stage], 9
-    jbe kb_next_level
-    mov byte ptr [stage], 1
-kb_next_level:
-    call load_stage
-    call refresh_screen
-    ret
-kb_not_won:
-    cmp byte ptr [game_state], 0
-    je 1f
-    jmp kb_return
-1:
-    cmp al, ' '
-    jne kb_not_shoot
-    call do_fire
-    ret
-kb_not_shoot:
-    cmp ah, 0x48
-    jne kb_not_up
-    jmp up_key
-kb_not_up:
-    cmp ah, 0x50
-    jne kb_not_down
-    jmp down_key
-kb_not_down:
-    cmp ah, 0x4b
-    jne kb_not_left
-    jmp left_key
-kb_not_left:
-    cmp ah, 0x4d
-    jne kb_letters
-    jmp right_key
-kb_letters:
-    and al, 0xdf
-    cmp al, 'W'
-    jne kb_not_w
-    jmp up_key
-kb_not_w:
-    cmp al, 'S'
-    jne kb_not_s
-    jmp down_key
-kb_not_s:
-    cmp al, 'A'
-    jne kb_not_a
-    jmp left_key
-kb_not_a:
-    cmp al,'V'
-    jne kb_not_ally
-    call ally20_try_call
-    ret
-kb_not_ally:
-    cmp al, 'D'
-    je 1f
-    jmp kb_return
-1:
-    jmp right_key
-kb_return:
     ret
 
 do_restart:
@@ -499,46 +391,8 @@ exit_game:
     mov ax, 0x4c00
     int 0x21
 
-up_key:
-    mov byte ptr [player_dir], 0
-    mov dl, [player_col]
-    mov dh, [player_row]
-    test dh, dh
-    jz player_turn_only
-    dec dh
-    jmp player_move
-right_key:
-    mov byte ptr [player_dir], 1
-    mov dl, [player_col]
-    mov dh, [player_row]
-    cmp dl, 15
-    je player_turn_only
-    inc dl
-    jmp player_move
-down_key:
-    mov byte ptr [player_dir], 2
-    mov dl, [player_col]
-    mov dh, [player_row]
-    cmp dh, 15
-    je player_turn_only
-    inc dh
-    jmp player_move
-left_key:
-    mov byte ptr [player_dir], 3
-    mov dl, [player_col]
-    mov dh, [player_row]
-    test dl, dl
-    jz player_turn_only
-    dec dl
-player_move:
-    call try_move
-    ret
-player_turn_only:
-    mov dl, [player_col]
-    mov dh, [player_row]
-    call draw_cell
-    ret
-
+/* The old grid-step keyboard handlers were unused by pixel movement;
+ * retained try_move below for stage/brick DOS smoke checks. */
 /* Target DL/DH: player move only if floor and no enemy. */
 try_move:
     push dx
@@ -669,6 +523,7 @@ tick_p1_pickup_done:
     call tick_powerups
     call bonus17_tick
     call bonus23_tick
+    call bomber25_tick
     call enemy23_tick
     call ally20_pickup
     call slide_player_smooth
@@ -775,7 +630,7 @@ bonus21_type_ok:
     mov byte ptr [bonus_sequence],0
 bonus21_sequence_ok:
     mov byte ptr [bonus_active],1
-    mov byte ptr [bonus_timer],150
+    mov byte ptr [bonus_timer],220
     call strategy_bonus_spawn
     call draw_cell
 bonus21_drop_done:
@@ -832,6 +687,7 @@ bonus_pickup_done:
 
 /* Shared pickup applies equally to main tank and autonomous companion. */
 bonus20_apply:
+    call bonus25_collected
     mov byte ptr [bonus_active], 0
     mov byte ptr [bonus_timer], 0
     mov al,[bonus_type]
@@ -2706,12 +2562,7 @@ smooth_shot_no_player:
     /* A 2P hit consumes ONLY their own reserve. Never respawn AI. */
     cmp byte ptr [coop_lives],0
     je smooth_shot_out
-    dec byte ptr [coop_lives]
-    mov word ptr [ally_ticks],0
-    call draw_hud
-    cmp byte ptr [lives],0
-    jne smooth_shot_p2_fx
-    mov byte ptr [game_state],2
+    call coop25_hit_p2
     jmp smooth_shot_p2_fx
 smooth_shot_ai_ally_hit:
     mov word ptr [ally_ticks],0
@@ -3533,6 +3384,7 @@ mark_rect_next_col:
     ret
 
 mark_old_sprites:
+    call bomber25_mark_old
     cmp byte ptr [paint_player_valid], 0
     je old_player_done
     mov dl, [paint_player_x]
@@ -4128,6 +3980,7 @@ paint_explosion_valid_frame:
     call draw_smooth_sprite
 paint_explosion_done:
     call grenade17_fx_paint
+    call bomber25_paint
     /* Finish the actor/background composition first. The beam is a
        transient VRAM-only overlay, NEVER written into the RAM shadow.
        Next frame's pending tile upload scrubs it even after expiry. */
@@ -4616,8 +4469,20 @@ draw_bonus_indicator:
     mov di,3912          /* separator x288 */
     call draw_hud_glyph
     mov di,3904          /* icon starts at FAR LEFT edge */
+    cmp byte ptr [coop_mode],0
+    jne bonus25_flash_only
     cmp word ptr [ally_ticks],0
     jne bonus20_ally_icon
+    cmp byte ptr [bonus_flash_ticks],0
+    je bonus20_icon_draw
+    test byte ptr [game_tick],8
+    jnz bonus20_icon_draw
+    xor bx,bx
+    mov bl,[bonus_flash_type]
+    shl bx,1
+    mov si,[hud_bonus_ptrs+bx]
+    jmp bonus20_icon_draw
+bonus25_flash_only:
     cmp byte ptr [bonus_flash_ticks],0
     je bonus20_icon_draw
     test byte ptr [game_tick],8
@@ -4643,8 +4508,11 @@ bonus20_icon_draw:
     call draw_hud_glyph
     mov di,3910
     call draw_hud_glyph
+    cmp byte ptr [coop_mode],0
+    jne bonus25_timer_flash
     cmp word ptr [ally_ticks],0
     jne bonus20_timer_ally
+bonus25_timer_flash:
     cmp byte ptr [bonus_flash_ticks],0
     je bonus20_timer_done
     mov al,[bonus_flash_type]
@@ -4694,17 +4562,15 @@ bonus20_v_draw:
     call draw_hud_digit
     jmp bonus24_hud_end
 bonus24_coop_hud:
-    /* No AUTO companion in two-human play: show COOP, not a false V. */
+    /* COOP is displayed only on the mode row y104, not as V stock. */
+    mov si,offset hud_blank_icon
     mov di,3912
-    mov si,offset hud_c_char
     call draw_hud_glyph
     mov di,3914
-    mov si,offset hud_o_char
     call draw_hud_glyph
     mov di,3916
     call draw_hud_glyph
     mov di,3918
-    mov si,offset hud_p_char
     call draw_hud_glyph
 bonus24_hud_end:
     pop di
@@ -6426,11 +6292,11 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
-    cmp byte ptr [coop_lives],1
+    cmp byte ptr [coop_lives],3
     je 9f
     jmp smoke_extra_fail
 9:
-    cmp byte ptr [lives],1
+    cmp byte ptr [lives],3
     je 9f
     jmp smoke_extra_fail
 9:
@@ -6542,7 +6408,7 @@ smoke_bonus_replay:
     xor bx,bx
     call advance_enemy_shot_smooth
     mov byte ptr [test_mode],1
-    cmp byte ptr [coop_lives],0
+    cmp byte ptr [coop_lives],2
     je 9f
     jmp smoke_extra_fail
 9:
@@ -6550,7 +6416,7 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
-    cmp byte ptr [lives],1
+    cmp byte ptr [lives],3
     je 9f
     jmp smoke_extra_fail
 9:
@@ -6598,13 +6464,230 @@ smoke_bonus_replay:
     pop es
     jmp smoke_extra_fail
 9:
-    mov ax,[hud_digit_1]
+    mov ax,[hud_digit_3]
     cmp word ptr es:[2638],ax
     je 9f
     pop es
     jmp smoke_extra_fail
 9:
     pop es
+    /* Phase 110: joining coop starts each human with THREE lives. */
+    mov byte ptr [test_phase],110
+    call reset_campaign
+    call coop24_join
+    cmp byte ptr [coop_lives],3
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [lives],3
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 111: damaged P2 returns to an HQ exit, consumes one life. */
+    mov byte ptr [test_phase],111
+    mov byte ptr [ally_shield],0
+    call coop25_hit_p2
+    cmp byte ptr [coop_lives],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp word ptr [ally_ticks],0
+    jne 9f
+    cmp byte ptr [coop25_respawn_pending],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [game_state],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 112: COOP row stays, V×N row is physically blank. */
+    mov byte ptr [test_phase],112
+    call draw_bonus_indicator
+    push es
+    mov ax,0xb800
+    mov es,ax
+    mov ax,[hud_blank_icon]
+    cmp word ptr es:[3914],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    cmp word ptr es:[3918],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    pop es
+    /* Phase 113: single fly-by in odd stage, movement 2px/tick. */
+    mov byte ptr [test_phase],113
+    call reset_campaign
+    mov byte ptr [game_tick],72
+    call bomber25_tick
+    cmp byte ptr [bomber25_state],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber25_axis],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber25_x],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 114: one pass ends and cannot restart. */
+    mov byte ptr [test_phase],114
+    mov byte ptr [player_shield],255
+    mov cx,124
+smoke25_flight_loop:
+    call bomber25_tick
+    loop smoke25_flight_loop
+    cmp byte ptr [bomber25_state],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber25_step],12
+    jae 9f
+    jmp smoke_extra_fail
+9:
+    call bomber25_tick
+    cmp byte ptr [bomber25_state],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 115: bomb detonates harmlessly above the headquarters B. */
+    mov byte ptr [test_phase],115
+    call reset_campaign
+    mov dl,7
+    mov dh,15
+    xor bx,bx
+    call bomber25_impact
+    cmp byte ptr [level_data+247],'B'
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [game_state],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 116: shots passing a bonus do not remove it. */
+    mov byte ptr [test_phase],116
+    call reset_campaign
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_timer],200
+    mov byte ptr [bonus_col],7
+    mov byte ptr [bonus_row],14
+    mov byte ptr [bullet_active],1
+    mov byte ptr [bullet_px],112
+    mov byte ptr [bullet_py],156
+    mov byte ptr [bullet_dir],0
+    call advance_bullet_smooth
+    cmp byte ptr [bonus_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 117: bomb damages a brick like an ordinary downward shot. */
+    mov byte ptr [test_phase],117
+    call reset_campaign
+    mov byte ptr [level_data+34],'#'
+    mov byte ptr [brick_masks+34],15
+    mov dl,2
+    mov dh,2
+    xor bx,bx
+    call bomber25_impact
+    cmp byte ptr [brick_masks+34],12
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 118: bonus visibly flashes and a heart is collected. */
+    mov byte ptr [test_phase],118
+    call reset_campaign
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_col],7
+    mov byte ptr [bonus_row],14
+    mov byte ptr [bonus_type],5
+    call check_bonus_pickup
+    cmp byte ptr [bonus25_flash_ticks],14
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bonus_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [lives],4
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 119: P1 reappears at base with remaining lives. */
+    mov byte ptr [test_phase],119
+    call reset_campaign
+    mov byte ptr [player_shield],0
+    mov dl,7
+    mov dh,14
+    xor bx,bx
+    call bomber25_impact
+    cmp byte ptr [lives],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [player_shield],60
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [game_state],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 120: bomber damage to P2 consumes own life, then respawns. */
+    mov byte ptr [test_phase],120
+    call reset_campaign
+    call coop24_join
+    mov byte ptr [ally_shield],0
+    mov al,[ally_px]
+    mov [bomber25_hit_x],al
+    mov al,[ally_py]
+    mov [bomber25_hit_y],al
+    call bomber25_hit_players
+    cmp byte ptr [coop_lives],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [lives],3
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [game_state],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 121: even stage aircraft flies vertically. */
+    mov byte ptr [test_phase],121
+    mov byte ptr [stage],2
+    call load_stage
+    mov byte ptr [game_tick],72
+    call bomber25_tick
+    cmp byte ptr [bomber25_axis],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber25_y],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 122: 12-second bonus timeout, no projectile expiry. */
+    mov byte ptr [test_phase],122
+    call reset_campaign
+    mov byte ptr [enemy_killed],5
+    mov byte ptr [enemy_px],80
+    mov byte ptr [enemy_py],120
+    mov byte ptr [bonus_active],0
+    call maybe_drop_bonus
+    cmp byte ptr [bonus_timer],220
+    je 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
@@ -6747,6 +6830,7 @@ trace_record_done:
 .include "src/dos/bonus_v23.inc"
 .include "src/dos/coop_v24.inc"
 .include "src/dos/anti_loop_v24.inc"
+.include "src/dos/bomber_v25.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -6882,7 +6966,7 @@ tactical_coop_glyphs: .word hud_blank_icon,hud_blank_icon,hud_c_char,hud_o_char,
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_a_char, hud_s_char, hud_i_char, hud_c_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_4
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_5
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0

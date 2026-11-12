@@ -17,8 +17,9 @@ coop24_join:
     mov byte ptr [auto_mode],0
     mov byte ptr [held_keys],0
     mov byte ptr [manual_keys],0
-    mov byte ptr [coop_lives],1
-    mov byte ptr [lives],1
+    mov byte ptr [coop_lives],3
+    mov byte ptr [lives],3
+    mov byte ptr [coop25_respawn_pending],0
     mov word ptr [ally_ticks],0x7fff
     mov byte ptr [ally_shield],30
     mov byte ptr [ally_cooldown],0
@@ -32,12 +33,10 @@ coop24_join_done:
 
 /* Stage clear keeps each player's remaining lives; no AI ally can spawn. */
 coop24_spawn_stage:
+    mov byte ptr [coop25_respawn_pending],0
     cmp byte ptr [coop_lives],0
     je coop24_stage_dead
-    call ally17_spawn
-    jc coop24_stage_dead
-    mov word ptr [ally_ticks],0x7fff
-    mov byte ptr [ally_shield],30
+    call coop25_try_respawn
     ret
 coop24_stage_dead:
     mov word ptr [ally_ticks],0
@@ -63,10 +62,18 @@ coop24_key_done:
  * Only P2's keys affect P2; arrow/space remain exclusively P1 controls. */
 coop24_tick:
     cmp byte ptr [coop_mode],0
-    je coop24_done
+    jne coop24_entered
+    ret
+coop24_entered:
+    cmp byte ptr [coop25_respawn_pending],0
+    je coop24_pending_checked
+    call coop25_try_respawn
+coop24_pending_checked:
     cmp byte ptr [game_state],0
     jne coop24_done
     cmp byte ptr [coop_lives],0
+    je coop24_done
+    cmp word ptr [ally_ticks],0
     je coop24_done
     cmp byte ptr [ally_cooldown],0
     je coop24_ready
@@ -212,6 +219,7 @@ coop24_pickup:
     ja coop24_pickup_done
     cmp byte ptr [bonus_type],5
     jne coop24_team_power
+    call bonus25_collected
     mov byte ptr [bonus_active],0
     mov byte ptr [bonus_timer],0
     mov byte ptr [bonus_flash_type],5
@@ -229,9 +237,55 @@ coop24_pickup_done:
     pop ax
     ret
 
+/* A human P2 comes back beside HQ when there is at least one life.
+   Occupied exits are retried on subsequent ticks without consuming lives. */
+coop25_try_respawn:
+    cmp byte ptr [coop_lives],0
+    je coop25_no_spawn
+    call ally17_spawn
+    jc coop25_spawn_wait
+    mov word ptr [ally_ticks],0x7fff
+    mov byte ptr [ally_shield],48
+    mov byte ptr [coop25_respawn_pending],0
+    ret
+coop25_spawn_wait:
+    mov byte ptr [coop25_respawn_pending],1
+coop25_no_spawn:
+    mov word ptr [ally_ticks],0
+    ret
+
+/* Hit accounting is shared by enemy shells, ricochets, and aircraft.
+   No artificial game over while P1 remains alive. */
+coop25_hit_p2:
+    push ax
+    push bx
+    push dx
+    cmp byte ptr [coop_mode],0
+    je coop25_hit_done
+    cmp byte ptr [coop_lives],0
+    je coop25_hit_done
+    dec byte ptr [coop_lives]
+    mov word ptr [ally_ticks],0
+    cmp byte ptr [coop_lives],0
+    je coop25_hit_last
+    call coop25_try_respawn
+    jmp coop25_hit_hud
+coop25_hit_last:
+    cmp byte ptr [lives],0
+    jne coop25_hit_hud
+    mov byte ptr [game_state],2
+coop25_hit_hud:
+    call draw_hud
+coop25_hit_done:
+    pop dx
+    pop bx
+    pop ax
+    ret
+
 .section .data
 coop_mode: .byte 0
 coop_lives: .byte 0
 coop_keys: .byte 0
 coop_join_pending: .byte 0
+coop25_respawn_pending: .byte 0
 .section .text

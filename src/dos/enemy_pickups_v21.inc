@@ -59,6 +59,7 @@ enemy21_live:
     jmp enemy21_next
 2:
 enemy21_row_ok:
+    call bonus25_collected
     mov byte ptr [bonus_active],0
     mov byte ptr [bonus_timer],0
     mov dl,[bonus_col]

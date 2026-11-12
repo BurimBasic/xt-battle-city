@@ -357,7 +357,39 @@ def pack(rows):
 # five mask bytes followed by five color bytes; zero pixels are transparent.
 # This makes arbitrary-pixel CGA compositing fast enough to test on an 8088
 # without allocating a 16 KB off-screen framebuffer. 4*12*10=480 bytes.
+# Original 16x12 CGA aircraft silhouettes; each is a masked sprite.
+PLANE_H = sprite(
+ '................',
+ '........22......',
+ '.......2332.....',
+ '..222223333222..',
+ '.23333333333332.',
+ '2233333333333322',
+ '2233333333333322',
+ '.23333333333332.',
+ '..222223333222..',
+ '.......2332.....',
+ '........22......',
+ '................')
+PLANE_V = sprite(
+ '.......22.......',
+ '......2332......',
+ '......2332......',
+ '......2332......',
+ '.....233332.....',
+ '.22223333332222.',
+ '2333333333333332',
+ '..222233332222..',
+ '......2332......',
+ '.....223322.....',
+ '.....2.22.2.....',
+ '................')
+SPRITES['plane_horizontal'] = PLANE_H
+SPRITES['plane_vertical'] = PLANE_V
+
 SMOOTH_SPRITES = [
+    'plane_horizontal','plane_vertical',
+
     'player_up','player_right','player_down','player_left',
     'enemy_up','enemy_right','enemy','enemy_left',
     'fast_up','fast_right','fast_down','fast_left',
