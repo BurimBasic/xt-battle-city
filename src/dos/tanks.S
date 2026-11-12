@@ -1434,7 +1434,9 @@ fire_alive:
     cmp byte ptr [pong_ticks],0
     je do_fire_normal
     cmp byte ptr [pong_active],0
-    jne fire_done     /* exactly one ricochet until it expires */
+    je fire27_pong_ready
+    jmp fire_done     /* exactly one ricochet until it expires */
+fire27_pong_ready:
     xor al,al
     call pong23_launch
     ret
