@@ -65,7 +65,7 @@ class Release25(unittest.TestCase):
   for phase in (113,114,115,117,121): self.assertIn(f'mov byte ptr [test_phase],{phase}',T)
  def test_real_aircraft_cga_sprites_and_size(self):
   self.assertIn('plane_horizontal',a.WIDE_PLANES)
-  self.assertIn('plane_vertical',a.SMOOTH_SPRITES)
+  self.assertIn('plane_vertical',a.WIDE_PLANES)
   for n in ('plane_horizontal','plane_vertical'):
    self.assertEqual(len(a.pack_wide_plane(a.SPRITES[n])),384)
   self.assertIn('wide_plane_horizontal',B)
