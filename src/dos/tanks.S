@@ -6296,7 +6296,7 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
-    cmp byte ptr [lives],1
+    cmp byte ptr [lives],3
     je 9f
     jmp smoke_extra_fail
 9:
