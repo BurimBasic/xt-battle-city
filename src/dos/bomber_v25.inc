@@ -22,6 +22,9 @@ bomber25_reset:
  * normal_play reseeds the RNG from BIOS timer before calling this on L1;
  * subsequent levels already have gameplay-driven RNG state. */
 bomber26_roll:
+    /* Keep gameplay RNG unchanged: the randomized flight must not change
+       enemies' existing tactics or first-stage combat sequence. */
+    push word ptr [rng_state]
     call random_byte
     and al,3
     mov [bomber26_direction],al
@@ -38,6 +41,7 @@ bomber26_roll:
     and al,127
     add al,48      /* one pass begins after 48..175 ticks */
     mov [bomber26_departure],al
+    pop word ptr [rng_state]
     ret
 
 /* v0.26: only real contact between visible 12x12 tank chassis and the
