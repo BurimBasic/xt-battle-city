@@ -3073,6 +3073,8 @@ controls_no_coop_join:
 controls_no_ally_call:
     test ah, 1
     jz controls_no_auto_toggle
+    cmp byte ptr [coop_mode],0
+    jne controls_no_auto_toggle
     xor byte ptr [auto_mode],1
     mov byte ptr [held_keys],0
     mov byte ptr [manual_keys],0
@@ -6436,7 +6438,7 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
-    /* Phase 101: P2 WASD never commandeers P1 AUTO state. */
+    /* Phase 101: P2 WASD does not commandeer P1 MAN key state. */
     mov byte ptr [test_phase],101
     mov ah,1
     mov bl,0x11
@@ -6445,7 +6447,7 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
-    cmp byte ptr [auto_mode],1
+    cmp byte ptr [auto_mode],0
     je 9f
     jmp smoke_extra_fail
 9:
