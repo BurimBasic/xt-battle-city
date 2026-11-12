@@ -64,7 +64,9 @@ tactical23_normal_orders:
     cmp byte ptr [freeze_ticks],0
     je tactical_defense_orders
     call tactical_find_target
-    jnc tactical_bonus_objective
+    jc tactical27_freeze_target
+    jmp tactical_bonus_objective
+tactical27_freeze_target:
     call tactical_player_aim_if_aligned
     jnc tactical_freeze_seek
     jmp tactical_player_hold_and_fire
