@@ -1,4 +1,4 @@
-name: v0.27 compile true 8086 conditional branches
+name: v0.27 final generate original double aircraft
 on:
   push:
     branches: [feat/v027-1942-plane-recoil]
