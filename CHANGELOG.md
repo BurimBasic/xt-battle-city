@@ -1,3 +1,12 @@
+## v0.26 — Four directional 1980s arcade planes, randomized flyby and contact pickup (2026-11-13)
+
+- Replaced vague oval bomber with **four original direction-specific, masked CGA pixel sprites** (up, down, left, right). One flyby per stage; **start delay, entering edge, direction and flight lane randomized** without perturbing the tank AI RNG. Aircraft still moves 2px per tick.
+- Fixed bomb placement: **strictly behind the bomber**, alternating one cell to the **left/right of its exact axis**, staggered along direction of travel; no more offset 2–1–2–1 waves. Real projectile-equivalent impact damages bricks, actors and armoured treads, but never headquarters.
+- **Pickup requires actual overlap of the visible tank body** with the bonus for P1, P2, ally and enemies, rather than allowing acquisition 1.5 tiles early. After collection the **collector tank briefly changes color**; removed the old flashing outline left on an empty tile.
+- Preserved 35 maps, all 14 bonuses, two humans with three lives and respawn, automatic last-enemy hunt, defensive AI, enemy-use of weapons and tank damage, and CGA pixel-motion performance.
+- GitHub **158 tests PASS**, 35 maps + 8086 ISA PASS, **56,184-byte** .COM (<56KiB), SLOW1 real-mode DOS `/TEST PASS`, 2048-tick `/TRACE PASS`: **20/20 enemies, STAGE CLEAR, base saved**. Per-build checksum `CEA54A294CDC10308E930B1B54BD838F8CF8371A07FD560D2BEDF6D899536D79`. Exact speed measurements and rollback are in `releases/v0.26/RELEASE-NOTES.md`.
+- README homepage now gives v0.26 downloads, correct contact mechanic and aircraft description, full controls/bonuses, a **real user-supplied screenshot of v0.25 clearly marked as previous version** and honest adapter status.
+
 ## v0.25 — Bomber aircraft, visible pickups and 3-life co-op (2026-11-12)
 
 - Adds a **single aircraft flyby per stage**: horizontal (odd levels) / vertical (even), moving at medium-tank speed, leaving a checkerboard pattern of explosion impacts. Bombs are not drawn in flight. Each explosion counts as one ordinary projectile hit against brick/tanks/players, but **headquarters is immune**.
