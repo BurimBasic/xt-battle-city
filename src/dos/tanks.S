@@ -6278,7 +6278,7 @@ smoke_bonus_replay:
     mov byte ptr [test_phase],99
     call reset_campaign
     mov byte ptr [enemy_active],1
-    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_px],102
     mov byte ptr [enemy_py],120
     mov byte ptr [bonus_col],7
     mov byte ptr [bonus_row],10
