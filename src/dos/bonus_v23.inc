@@ -174,6 +174,11 @@ pong23_next_enemy:
     call draw_hud
     jmp pong23_ally_check
 pong23_player_lost:
+    cmp byte ptr [coop_mode],0
+    je 1f
+    cmp byte ptr [coop_lives],0
+    jne pong23_ally_check
+1:
     mov byte ptr [game_state],2
 pong23_ally_check:
     cmp word ptr [ally_ticks],0
@@ -202,6 +207,11 @@ pong23_ally_check:
     mov byte ptr [game_state],2
     jmp pong23_done
 pong24_ordinary_ally:
+    cmp byte ptr [coop_mode],0
+    je pong23_auto_ally_dead
+    call coop25_hit_p2
+    jmp pong23_done
+pong23_auto_ally_dead:
     mov word ptr [ally_ticks],0
 pong23_done:
     pop dx
