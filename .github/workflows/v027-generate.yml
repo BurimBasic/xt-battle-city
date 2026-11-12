@@ -1,4 +1,4 @@
-name: v0.27 final generate original double aircraft
+name: v0.27 regenerate 1942 twin-engine source artwork
 on:
   push:
     branches: [feat/v027-1942-plane-recoil]
