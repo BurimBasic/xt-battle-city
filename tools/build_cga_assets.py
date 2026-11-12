@@ -357,45 +357,49 @@ def pack(rows):
 # five mask bytes followed by five color bytes; zero pixels are transparent.
 # This makes arbitrary-pixel CGA compositing fast enough to test on an 8088
 # without allocating a 16 KB off-screen framebuffer. 4*12*10=480 bytes.
-# v0.26 original 1982-style aircraft: readable 3-cluster silhouette at native CGA.
-# Referenced Xevious-era principles (not copied ROM pixel data): dark cutouts,
-# swept wing, pointed nose, distinct canopy and compact tail stabilizers.
-# Draw true four directional art; do not just mirror an oval sprite.
-PLANE_H = sprite(
- '................',
- '....2...........',
- '...223..........',
- '..22333322......',
- '.223333333322...',
- '2233333113333323',
- '2233333133333323',
- '.223333333322...',
- '..22333322......',
- '...223..........',
- '....2...........',
- '................')
-PLANE_H_LEFT = sprite(*(row[::-1] for row in PLANE_H))
+# v0.27 original 1942-era twin-engine plane, 2x enlarged in CGA.
+# Independently drawn pixel clusters, not commercial 1942 ROM art.
 PLANE_V = sprite(
- '.......3........',
+ '.......2........',
+ '......232.......',
  '......333.......',
  '......313.......',
- '.....23332......',
- '....2233322.....',
- '.2222333322222..',
- '223333333333322.',
- '.2222333322222..',
- '....2233322.....',
- '......333.......',
- '.....22.22......',
- '....22...22.....')
-PLANE_V_DOWN = sprite(*tuple(row for row in reversed(PLANE_V)))
+ '.....33333......',
+ '...11333111.....',
+ '.1111133311111..',
+ '1111113331111111',
+ '.3311133311133..',
+ '....1133311.....',
+ '.....11111......',
+ '....11.3.11.....')
+PLANE_V_DOWN = sprite(*reversed(PLANE_V))
+def plane_turn_right(rows):
+    return sprite(*tuple(''.join(rows[min(11,(15-x)*12//16)][min(15,y*16//12)] for x in range(16)) for y in range(12)))
+PLANE_H = plane_turn_right(PLANE_V)
+PLANE_H_LEFT = sprite(*(row[::-1] for row in PLANE_H))
 SPRITES['plane_horizontal'] = PLANE_H
 SPRITES['plane_horizontal_left'] = PLANE_H_LEFT
 SPRITES['plane_vertical'] = PLANE_V
 SPRITES['plane_vertical_down'] = PLANE_V_DOWN
+WIDE_PLANES = ('plane_horizontal','plane_horizontal_left','plane_vertical','plane_vertical_down')
+def pack_wide_plane(rows):
+    """32x24, 8 mask + 8 color bytes per scanline, 384 B/direction."""
+    expanded=[''.join(p*2 for p in row) for row in rows for _ in range(2)]
+    assert len(expanded)==24 and all(len(row)==32 for row in expanded)
+    out=[]
+    for row in expanded:
+        mask=[]; color=[]
+        for x in range(0,32,4):
+            mm=0; cc=0
+            for pixel in row[x:x+4]:
+                cc=(cc<<2)|(0 if pixel=='.' else int(pixel))
+                mm=(mm<<2)|(0 if pixel=='.' else 3)
+            mask.append(mm); color.append(cc)
+        out.extend(mask+color)
+    assert len(out)==384
+    return out
 
 SMOOTH_SPRITES = [
-    'plane_horizontal','plane_horizontal_left','plane_vertical','plane_vertical_down',
 
     'player_up','player_right','player_down','player_left',
     'enemy_up','enemy_right','enemy','enemy_left',
@@ -467,6 +471,7 @@ HUD_FONT = {
  'i': ('#####', '..#..', '..#..', '..#..', '..#..', '..#..', '#####'),
  'c': ('.###.', '#...#', '#....', '#....', '#....', '#...#', '.###.'),
  'v': ('#...#', '#...#', '#...#', '#...#', '#...#', '.#.#.', '..#..'),
+ 'r': ('####.', '#...#', '#...#', '####.', '#.#..', '#..#.', '#...#'),
  '.': ('.....', '.....', '.....', '.....', '.....', '.##..', '.##..'),
  '-': ('.....', '.....', '.....', '#####', '.....', '.....', '.....'),
 }
@@ -522,6 +527,7 @@ def generate_hud():
         'hud_m_char': hud_font_glyph('m'),
         'hud_n_char': hud_font_glyph('n'),
         'hud_b_char': hud_font_glyph('b'),
+        'hud_r_char': hud_font_glyph('r'),
         'hud_dash_char': hud_font_glyph('-'),
         'hud_k_char': hud_font_glyph('k'),
         'hud_i_char': hud_font_glyph('i'),
@@ -608,6 +614,12 @@ def generate(map_path):
     lines.extend(generate_hud())
     # Append the separate masked-blit atlas after the opaque tiled graphics.
     lines.append('    .p2align 1')
+    # Ship four compact scaled CGA aircraft frames instead of 480B sprites.
+    for name in WIDE_PLANES:
+        lines.append('wide_' + name + ':')
+        data=pack_wide_plane(SPRITES[name])
+        for i in range(0,len(data),16):
+            lines.append('    .byte ' + ', '.join(f'0x{x:02x}' for x in data[i:i+16]))
     for name in SMOOTH_SPRITES:
         lines.append('smooth_' + name + ':')
         data=pack_smooth(SPRITES[name])
