@@ -1,4 +1,4 @@
-name: v0.27 generate audited CGA source atlas
+name: v0.27 generate audited CGA atlas after test updates
 on:
   push:
     branches: [feat/v027-1942-plane-recoil]
