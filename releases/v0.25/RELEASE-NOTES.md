@@ -49,4 +49,4 @@
 
 ## Установка SLOW1 и откат
 
-**Установка на SLOW1: PASS.** Рабочий файл `C:\XT-Battle-City\run\TANKS.COM` атомарно заменён, SHA-256 `75447379AAEEF5FE4BB5C4DC161A2CCBAA98F35278C8A8C23D9D5F61975C8F8F`, 54 560 байт. Предыдущая v0.24 сохранена как `C:\XT-Battle-City\run\TANKS-v024-backup-20261112-214044.COM`, SHA-256 `6A3C889A983002DE248C2DD160918317848A2B55319B10BB0589517A8140CA2D`. После замены повторно выполняется встроенный DOS `/TEST` из установленной папки. Запуск: `C:\XT-Battle-City\RUN-CGA.cmd`; ранее открытый DOSBox-X необходимо перезапустить.
+**Установка на SLOW1: PASS.** Рабочий файл `C:\XT-Battle-City\run\TANKS.COM` атомарно заменён, SHA-256 `75447379AAEEF5FE4BB5C4DC161A2CCBAA98F35278C8A8C23D9D5F61975C8F8F`, 54 560 байт. Предыдущая v0.24 сохранена как `C:\XT-Battle-City\run\TANKS-v024-backup-20261112-214044.COM`, SHA-256 `6A3C889A983002DE248C2DD160918317848A2B55319B10BB0589517A8140CA2D`. После замены **повторный встроенный DOS `/TEST` из установленной папки — PASS (37,31 с; SHA-256 сверена)**. Запуск: `C:\XT-Battle-City\RUN-CGA.cmd`; ранее открытый DOSBox-X необходимо перезапустить.
