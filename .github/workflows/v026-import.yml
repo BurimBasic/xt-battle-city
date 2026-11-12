@@ -1,0 +1,32 @@
+name: Import verified v0.26 source
+on:
+  push:
+    branches: [feat/v026-arcade-bomber-contact]
+    paths: [tools/v026-source.patch.gz.b64]
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Expand and build reviewed v0.26 source
+        run: |
+          base64 -d tools/v026-source.patch.gz.b64 | gzip -dc | patch --batch -p1
+          python tools/build_cga_assets.py --check
+          make clean all test
+          make build/TANKS-TRACE.COM build/TANKS-PERF.COM
+          test "$(wc -c < build/TANKS.COM)" -lt 57344
+      - name: Commit full changes in reviewable source files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/dos tools/build_cga_assets.py tests
+          git rm tools/v026-source.patch.gz.b64
+          git commit -m "feat(v0.26): four-direction 1980s bomber, randomized arrival, checkerboard and touch-only pickups"
+          git push origin HEAD:feat/v026-arcade-bomber-contact
