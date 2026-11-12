@@ -253,7 +253,9 @@ tactical_defense_position_ready:
     mov byte ptr [held_keys],0
     mov [player_dir],al
     cmp byte ptr [bullet_active],0
-    jne tactical_player_leave
+    je 1f
+    jmp tactical_player_leave
+1:
     cmp byte ptr [tactical_fire_request],0
     je tactical_player_leave
     call do_fire
@@ -283,6 +285,7 @@ tactical_defense_position_ready:
     mov byte ptr [held_keys],0
     jmp tactical_player_leave
  tactical_player_apply:
+    call tactical24_player_unloop
     xor ah, ah
     mov si, ax
     mov al, [tactical_key_bits+si]
@@ -290,7 +293,9 @@ tactical_defense_position_ready:
     mov ax, si
     mov [player_dir], al
     cmp byte ptr [tactical_fire_request], 0
-    je tactical_player_leave
+    jne 1f
+    jmp tactical_player_leave
+1:
     /* Do not fire southward through our HQ when defending its last lane. */
     cmp byte ptr [player_dir], 2
     jne tactical_fire_hq_clear
@@ -303,7 +308,9 @@ tactical_defense_position_ready:
     jbe tactical_player_leave
  tactical_fire_hq_clear:
     cmp byte ptr [bullet_active], 0
-    jne tactical_player_leave
+    je 1f
+    jmp tactical_player_leave
+1:
     call do_fire
  tactical_player_leave:
     pop si
@@ -949,6 +956,7 @@ tactical_enemy_orders:
     call tactical_route_choose
     jmp tactical_enemy_assign
  tactical_enemy_assign:
+    call tactical24_enemy_unloop
     mov [enemy_dir+bx],al
     pop dx
     pop cx

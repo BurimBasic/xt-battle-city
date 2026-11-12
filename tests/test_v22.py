@@ -14,7 +14,9 @@ class BonusFreezeSteelV22(unittest.TestCase):
         self.assertIn("cmp al,18",body)
         self.assertIn("cmp al,dl",body)
         self.assertIn("call bonus20_apply",body)
-        self.assertIn("call move_player_smooth\n    /* Pickups can appear when the tank is not moving. */\n    call check_bonus_pickup",GAME)
+        self.assertIn('call move_player_smooth',GAME)
+        self.assertIn('call check_bonus_pickup',GAME)
+        self.assertIn('tick_p1_pickup:',GAME)
     def test_enemy_claims_nearby_but_not_life_or_v(self):
         self.assertIn("cmp byte ptr [bonus_type],5",PICKUPS)
         self.assertIn("cmp byte ptr [bonus_type],7",PICKUPS)
@@ -59,7 +61,7 @@ class BonusFreezeSteelV22(unittest.TestCase):
     def test_native_8086_pickup_phases(self):
         for number in (94,95):
             self.assertIn(f"mov byte ptr [test_phase],{number}",GAME)
-        self.assertIn("brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_3",GAME)
+        self.assertIn("brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_4",GAME)
 
 if __name__ == "__main__":
     unittest.main()

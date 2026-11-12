@@ -33,6 +33,10 @@ b20_flash_done:
     je b21_no_shield
     dec byte ptr [ally_shield]
 b21_no_shield:
+    /* Human P2 lives in the same sprite slot but cannot be timed out
+       or driven by the autonomous ally's pursuit routine. */
+    cmp byte ptr [coop_mode],0
+    jne b17_done
     cmp word ptr [ally_ticks],0
     je b17_done
     dec word ptr [ally_ticks]

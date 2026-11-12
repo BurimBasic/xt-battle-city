@@ -1,3 +1,13 @@
+## v0.24 — Two-player cooperative play, anti-loop tactics, armored-only track damage (2026-11-12)
+
+- **Join the co-op immediately** with 2P **W/A/S/D + Ctrl**; 1P uses **arrows + Space**. The first P2 key switches 1P from AUTO into MAN. The old AI companion tank becomes the human P2 avatar; solo V remains available, co-op V/auto-ally is disabled. TAB AUTO toggling remains solo-only.
+- **Independent human lives** visible on HUD as **1P×1 2P×1**; one player can survive the other's elimination, with the base shared. Hearts belong to the collector. **Half as many pickups** in co-op (4 potential drops vs. 8 in solo across 20 enemy deaths).
+- **Actual bounded A-B-A-B repetition detection** for autonomous P1 and each hostile tank: track repeated headings/cell positions and persist with an alternative collision-verified perpendicular direction when oscillation is detected.
+- **Fix spurious tread pixels**: remove cyan/black decorative track dots from all healthy tanks and both human players; draw small black tread damage markers ONLY on damaged armored enemies, which genuinely travel at half their healthy armored speed.
+- Enemy-held combat pickups are real: temporary laser, burst, guidance, super-shell, ricochet and clock effects. Armed enemies fire at every legal firing opportunity; their laser leaves a bounded visible beam flash. New DOS smoke phase verifies an enemy picking up and shooting a laser.
+- **GitHub CI PASS**: 145 tests, 35 maps validated, strict 8086 ISA and 56 KiB DOS cap. Native SLOW1 DOSBox-X **/TEST PASS** including phases 100–109; 2048-tick AUTO **20/20 kills, STAGE CLEAR, HQ saved**. See `releases/v0.24/RELEASE-NOTES.md` for current ABBA performance and installed/rollback proof.
+- Expanded homepage: versioned **GitHub Releases** download, updated full controls, gameplay details, honest adapter-status gallery, and exact tested `dist/TANKS.COM` with SHA-256.
+
 ## v0.23 — Ricochet, four-way barrage, hyper-shell and tactical pursuit (2026-11-10)
 
 - **Two compatible pickup doctrines:** collect within 1.5 tiles, including while stationary, and follow the whole-map bonus flow when there is no imminent HQ danger. Enemy pressure near the center cancels dangerous detours. Clear enemy firing lanes outrank pickup movement.

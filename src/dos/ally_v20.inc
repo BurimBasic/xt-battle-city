@@ -5,6 +5,8 @@
 
 ally20_try_call:
     push ax
+    cmp byte ptr [coop_mode],0
+    jne ally20_done
     cmp byte ptr [game_state],0
     jne ally20_done
     cmp word ptr [ally_ticks],0
@@ -38,6 +40,8 @@ ally20_collect:
     jae ally20_collect_ready
     inc byte ptr [ally_stock]
 ally20_collect_ready:
+    cmp byte ptr [coop_mode],0
+    jne ally20_collect_done
     cmp byte ptr [auto_mode],0
     je ally20_collect_done
     cmp word ptr [ally_ticks],0
@@ -57,6 +61,11 @@ ally20_collect_done:
  * bonus20_apply shares team effects, including V tokens and timed buffs.
  * No spoofing or mutation of the player's actual coordinates. */
 ally20_pickup:
+    cmp byte ptr [coop_mode],0
+    je ally20_pickup_auto
+    call coop24_pickup
+    ret
+ally20_pickup_auto:
     push ax
     push bx
     cmp word ptr [ally_ticks],0

@@ -32,11 +32,18 @@ pong23_launch:
     push dx
     cmp byte ptr [pong_active],0
     jne pong23_launch_done
+    cmp al,2
+    je pong24_coop_origin
     cmp al,0
     jne pong23_enemy_origin
     mov dl,[player_px]
     mov dh,[player_py]
     mov al,[player_dir]
+    jmp pong23_origin_ready
+pong24_coop_origin:
+    mov dl,[ally_px]
+    mov dh,[ally_py]
+    mov al,[ally_dir]
     jmp pong23_origin_ready
 pong23_enemy_origin:
     mov dl,[enemy_px+bx]
@@ -181,6 +188,20 @@ pong23_ally_check:
     add al,6
     cmp al,12
     ja pong23_done
+    cmp byte ptr [coop_mode],0
+    je pong24_ordinary_ally
+    cmp byte ptr [ally_shield],0
+    jne pong23_done
+    cmp byte ptr [coop_lives],0
+    je pong23_done
+    dec byte ptr [coop_lives]
+    mov word ptr [ally_ticks],0
+    call draw_hud
+    cmp byte ptr [lives],0
+    jne pong23_done
+    mov byte ptr [game_state],2
+    jmp pong23_done
+pong24_ordinary_ally:
     mov word ptr [ally_ticks],0
 pong23_done:
     pop dx
@@ -379,7 +400,7 @@ enemy23_laser:
     mov [laser_start_y],al
     mov al,[enemy_dir+bx]
     mov [laser_dir],al
-    mov byte ptr [laser_flash_ticks],3
+    mov byte ptr [laser_flash_ticks],7  /* visibly held ~0.38 s */
     mov cx,95
 enemy23_laser_loop:
     cmp byte ptr [shot_active+bx],0
