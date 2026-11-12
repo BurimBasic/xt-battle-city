@@ -21,44 +21,20 @@ enemy21_eligible:
     push bx
     push cx
     push dx
-    mov cl,[bonus_col]
-    shl cl,1
-    shl cl,1
-    shl cl,1
-    shl cl,1
-    mov al,[bonus_row]
-    mov dl,12
-    mul dl
-    mov ch,al
     xor bx,bx
 enemy21_scan:
     cmp byte ptr [enemy_active+bx],0
-    jne enemy21_live
+    jne enemy26_active_collector
     jmp enemy21_next
-enemy21_live:
-    mov dl,cl
-    mov al,[enemy_px+bx]
-    cmp al,dl
-    jae 1f
-    xchg al,dl
-1:
-    sub al,dl
-    cmp al,24
-    jbe 2f
+enemy26_active_collector:
+    mov dl,[enemy_px+bx]
+    mov dh,[enemy_py+bx]
+    call bonus26_touch
+    jc enemy21_row_ok
     jmp enemy21_next
-2:
-    mov dl,ch
-    mov al,[enemy_py+bx]
-    cmp al,dl
-    jae 1f
-    xchg al,dl
-1:
-    sub al,dl
-    cmp al,18
-    jbe 2f
-    jmp enemy21_next
-2:
 enemy21_row_ok:
+    mov al,bl
+    add al,2
     call bonus25_collected
     mov byte ptr [bonus_active],0
     mov byte ptr [bonus_timer],0

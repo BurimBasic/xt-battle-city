@@ -192,33 +192,13 @@ coop24_pickup:
     je coop24_pickup_done
     cmp byte ptr [bonus_active],0
     je coop24_pickup_done
-    mov dl,[bonus_col]
-    shl dl,1
-    shl dl,1
-    shl dl,1
-    shl dl,1
-    mov al,[ally_px]
-    cmp al,dl
-    jae 1f
-    xchg al,dl
-1:
-    sub al,dl
-    cmp al,24
-    ja coop24_pickup_done
-    mov al,[bonus_row]
-    mov bl,12
-    mul bl
-    mov dl,al
-    mov al,[ally_py]
-    cmp al,dl
-    jae 1f
-    xchg al,dl
-1:
-    sub al,dl
-    cmp al,18
-    ja coop24_pickup_done
+    mov dl,[ally_px]
+    mov dh,[ally_py]
+    call bonus26_touch
+    jnc coop24_pickup_done
     cmp byte ptr [bonus_type],5
     jne coop24_team_power
+    mov al,1
     call bonus25_collected
     mov byte ptr [bonus_active],0
     mov byte ptr [bonus_timer],0
@@ -230,6 +210,7 @@ coop24_pickup:
     call draw_hud
     jmp coop24_pickup_done
 coop24_team_power:
+    mov al,1
     call bonus20_apply
 coop24_pickup_done:
     pop dx

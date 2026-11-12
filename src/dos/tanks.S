@@ -102,6 +102,7 @@ normal_play:
     mov ah,0
     int 0x1a
     xor word ptr [rng_state],dx
+    call bomber26_roll
     call random_byte
     and al,3
     mov [squad_doctrine],al
@@ -651,32 +652,11 @@ check_bonus_pickup:
     jne bonus_can_collect
     jmp bonus_pickup_done
 bonus_can_collect:
-    /* 1.5-cell proximity (24 horizontal, 18 vertical pixels). */
-    mov dl,[bonus_col]
-    shl dl,1
-    shl dl,1
-    shl dl,1
-    shl dl,1
-    mov al,[player_px]
-    cmp al,dl
-    jae 1f
-    xchg al,dl
-1:
-    sub al,dl
-    cmp al,24
-    ja bonus_pickup_done
-    mov al,[bonus_row]
-    mov bl,12
-    mul bl
-    mov dl,al
-    mov al,[player_py]
-    cmp al,dl
-    jae 1f
-    xchg al,dl
-1:
-    sub al,dl
-    cmp al,18
-    ja bonus_pickup_done
+    mov dl,[player_px]
+    mov dh,[player_py]
+    call bonus26_touch
+    jnc bonus_pickup_done
+    xor al,al          /* collector = P1 */
     call bonus20_apply
 bonus_pickup_done:
     pop dx
@@ -3792,7 +3772,9 @@ paint_bonus_done:
     xor bx, bx
 paint_enemy_loop:
     cmp byte ptr [enemy_active+bx], 0
-    je paint_enemy_next
+    jne paint_enemy_live
+    jmp paint_enemy_next
+paint_enemy_live:
     mov dl, [enemy_px+bx]
     mov dh, [enemy_py+bx]
     mov [paint_enemy_x+bx], dl
@@ -3820,6 +3802,17 @@ paint_enemy_not_power:
 paint_enemy_standard:
     mov si, [smooth_enemy_ptrs+si]
 paint_enemy_selected:
+    mov al,[bonus26_flash_owner]
+    sub al,2
+    cmp al,bl
+    jne paint_enemy_color_ready
+    cmp byte ptr [bonus25_flash_ticks],0
+    je paint_enemy_color_ready
+    test byte ptr [bonus25_flash_ticks],2
+    jz paint_enemy_color_ready
+    mov si,cx
+    mov si,[smooth_player_ptrs+si]
+paint_enemy_color_ready:
     call draw_smooth_sprite
     /* Black wear only on surviving ARMOUR with an actually damaged tread.
        Healthy enemy tracks and all player tanks retain the original sprite. */
@@ -3852,6 +3845,14 @@ paint_enemy_finished:
     mov bl,[ally_dir]
     shl bx,1
     mov si,[smooth_player_ptrs+bx]
+    cmp byte ptr [bonus26_flash_owner],1
+    jne paint_ally_color_ready
+    cmp byte ptr [bonus25_flash_ticks],0
+    je paint_ally_color_ready
+    test byte ptr [bonus25_flash_ticks],2
+    jz paint_ally_color_ready
+    mov si,[smooth_enemy_ptrs+bx]
+paint_ally_color_ready:
     call draw_smooth_sprite
     cmp byte ptr [ally_shield],0
     je paint_ally_no_shield
@@ -3879,6 +3880,14 @@ paint_player_alive:
     shl bx, 1
 paint_player_normal:
     mov si, [smooth_player_ptrs+bx]
+    cmp byte ptr [bonus26_flash_owner],0
+    jne paint_player_color_ready
+    cmp byte ptr [bonus25_flash_ticks],0
+    je paint_player_color_ready
+    test byte ptr [bonus25_flash_ticks],2
+    jz paint_player_color_ready
+    mov si,[smooth_enemy_ptrs+bx] /* brief magenta vs cyan */
+paint_player_color_ready:
     call draw_smooth_sprite
     cmp byte ptr [player_shield],0
     je paint_player_no_shield
@@ -6180,13 +6189,14 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
-    /* Phase 94: P1 obtains a heart from a neighboring 1.5-cell radius. */
+    /* Phase 94: actual chassis touches adjacent heart frame. */
     mov byte ptr [test_phase],94
     call reset_campaign
     mov byte ptr [bonus_active],1
     mov byte ptr [bonus_type],5
     mov byte ptr [bonus_col],8
     mov byte ptr [bonus_row],14
+    mov byte ptr [player_px],118
     mov byte ptr [lives],3
     call check_bonus_pickup
     cmp byte ptr [lives],4
@@ -6197,7 +6207,7 @@ smoke_bonus_replay:
     mov byte ptr [test_phase],95
     call reset_campaign
     mov byte ptr [enemy_active],1
-    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_px],102
     mov byte ptr [enemy_py],120
     mov byte ptr [bonus_col],7
     mov byte ptr [bonus_row],10
@@ -6519,20 +6529,40 @@ smoke_bonus_replay:
     jmp smoke_extra_fail
 9:
     pop es
-    /* Phase 113: single fly-by in odd stage, movement 2px/tick. */
+    /* Phase 113: randomized launch deadline and four flight directions. */
     mov byte ptr [test_phase],113
     call reset_campaign
-    mov byte ptr [game_tick],72
+    mov al,[bomber26_departure]
+    mov [game_tick],al
     call bomber25_tick
     cmp byte ptr [bomber25_state],1
     je 9f
     jmp smoke_extra_fail
 9:
-    cmp byte ptr [bomber25_axis],0
-    je 9f
+    cmp byte ptr [bomber26_direction],4
+    jb 9f
     jmp smoke_extra_fail
 9:
-    cmp byte ptr [bomber25_x],2
+    cmp byte ptr [bomber25_axis],0
+    jne smoke26_first_vertical
+    mov al,[bomber25_x]
+    jmp smoke26_first_moved
+smoke26_first_vertical:
+    mov al,[bomber25_y]
+smoke26_first_moved:
+    cmp byte ptr [bomber26_reverse],0
+    jne smoke26_first_reverse
+    cmp al,2
+    je 9f
+    jmp smoke_extra_fail
+smoke26_first_reverse:
+    cmp al,238
+    je smoke26_first_back_x
+    cmp al,178
+    je 9f
+    jmp smoke_extra_fail
+smoke26_first_back_x:
+    cmp byte ptr [bomber25_axis],0
     je 9f
     jmp smoke_extra_fail
 9:
@@ -6662,18 +6692,23 @@ smoke25_flight_loop:
     je 9f
     jmp smoke_extra_fail
 9:
-    /* Phase 121: even stage aircraft flies vertically. */
+    /* Phase 121: each new stage gets a fresh randomized flight plan. */
     mov byte ptr [test_phase],121
     mov byte ptr [stage],2
     call load_stage
-    mov byte ptr [game_tick],72
+    mov al,[bomber26_departure]
+    mov [game_tick],al
     call bomber25_tick
-    cmp byte ptr [bomber25_axis],1
+    cmp byte ptr [bomber25_state],1
     je 9f
     jmp smoke_extra_fail
 9:
-    cmp byte ptr [bomber25_y],2
-    je 9f
+    cmp byte ptr [bomber25_lane],4
+    jae 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber25_lane],11
+    jbe 9f
     jmp smoke_extra_fail
 9:
     /* Phase 122: 12-second bonus timeout, no projectile expiry. */
@@ -6686,6 +6721,173 @@ smoke25_flight_loop:
     call maybe_drop_bonus
     cmp byte ptr [bonus_timer],220
     je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 123: no pickup before actual chassis touches the frame. */
+    mov byte ptr [test_phase],123
+    call reset_campaign
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_type],5
+    mov byte ptr [bonus_col],8
+    mov byte ptr [bonus_row],14
+    mov byte ptr [player_px],112
+    call check_bonus_pickup
+    cmp byte ptr [bonus_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [player_px],118
+    call check_bonus_pickup
+    cmp byte ptr [bonus_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bonus26_flash_owner],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 124: P2 also uses visible sprite bounds, flashes P2 only. */
+    mov byte ptr [test_phase],124
+    call reset_campaign
+    call coop24_join
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_type],5
+    mov byte ptr [bonus_col],8
+    mov byte ptr [bonus_row],14
+    mov byte ptr [ally_px],112
+    mov byte ptr [ally_py],168
+    call coop24_pickup
+    cmp byte ptr [bonus_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [ally_px],118
+    call coop24_pickup
+    cmp byte ptr [bonus_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bonus26_flash_owner],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 125: enemy steals ONLY at actual chassis/frame contact. */
+    mov byte ptr [test_phase],125
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_py],120
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_type],4
+    mov byte ptr [bonus_col],7
+    mov byte ptr [bonus_row],10
+    call enemy21_collect_bonus
+    cmp byte ptr [bonus_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [enemy_px],102
+    call enemy21_collect_bonus
+    cmp byte ptr [bonus_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bonus26_flash_owner],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 126: centered checkerboard = left lane then right lane,
+       each along-track step leaves exactly ONE impact. */
+    mov byte ptr [test_phase],126
+    call reset_campaign
+    mov byte ptr [bomber25_axis],0
+    mov byte ptr [bomber25_step],0
+    mov byte ptr [bomber25_base_col],5
+    mov byte ptr [bomber25_base_row],7
+    mov byte ptr [level_data+101],'.'
+    mov byte ptr [level_data+133],'.'
+    call bomber25_wave
+    cmp byte ptr [bomber25_fx_x],80
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber25_fx_y],72
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber25_fx_ticks+1],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    call bomber25_wave
+    cmp byte ptr [bomber25_fx_x+1],80
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber25_fx_y+1],96
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber25_step],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 127: vertical checkerboard is symmetric around column axis. */
+    mov byte ptr [test_phase],127
+    call reset_campaign
+    mov byte ptr [bomber25_axis],1
+    mov byte ptr [bomber25_step],0
+    mov byte ptr [bomber25_base_col],7
+    mov byte ptr [bomber25_base_row],5
+    mov byte ptr [level_data+86],'.'
+    mov byte ptr [level_data+88],'.'
+    call bomber25_wave
+    cmp byte ptr [bomber25_fx_x],96
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber25_fx_y],60
+    je 9f
+    jmp smoke_extra_fail
+9:
+    call bomber25_wave
+    cmp byte ptr [bomber25_fx_x+1],128
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber25_fx_y+1],60
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 128: aircraft bomb is a normal single brick damaging shot. */
+    mov byte ptr [test_phase],128
+    call reset_campaign
+    mov byte ptr [bomber25_axis],0
+    mov byte ptr [bomber25_step],0
+    mov byte ptr [bomber25_base_col],7
+    mov byte ptr [bomber25_base_row],7
+    mov byte ptr [level_data+103],'#'
+    mov byte ptr [brick_masks+103],15
+    call bomber25_wave
+    cmp byte ptr [brick_masks+103],12
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 129: random flight plan contains one of four directions
+       and time is 48..175 ticks, never stage-parity hardcoding. */
+    mov byte ptr [test_phase],129
+    mov word ptr [rng_state],0x4ab7
+    call bomber26_roll
+    cmp byte ptr [bomber26_direction],4
+    jb 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber26_departure],48
+    jae 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber26_departure],175
+    jbe 9f
     jmp smoke_extra_fail
 9:
     jmp smoke_pass
@@ -6966,7 +7168,7 @@ tactical_coop_glyphs: .word hud_blank_icon,hud_blank_icon,hud_c_char,hud_o_char,
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_a_char, hud_s_char, hud_i_char, hud_c_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_5
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_6
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
