@@ -1,3 +1,13 @@
+## v0.25 — Bomber aircraft, visible pickups and 3-life co-op (2026-11-12)
+
+- Adds a **single aircraft flyby per stage**: horizontal (odd levels) / vertical (even), moving at medium-tank speed, leaving a checkerboard pattern of explosion impacts. Bombs are not drawn in flight. Each explosion counts as one ordinary projectile hit against brick/tanks/players, but **headquarters is immune**.
+- **Three starting lives per human player**, separate life counters; either player respawns at the base with a temporary shield while any personal lives remain. If spawn is obstructed, retry on subsequent ticks.
+- Coop HUD **hides the V× reserve row entirely** without replacing it with COOP; the mode indicator remains separately.
+- Bonus duration increased to 220 game ticks on the field; shells do not destroy unclaimed bonuses. Picking one up produces a bounded blinking outline at its location plus existing HUD icon flash.
+- Preserves 14 bonuses, AUTO/V in solo, 2P controls WASD + Ctrl, anti-oscillation tactics, enemy weapon bonuses and armored tread damage from v0.24.
+- Builds as an **8086 DOS CGA .COM 54,560 bytes** with strict 56KiB cap; avoids wasteful section page-alignment and removes unused BIOS key handlers. **151 Python tests PASS**, 35 maps, ISA check PASS; **SLOW1 DOSBox-X /TEST PASS**, **2048-tick TRACE PASS (20/20 kills, STAGE CLEAR, HQ survives)**. Bench results and installed/rollback record: `releases/v0.25/RELEASE-NOTES.md`.
+- Main README includes full current controls, 1P/2P life rules, aircraft effects, all 14 bonuses, versioned GitHub Release downloads and genuinely labeled CGA screenshot/unsupported adapter statuses.
+
 ## v0.24 — Two-player cooperative play, anti-loop tactics, armored-only track damage (2026-11-12)
 
 - **Join the co-op immediately** with 2P **W/A/S/D + Ctrl**; 1P uses **arrows + Space**. The first P2 key switches 1P from AUTO into MAN. The old AI companion tank becomes the human P2 avatar; solo V remains available, co-op V/auto-ally is disabled. TAB AUTO toggling remains solo-only.
