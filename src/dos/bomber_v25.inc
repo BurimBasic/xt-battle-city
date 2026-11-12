@@ -15,23 +15,85 @@ bomber25_reset:
     mov byte ptr [paint_bomber25_fx_valid+1],0
     mov byte ptr [bonus25_flash_ticks],0
     mov byte ptr [paint_bonus25_valid],0
+    call bomber26_roll
+    ret
+
+/* Random 4 entry points (left/right/top/bottom) and launch delay.
+ * normal_play reseeds the RNG from BIOS timer before calling this on L1;
+ * subsequent levels already have gameplay-driven RNG state. */
+bomber26_roll:
+    /* Keep gameplay RNG unchanged: the randomized flight must not change
+       enemies' existing tactics or first-stage combat sequence. */
+    push word ptr [rng_state]
+    call random_byte
+    and al,3
+    mov [bomber26_direction],al
+    mov [bomber25_axis],al
+    shr byte ptr [bomber25_axis],1
+    mov al,[bomber26_direction]
+    and al,1
+    mov [bomber26_reverse],al
+    call random_byte
+    and al,7
+    add al,4       /* lanes 4..11 allow symmetrical +/-1 bombs */
+    mov [bomber25_lane],al
+    call random_byte
+    and al,127
+    add al,48      /* one pass begins after 48..175 ticks */
+    mov [bomber26_departure],al
+    pop word ptr [rng_state]
+    ret
+
+/* v0.26: only real contact between visible 12x12 tank chassis and the
+ * bonus's opaque 11x10 frame. Input DL/DH top-left pixel of collector.
+ * Returns CF=1 for overlap; no player/enemy register side effects. */
+bonus26_touch:
+    push ax
+    push bx
+    mov bl,[bonus_col]
+    shl bl,1
+    shl bl,1
+    shl bl,1
+    shl bl,1
+    mov al,dl
+    add al,13
+    mov bh,bl
+    add bh,2
+    cmp al,bh
+    jb bonus26_not_touching
+    mov al,dl
+    add al,2
+    add bl,12
+    cmp al,bl
+    ja bonus26_not_touching
+    mov al,[bonus_row]
+    mov bl,12
+    mul bl
+    mov bl,al
+    inc bl
+    mov al,dh
+    add al,11
+    cmp al,bl
+    jb bonus26_not_touching
+    mov al,dh
+    add bl,9
+    cmp al,bl
+    ja bonus26_not_touching
+    stc
+    jmp bonus26_touch_done
+bonus26_not_touching:
+    clc
+bonus26_touch_done:
+    pop bx
+    pop ax
     ret
 
 /* Apply to human pickup, allied pickup and enemy pickup alike. */
 bonus25_collected:
-    push ax
-    mov al,[bonus_col]
-    shl al,1
-    shl al,1
-    shl al,1
-    shl al,1
-    mov [bonus25_flash_x],al
-    mov al,[bonus_row]
-    mov ah,12
-    mul ah
-    mov [bonus25_flash_y],al
+    /* AL = collector 0=P1, 1=P2/ally, 2..5=enemy slot.  Flash
+       the collector's tank only, never the background pickup tile. */
+    mov [bonus26_flash_owner],al
     mov byte ptr [bonus25_flash_ticks],14
-    pop ax
     ret
 
 bomber25_tick:
@@ -57,42 +119,54 @@ bomber25_state_tick:
 1:
     cmp byte ptr [bomber25_state],1
     je bomber25_flying
-    cmp byte ptr [game_tick],72
+    mov al,[game_tick]
+    cmp al,[bomber26_departure]
     jae 1f
     ret
 1:
     mov byte ptr [bomber25_state],1
     mov byte ptr [bomber25_step],0
     mov byte ptr [bomber25_timer],0
-    mov al,[stage]
-    and al,7
-    add al,3
-    mov [bomber25_lane],al
-    test byte ptr [stage],1
-    jz bomber25_vertical_start
-    /* horizontal: y is a 12px grid lane, x moves from left to right */
+    cmp byte ptr [bomber25_axis],0
+    jne bomber25_vertical_start
+    mov al,[bomber25_lane]
     mov ah,12
     mul ah
     mov [bomber25_y],al
     mov byte ptr [bomber25_x],0
-    mov byte ptr [bomber25_axis],0
+    cmp byte ptr [bomber26_reverse],0
+    je bomber25_flying
+    mov byte ptr [bomber25_x],240
     jmp bomber25_flying
 bomber25_vertical_start:
+    mov al,[bomber25_lane]
     shl al,1
     shl al,1
     shl al,1
     shl al,1
     mov [bomber25_x],al
     mov byte ptr [bomber25_y],0
-    mov byte ptr [bomber25_axis],1
+    cmp byte ptr [bomber26_reverse],0
+    je bomber25_flying
+    mov byte ptr [bomber25_y],180
 bomber25_flying:
     cmp byte ptr [bomber25_axis],0
     jne bomber25_vertical_move
+    cmp byte ptr [bomber26_reverse],0
+    jne bomber26_left_move
     cmp byte ptr [bomber25_x],240
     jb 1f
     jmp bomber25_finished
 1:
     add byte ptr [bomber25_x],2
+    jmp bomber26_x_advanced
+bomber26_left_move:
+    cmp byte ptr [bomber25_x],0
+    jne 1f
+    jmp bomber25_finished
+1:
+    sub byte ptr [bomber25_x],2
+bomber26_x_advanced:
     inc byte ptr [bomber25_timer]
     cmp byte ptr [bomber25_timer],8
     jae 1f
@@ -100,7 +174,13 @@ bomber25_flying:
 1:
     mov byte ptr [bomber25_timer],0
     mov al,[bomber25_x]
+    cmp byte ptr [bomber26_reverse],0
+    jne 1f
     sub al,16
+    jmp 2f
+1:
+    add al,16
+2:
     shr al,1
     shr al,1
     shr al,1
@@ -110,9 +190,21 @@ bomber25_flying:
     mov [bomber25_base_row],al
     jmp bomber25_wave
 bomber25_vertical_move:
+    cmp byte ptr [bomber26_reverse],0
+    jne bomber26_up_move
     cmp byte ptr [bomber25_y],180
-    jae bomber25_finished
+    jb 1f
+    jmp bomber25_finished
+1:
     add byte ptr [bomber25_y],2
+    jmp bomber26_y_advanced
+bomber26_up_move:
+    cmp byte ptr [bomber25_y],0
+    jne 1f
+    jmp bomber25_finished
+1:
+    sub byte ptr [bomber25_y],2
+bomber26_y_advanced:
     inc byte ptr [bomber25_timer]
     cmp byte ptr [bomber25_timer],6
     jae 1f
@@ -120,7 +212,13 @@ bomber25_vertical_move:
 1:
     mov byte ptr [bomber25_timer],0
     mov al,[bomber25_y]
+    cmp byte ptr [bomber26_reverse],0
+    jne 1f
     sub al,12
+    jmp 2f
+1:
+    add al,12
+2:
     xor ah,ah
     mov cl,12
     div cl
@@ -128,33 +226,30 @@ bomber25_vertical_move:
     mov al,[bomber25_lane]
     mov [bomber25_base_col],al
 bomber25_wave:
-    /* Along-track parity selects alternate squares in three lanes.
-       Even columns: two bombs (lanes 0 and 2), odd: one (lane 1). */
+    /* Alternating ONE bomb per step: axis-1, axis+1, axis-1 ...
+       behind current flight position. Exactly symmetrical on both sides,
+       with a one-cell along-track stagger (true checkerboard). */
     mov dl,[bomber25_base_col]
     mov dh,[bomber25_base_row]
-    test byte ptr [bomber25_step],1
-    jz bomber25_first_impact
-    cmp byte ptr [bomber25_axis],0
-    jne 1f
-    inc dh
-    jmp bomber25_first_impact
-1:
-    inc dl
-bomber25_first_impact:
     xor bx,bx
-    call bomber25_impact
     test byte ptr [bomber25_step],1
-    jnz bomber25_wave_done
-    mov dl,[bomber25_base_col]
-    mov dh,[bomber25_base_row]
-    cmp byte ptr [bomber25_axis],0
-    jne bomber25_second_col
-    add dh,2
-    jmp bomber25_second_impact
-bomber25_second_col:
-    add dl,2
-bomber25_second_impact:
+    jz bomber26_bomb_left
     mov bx,1
+    cmp byte ptr [bomber25_axis],0
+    jne bomber26_bomb_right_vertical
+    inc dh
+    jmp bomber26_bomb_single
+bomber26_bomb_right_vertical:
+    inc dl
+    jmp bomber26_bomb_single
+bomber26_bomb_left:
+    cmp byte ptr [bomber25_axis],0
+    jne bomber26_bomb_left_vertical
+    dec dh
+    jmp bomber26_bomb_single
+bomber26_bomb_left_vertical:
+    dec dl
+bomber26_bomb_single:
     call bomber25_impact
 bomber25_wave_done:
     inc byte ptr [bomber25_step]
@@ -306,7 +401,7 @@ bomber25_players_done:
     pop ax
     ret
 
-/* Restore stale silhouettes BEFORE new sprite painting. */
+/* Restore old aircraft and explosion silhouettes; NO pickup-cell overlay. */
 bomber25_mark_old:
     push ax
     push bx
@@ -330,11 +425,6 @@ bomber25_old_fx:
     inc bx
     cmp bx,2
     jb bomber25_old_fx
-    cmp byte ptr [paint_bonus25_valid],0
-    je bomber25_old_end
-    mov dl,[paint_bonus25_x]
-    mov dh,[paint_bonus25_y]
-    call mark_dirty_rect
 bomber25_old_end:
     mov byte ptr [paint_bonus25_valid],0
     pop dx
@@ -356,9 +446,17 @@ bomber25_paint:
     mov byte ptr [paint_bomber25_valid],1
     mov si,offset smooth_plane_horizontal
     cmp byte ptr [bomber25_axis],0
-    je 1f
+    jne bomber26_vertical_sprite
+    cmp byte ptr [bomber26_reverse],0
+    je bomber26_sprite_ready
+    mov si,offset smooth_plane_horizontal_left
+    jmp bomber26_sprite_ready
+bomber26_vertical_sprite:
+    mov si,offset smooth_plane_vertical_down
+    cmp byte ptr [bomber26_reverse],0
+    je bomber26_sprite_ready
     mov si,offset smooth_plane_vertical
-1:
+bomber26_sprite_ready:
     call draw_smooth_sprite
 bomber25_paint_fx:
     xor bx,bx
@@ -382,17 +480,6 @@ bomber25_paint_fx_next:
     inc bx
     cmp bx,2
     jb bomber25_paint_fx_loop
-    cmp byte ptr [bonus25_flash_ticks],0
-    je bomber25_paint_done
-    test byte ptr [game_tick],2
-    jnz bomber25_paint_done
-    mov dl,[bonus25_flash_x]
-    mov dh,[bonus25_flash_y]
-    mov [paint_bonus25_x],dl
-    mov [paint_bonus25_y],dh
-    mov byte ptr [paint_bonus25_valid],1
-    mov si,offset smooth_shield_outline
-    call draw_smooth_sprite
 bomber25_paint_done:
     pop si
     pop dx
@@ -403,6 +490,10 @@ bomber25_paint_done:
 .section .data
 bomber25_state: .byte 0   /* 0 not started, 1 flying, 2 done */
 bomber25_axis: .byte 0    /* 0 horizontal, 1 vertical */
+bomber26_reverse: .byte 0  /* 0 right/down, 1 left/up */
+bomber26_direction: .byte 0
+bomber26_departure: .byte 90
+bonus26_flash_owner: .byte 0
 bomber25_x: .byte 0
 bomber25_y: .byte 0
 bomber25_lane: .byte 0

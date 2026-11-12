@@ -357,38 +357,45 @@ def pack(rows):
 # five mask bytes followed by five color bytes; zero pixels are transparent.
 # This makes arbitrary-pixel CGA compositing fast enough to test on an 8088
 # without allocating a 16 KB off-screen framebuffer. 4*12*10=480 bytes.
-# Original 16x12 CGA aircraft silhouettes; each is a masked sprite.
+# v0.26 original 1982-style aircraft: readable 3-cluster silhouette at native CGA.
+# Referenced Xevious-era principles (not copied ROM pixel data): dark cutouts,
+# swept wing, pointed nose, distinct canopy and compact tail stabilizers.
+# Draw true four directional art; do not just mirror an oval sprite.
 PLANE_H = sprite(
  '................',
- '........22......',
- '.......2332.....',
- '..222223333222..',
- '.23333333333332.',
- '2233333333333322',
- '2233333333333322',
- '.23333333333332.',
- '..222223333222..',
- '.......2332.....',
- '........22......',
+ '....2...........',
+ '...223..........',
+ '..22333322......',
+ '.223333333322...',
+ '2233333113333323',
+ '2233333133333323',
+ '.223333333322...',
+ '..22333322......',
+ '...223..........',
+ '....2...........',
  '................')
+PLANE_H_LEFT = sprite(*(row[::-1] for row in PLANE_H))
 PLANE_V = sprite(
- '.......22.......',
- '......2332......',
- '......2332......',
- '......2332......',
- '.....233332.....',
- '.22223333332222.',
- '2333333333333332',
- '..222233332222..',
- '......2332......',
- '.....223322.....',
- '.....2.22.2.....',
- '................')
+ '.......3........',
+ '......333.......',
+ '......313.......',
+ '.....23332......',
+ '....2233322.....',
+ '.2222333322222..',
+ '223333333333322.',
+ '.2222333322222..',
+ '....2233322.....',
+ '......333.......',
+ '.....22.22......',
+ '....22...22.....')
+PLANE_V_DOWN = sprite(*tuple(row for row in reversed(PLANE_V)))
 SPRITES['plane_horizontal'] = PLANE_H
+SPRITES['plane_horizontal_left'] = PLANE_H_LEFT
 SPRITES['plane_vertical'] = PLANE_V
+SPRITES['plane_vertical_down'] = PLANE_V_DOWN
 
 SMOOTH_SPRITES = [
-    'plane_horizontal','plane_vertical',
+    'plane_horizontal','plane_horizontal_left','plane_vertical','plane_vertical_down',
 
     'player_up','player_right','player_down','player_left',
     'enemy_up','enemy_right','enemy','enemy_left',

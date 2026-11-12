@@ -82,7 +82,7 @@ class VisualFixesV21(unittest.TestCase):
         self.assertNotIn('inc byte ptr [enemy_hp+bx]',collect)
         self.assertIn('inc byte ptr [enemy_hp+bx]',ENEMY.split('enemy21_armor:',1)[1])
     def test_shipped_version_label(self):
-        self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_5',GAME)
+        self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_6',GAME)
 
 if __name__=='__main__':
     unittest.main()

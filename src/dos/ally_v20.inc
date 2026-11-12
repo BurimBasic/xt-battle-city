@@ -68,28 +68,19 @@ ally20_pickup:
 ally20_pickup_auto:
     push ax
     push bx
+    push dx
     cmp word ptr [ally_ticks],0
     je ally20_pickup_done
     cmp byte ptr [bonus_active],0
     je ally20_pickup_done
-    mov al,[ally_px]
-    shr al,1
-    shr al,1
-    shr al,1
-    shr al,1
-    cmp al,[bonus_col]
-    jne ally20_pickup_done
-    xor bx,bx
-    mov bl,[ally_py]
-    mov al,[pixel_y_tile_lookup+bx]
-    shr al,1
-    shr al,1
-    shr al,1
-    shr al,1
-    cmp al,[bonus_row]
-    jne ally20_pickup_done
+    mov dl,[ally_px]
+    mov dh,[ally_py]
+    call bonus26_touch
+    jnc ally20_pickup_done
+    mov al,1
     call bonus20_apply
 ally20_pickup_done:
+    pop dx
     pop bx
     pop ax
     ret

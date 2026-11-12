@@ -65,7 +65,7 @@ class GameplayWave5(unittest.TestCase):
         self.assertIn('mov byte ptr [test_phase], 20', src)
 
     def test_cga_memory_layout_with_many_sprites(self):
-        self.assertEqual(len(a.SPRITES), 79)
+        self.assertEqual(len(a.SPRITES), 81)
         self.assertLessEqual(len(a.SPRITES) * 48, 4096)
         self.assertLess(0 + 15*480 + 5*80 + 0x2000 + 4*12+4, 16384)
 

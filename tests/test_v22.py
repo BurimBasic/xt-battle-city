@@ -8,11 +8,10 @@ TACTICS=(ROOT/"src/dos/tactics.inc").read_text()
 PICKUPS=(ROOT/"src/dos/enemy_pickups_v21.inc").read_text()
 
 class BonusFreezeSteelV22(unittest.TestCase):
-    def test_p1_collects_within_one_and_half_cells_even_when_stationary(self):
+    def test_p1_collects_only_on_visible_sprite_contact(self):
         body=GAME.split("bonus_can_collect:",1)[1].split("bonus_pickup_done:",1)[0]
-        self.assertIn("cmp al,24",body)
-        self.assertIn("cmp al,18",body)
-        self.assertIn("cmp al,dl",body)
+        self.assertIn("call bonus26_touch",body)
+        self.assertIn("jnc bonus_pickup_done",body)
         self.assertIn("call bonus20_apply",body)
         self.assertIn('call move_player_smooth',GAME)
         self.assertIn('call check_bonus_pickup',GAME)
@@ -20,10 +19,9 @@ class BonusFreezeSteelV22(unittest.TestCase):
     def test_enemy_claims_nearby_but_not_life_or_v(self):
         self.assertIn("cmp byte ptr [bonus_type],5",PICKUPS)
         self.assertIn("cmp byte ptr [bonus_type],7",PICKUPS)
-        radius=PICKUPS.split("enemy21_live:",1)[1].split("enemy21_row_ok:",1)[0]
-        self.assertIn("cmp al,24",radius)
-        self.assertIn("cmp al,18",radius)
-        self.assertIn("xchg al,dl",radius)
+        radius=PICKUPS.split("enemy21_scan:",1)[1].split("enemy21_row_ok:",1)[0]
+        self.assertIn("call bonus26_touch",radius)
+        self.assertIn("jc enemy21_row_ok",radius)
         detour=TACTICS.split("tactical_enemy_plan:",1)[1].split("tactical_enemy_orders:",1)[0]
         self.assertIn("call tactical_route_choose",detour)
         self.assertIn("cmp byte ptr [bonus_type],5",detour)
@@ -61,7 +59,7 @@ class BonusFreezeSteelV22(unittest.TestCase):
     def test_native_8086_pickup_phases(self):
         for number in (94,95):
             self.assertIn(f"mov byte ptr [test_phase],{number}",GAME)
-        self.assertIn("brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_5",GAME)
+        self.assertIn("brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_6",GAME)
 
 if __name__ == "__main__":
     unittest.main()
