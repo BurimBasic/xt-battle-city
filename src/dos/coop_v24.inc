@@ -13,6 +13,10 @@ coop24_join:
     call ally17_spawn
     jc coop24_join_done
     mov byte ptr [coop_mode],1
+    /* Joining co-op hands BOTH tanks to their humans. */
+    mov byte ptr [auto_mode],0
+    mov byte ptr [held_keys],0
+    mov byte ptr [manual_keys],0
     mov byte ptr [coop_lives],1
     mov byte ptr [lives],1
     mov word ptr [ally_ticks],0x7fff
