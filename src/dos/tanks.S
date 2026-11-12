@@ -6572,9 +6572,9 @@ smoke26_first_moved:
     je 9f
     jmp smoke_extra_fail
 smoke26_first_reverse:
-    cmp al,238
+    cmp al,222
     je smoke26_first_back_x
-    cmp al,178
+    cmp al,166
     je 9f
     jmp smoke_extra_fail
 smoke26_first_back_x:
@@ -6904,6 +6904,73 @@ smoke25_flight_loop:
 9:
     cmp byte ptr [bomber26_departure],175
     jbe 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 130: exactly 1/2/2/3 scheduled flybys at L1/L6/L11/L15. */
+    mov byte ptr [test_phase],130
+    mov byte ptr [stage],1
+    call bomber25_reset
+    cmp byte ptr [bomber27_limit],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [stage],6
+    call bomber25_reset
+    cmp byte ptr [bomber27_limit],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [stage],11
+    call bomber25_reset
+    cmp byte ptr [bomber27_limit],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [stage],15
+    call bomber25_reset
+    cmp byte ptr [bomber27_limit],3
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 131: completed first flight queues another with a delay. */
+    mov byte ptr [test_phase],131
+    mov byte ptr [stage],6
+    call bomber25_reset
+    mov byte ptr [bomber25_state],1
+    mov byte ptr [bomber25_axis],0
+    mov byte ptr [bomber26_reverse],0
+    mov byte ptr [bomber25_x],224
+    call bomber25_tick
+    cmp byte ptr [bomber27_passes],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber25_state],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [bomber27_wait],0
+    call bomber25_tick
+    cmp byte ptr [bomber25_state],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 132: barrel jumps back two pixels and restores 1px/tick. */
+    mov byte ptr [test_phase],132
+    mov byte ptr [gun27_p1],3
+    call gun27_tick
+    cmp byte ptr [gun27_p1],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    call gun27_tick
+    cmp byte ptr [gun27_p1],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    call gun27_tick
+    cmp byte ptr [gun27_p1],0
+    je 9f
     jmp smoke_extra_fail
 9:
     jmp smoke_pass
