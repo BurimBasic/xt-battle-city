@@ -70,7 +70,9 @@ coop24_entered:
     call coop25_try_respawn
 coop24_pending_checked:
     cmp byte ptr [game_state],0
-    jne coop24_done
+    je coop27_game_active
+    jmp coop24_done
+coop27_game_active:
     cmp byte ptr [coop_lives],0
     je coop24_done
     cmp word ptr [ally_ticks],0
