@@ -32,7 +32,8 @@ class NewFeaturesV24(unittest.TestCase):
         self.assertIn('call coop24_key_event',irq)
         self.assertIn('call coop24_join',T.split('poll_controls:',1)[1].split('cycle_cga_palette:',1)[0])
         self.assertIn('or byte ptr [coop_keys],ah',C)
-        self.assertNotIn('mov byte ptr [auto_mode],0',C)
+        self.assertIn('mov byte ptr [auto_mode],0',C)
+        self.assertIn('cmp byte ptr [coop_mode],0',T.split('controls_no_ally_call:',1)[1].split('controls_no_auto_toggle:',1)[0])
     def test_coop_independent_lives_movement_firing(self):
         self.assertIn('mov byte ptr [coop_lives],1',C)
         self.assertIn('mov byte ptr [lives],1',C)
