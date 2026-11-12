@@ -524,6 +524,7 @@ tick_p1_pickup_done:
     call tick_powerups
     call bonus17_tick
     call bonus23_tick
+    call gun27_tick
     call bomber25_tick
     call enemy23_tick
     call ally20_pickup
@@ -1443,6 +1444,7 @@ do_fire_normal:
     call extra17_player_fire
     jmp fire_done
 fire_primary:
+    mov byte ptr [gun27_p1],3
     mov al, [player_col]
     mov [bullet_col], al
     mov al, [player_row]
@@ -3854,6 +3856,11 @@ paint_enemy_finished:
     mov si,[smooth_enemy_ptrs+bx]
 paint_ally_color_ready:
     call draw_smooth_sprite
+    mov al,[gun27_p2]
+    mov bl,[ally_dir]
+    mov dl,[ally_px]
+    mov dh,[ally_py]
+    call gun27_draw
     cmp byte ptr [ally_shield],0
     je paint_ally_no_shield
     test byte ptr [game_tick],4
@@ -3889,6 +3896,11 @@ paint_player_normal:
     mov si,[smooth_enemy_ptrs+bx] /* brief magenta vs cyan */
 paint_player_color_ready:
     call draw_smooth_sprite
+    mov al,[gun27_p1]
+    mov bl,[player_dir]
+    mov dl,[player_px]
+    mov dh,[player_py]
+    call gun27_draw
     cmp byte ptr [player_shield],0
     je paint_player_no_shield
     test byte ptr [game_tick],4
@@ -7033,6 +7045,7 @@ trace_record_done:
 .include "src/dos/coop_v24.inc"
 .include "src/dos/anti_loop_v24.inc"
 .include "src/dos/bomber_v25.inc"
+.include "src/dos/v027_render.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -7167,8 +7180,8 @@ tactical_auto_glyphs: .word hud_blank_icon, hud_blank_icon, hud_a_char, hud_u_ch
 tactical_coop_glyphs: .word hud_blank_icon,hud_blank_icon,hud_c_char,hud_o_char,hud_o_char,hud_p_char,hud_blank_icon,hud_blank_icon
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
-brand_basic_glyphs: .word hud_b_char, hud_a_char, hud_s_char, hud_i_char, hud_c_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_6
+brand_basic_glyphs: .word hud_b_char, hud_u_char, hud_r_char, hud_i_char, hud_m_char
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_7
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
