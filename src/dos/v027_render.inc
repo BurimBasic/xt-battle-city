@@ -217,7 +217,7 @@ wide27_propellers:
     jmp wide27_props_done
 wide27_vertical_props:
     add dl,7
-    add dh,12
+    add dh,4  /* twin engine propellers ahead of the wings */
     test byte ptr [game_tick],2
     jz 2f
     inc dh
