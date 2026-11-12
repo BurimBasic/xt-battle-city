@@ -1475,7 +1475,9 @@ fire23_standard:
     call quad23_spawn
 fire23_not_quad:
     cmp byte ptr [super_bullet_active],0
-    jne fire_done
+    je fire27_super_clear
+    jmp fire_done
+fire27_super_clear:
     cmp byte ptr [laser_ticks],0
     je fire_done
     call laser17_fire
