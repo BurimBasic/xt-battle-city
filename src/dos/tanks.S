@@ -176,6 +176,10 @@ reset_campaign:
     mov byte ptr [lives], 3
     mov word ptr [score], 0
     mov byte ptr [bonus_sequence], 0
+    mov byte ptr [coop_mode],0
+    mov byte ptr [coop_lives],0
+    mov byte ptr [coop_keys],0
+    mov byte ptr [coop_join_pending],0
     mov byte ptr [sound_muted], 0
     call load_stage
     ret
@@ -261,6 +265,8 @@ marker_next:
     mov byte ptr [paint_pong_valid],0
     mov byte ptr [laser_flash_ticks], 0
     mov word ptr [ally_ticks], 0
+    mov byte ptr [coop_keys],0
+    mov byte ptr [coop_join_pending],0
     mov byte ptr [extra_active], 0
     mov byte ptr [extra_active+1], 0
     mov byte ptr [extra_active+2], 0
@@ -319,6 +325,12 @@ init_brick_store:
     inc di
     loop init_bricks
     call strategy_reset
+    call tactical24_reset
+    /* 2P uses the existing ally sprite but not its autonomous brain. */
+    cmp byte ptr [coop_mode],0
+    je load_stage_no_coop
+    call coop24_spawn_stage
+load_stage_no_coop:
     mov di, offset enemy_active
     mov cx, 4
     xor al, al
@@ -624,6 +636,11 @@ game_tick_step:
     call strategy_tick
     cmp byte ptr [auto_mode],0
     je game_tick_no_autopilot
+    cmp byte ptr [coop_mode],0
+    je game_tick_auto_alive
+    cmp byte ptr [lives],0
+    je game_tick_no_autopilot
+game_tick_auto_alive:
     call tactical_player_tick
  game_tick_no_autopilot:
     cmp byte ptr [squad_alert],0
@@ -631,8 +648,15 @@ game_tick_step:
     dec byte ptr [squad_alert]
  game_tick_no_alert:
     call move_player_smooth
+    call coop24_tick
     /* Pickups can appear when the tank is not moving. */
+    cmp byte ptr [coop_mode],0
+    je tick_p1_pickup
+    cmp byte ptr [lives],0
+    je tick_p1_pickup_done
+tick_p1_pickup:
     call check_bonus_pickup
+tick_p1_pickup_done:
     /* Autopilot shoots independently of navigation objectives and keeps
        aiming even when traveling directly toward a power-up. */
     cmp byte ptr [auto_mode],0
@@ -709,6 +733,8 @@ bonus21_check_due:
     div cl
     cmp ah,0
     je bonus21_drop_due
+    cmp byte ptr [coop_mode],0
+    jne bonus21_drop_done /* 4 rather than 8 gifts per 20 kills */
     cmp ah,2
     jne bonus21_drop_done
 bonus21_drop_due:
@@ -1346,6 +1372,10 @@ spawn_basic_health:
     mov byte ptr [enemy_hold+bx], 0
     mov byte ptr [enemy_track_damage+bx],0
     mov byte ptr [enemy_blocked+bx], 0
+    mov byte ptr [enemy_loop_last+bx],0xff
+    mov byte ptr [enemy_loop_prev+bx],0xff
+    mov byte ptr [enemy_loop_count+bx],0
+    mov byte ptr [enemy_escape_ticks+bx],0
     mov byte ptr [shot_active+bx], 0
     mov byte ptr [enemy_weapon_kind+bx],0
     mov byte ptr [enemy_weapon_ticks+bx],0
@@ -1494,6 +1524,10 @@ enemy_fire_normal:
     jc 9f
     jmp enemy_fire_next
 9:
+    /* A weapon-bearing enemy fires on each safe scheduled opening,
+       not just when its random 1-in-4 roll happens to succeed. */
+    cmp byte ptr [enemy_weapon_ticks+bx],0
+    jne enemy_fire_now
     cmp byte ptr [enemy_hold+bx], 0
     jne enemy_fire_now
     cmp byte ptr [enemy_type+bx], 2
@@ -1554,6 +1588,12 @@ enemy_fire_next:
 
 /* Player projectile: one at a time, one cell per two simulated frames. */
 do_fire:
+    cmp byte ptr [coop_mode],0
+    je fire_alive
+    cmp byte ptr [lives],0
+    jne fire_alive
+    ret
+fire_alive:
     cmp byte ptr [pong_ticks],0
     je do_fire_normal
     cmp byte ptr [pong_active],0
@@ -2125,7 +2165,10 @@ move_smooth_enemy_ready:
     /* A crippled track halves the original travel rate. */
     cmp byte ptr [enemy_track_damage+bx],0
     je move_smooth_track_ok
-    test byte ptr [game_tick],1
+    /* Armoured tank normally moves once / 2 ticks. Damaged armour
+       moves once / 4 ticks: an actual 50% reduction, not another
+       overlapping odd-tick test that has no effect. */
+    test byte ptr [game_tick],3
     jnz move_smooth_enemy_next
 move_smooth_track_ok:
     cmp byte ptr [enemy_hold+bx], 0
@@ -2166,6 +2209,11 @@ advance_enemy_one_pixel:
     jmp enemy_pixel_collision
 1:
     /* Collision with the player only when BOTH axes overlap. */
+    cmp byte ptr [coop_mode],0
+    je enemy_pixel_player_alive
+    cmp byte ptr [lives],0
+    je enemy_pixel_no_player
+enemy_pixel_player_alive:
     mov al, [candidate_x]
     sub al, [player_px]
     cmp al, 16
@@ -2177,10 +2225,28 @@ advance_enemy_one_pixel:
     mov al, [candidate_y]
     sub al, [player_py]
     cmp al, 12
-    jb enemy_pixel_collision
+    jb enemy_pixel_player_blocked
     cmp al, 245
-    jae enemy_pixel_collision
+    jae enemy_pixel_player_blocked
+    jmp enemy_pixel_no_player
+enemy_pixel_player_blocked:
+    jmp enemy_pixel_collision
  enemy_pixel_no_player:
+    cmp byte ptr [coop_mode],0
+    je enemy_pixel_no_coop
+    cmp byte ptr [coop_lives],0
+    je enemy_pixel_no_coop
+    mov al,[candidate_x]
+    sub al,[ally_px]
+    add al,15
+    cmp al,30
+    ja enemy_pixel_no_coop
+    mov al,[candidate_y]
+    sub al,[ally_py]
+    add al,11
+    cmp al,22
+    jbe enemy_pixel_collision
+enemy_pixel_no_coop:
     /* Enemy-enemy AABB; BX is our actor index. */
     xor si, si
 enemy_pixel_check_others:
@@ -2578,6 +2644,11 @@ smooth_shot_no_bullet:
     jne smooth_shot_no_friend
     jmp smooth_shot_out
 smooth_shot_no_friend:
+    cmp byte ptr [coop_mode],0
+    je smooth_p1_alive
+    cmp byte ptr [lives],0
+    je smooth_shot_no_player
+smooth_p1_alive:
     mov al, [shot_px+bx]
     add al, 8
     sub al, [player_px]
@@ -2606,6 +2677,12 @@ smooth_shot_no_friend:
     jne smooth_shot_no_player
     jmp smooth_shot_out
 smooth_player_dead:
+    cmp byte ptr [coop_mode],0
+    je smooth_p1_game_over
+    cmp byte ptr [coop_lives],0
+    je smooth_p1_game_over
+    jmp smooth_shot_out
+smooth_p1_game_over:
     mov byte ptr [game_state], 2
     jmp smooth_shot_out
 smooth_shot_no_player:
@@ -2624,7 +2701,21 @@ smooth_shot_no_player:
     jae smooth_shot_no_ally
     cmp byte ptr [ally_shield],0
     jne smooth_shot_out
+    cmp byte ptr [coop_mode],0
+    je smooth_shot_ai_ally_hit
+    /* A 2P hit consumes ONLY their own reserve. Never respawn AI. */
+    cmp byte ptr [coop_lives],0
+    je smooth_shot_out
+    dec byte ptr [coop_lives]
     mov word ptr [ally_ticks],0
+    call draw_hud
+    cmp byte ptr [lives],0
+    jne smooth_shot_p2_fx
+    mov byte ptr [game_state],2
+    jmp smooth_shot_p2_fx
+smooth_shot_ai_ally_hit:
+    mov word ptr [ally_ticks],0
+smooth_shot_p2_fx:
     mov dl,[ally_px]
     mov dh,[ally_py]
     call spawn_explosion
@@ -2794,11 +2885,29 @@ keyboard_irq:
 1:
     and al, 0x7f
     xor ah, ah
-    cmp al, 0x48
+    /* P2 has dedicated W/A/S/D + either Ctrl scancodes.
+       These must NOT change P1's AUTO/MAN mode. */
+    cmp al,0x11
     jne 1f
-    jmp irq_up
+    jmp irq_p2_up
 1:
-    cmp al, 0x11
+    cmp al,0x20
+    jne 1f
+    jmp irq_p2_right
+1:
+    cmp al,0x1f
+    jne 1f
+    jmp irq_p2_down
+1:
+    cmp al,0x1e
+    jne 1f
+    jmp irq_p2_left
+1:
+    cmp al,0x1d
+    jne 1f
+    jmp irq_p2_fire
+1:
+    cmp al, 0x48
     jne 1f
     jmp irq_up
 1:
@@ -2806,18 +2915,18 @@ keyboard_irq:
     jne 1f
     jmp irq_right
 1:
-    cmp al, 0x20
-    je irq_right
     cmp al, 0x50
-    je irq_down
-    cmp al, 0x1f
-    je irq_down
+    jne 1f
+    jmp irq_down
+1:
     cmp al, 0x4b
-    je irq_left
-    cmp al, 0x1e
-    je irq_left
+    jne 1f
+    jmp irq_left
+1:
     cmp al, 0x39
-    je irq_fire
+    jne 1f
+    jmp irq_fire
+1:
     test bl, 0x80
     jz irq_is_make
     jmp irq_ack
@@ -2863,6 +2972,23 @@ irq_not_auto:
     cmp al, 0x32
     jne irq_ack
     or byte ptr [pending_commands], 8
+    jmp irq_ack
+irq_p2_up:
+    mov ah,1
+    jmp irq_p2_record
+irq_p2_right:
+    mov ah,2
+    jmp irq_p2_record
+irq_p2_down:
+    mov ah,4
+    jmp irq_p2_record
+irq_p2_left:
+    mov ah,8
+    jmp irq_p2_record
+irq_p2_fire:
+    mov ah,16
+irq_p2_record:
+    call coop24_key_event
     jmp irq_ack
 irq_up:
     mov ah, 1
@@ -2931,6 +3057,16 @@ poll_controls:
     mov dl,[ally_call_pending]
     mov byte ptr [ally_call_pending],0
     popf
+    /* IRQ only flags a join; actual sprite spawning occurs outside IRQ. */
+    cmp byte ptr [coop_join_pending],0
+    je controls_no_coop_join
+    mov byte ptr [coop_join_pending],0
+    push ax
+    push dx
+    call coop24_join
+    pop dx
+    pop ax
+controls_no_coop_join:
     test dl,1
     jz controls_no_ally_call
     call ally20_try_call
@@ -3044,6 +3180,11 @@ apply_cga_palette:
  * AABB movement is checked against four world corners and other tanks.
  */
 move_player_smooth:
+    cmp byte ptr [coop_mode],0
+    je move_player_live
+    cmp byte ptr [lives],0
+    je player_smooth_done
+move_player_live:
     /* An enemy that steals the clock slows P1 for ~6.6 seconds. */
     cmp byte ptr [player_slow_ticks],0
     je move_player_not_slow
@@ -3131,6 +3272,21 @@ player_pixel_next_enemy:
     inc bx
     cmp bx, 4
     jb player_pixel_check_enemies
+    cmp byte ptr [coop_mode],0
+    je player_pixel_no_p2
+    cmp byte ptr [coop_lives],0
+    je player_pixel_no_p2
+    mov al,[candidate_x]
+    sub al,[ally_px]
+    add al,15
+    cmp al,30
+    ja player_pixel_no_p2
+    mov al,[candidate_y]
+    sub al,[ally_py]
+    add al,11
+    cmp al,22
+    jbe player_pixel_done
+player_pixel_no_p2:
     mov al, [candidate_x]
     mov [player_px], al
     mov al, [candidate_y]
@@ -3728,10 +3884,7 @@ track23_pixel:
     mov al,[laser19_masks+bx]
     not al
     and al,es:[di]
-    cmp byte ptr [track23_mode],0
-    jne track23_store
-    or al,[laser19_color3+bx]
-track23_store:
+    /* No healthy highlights: paint black only on damaged armour. */
     mov es:[di],al
     pop es
     pop di
@@ -3814,13 +3967,18 @@ paint_enemy_standard:
     mov si, [smooth_enemy_ptrs+si]
 paint_enemy_selected:
     call draw_smooth_sprite
-    /* The new track painter keeps animated highlights for healthy
-       treads and stamps permanent black dots on a damaged track. */
+    /* Black wear only on surviving ARMOUR with an actually damaged tread.
+       Healthy enemy tracks and all player tanks retain the original sprite. */
+    cmp byte ptr [enemy_type+bx],3
+    jne paint_enemy_no_tread_damage
+    cmp byte ptr [enemy_track_damage+bx],0
+    je paint_enemy_no_tread_damage
     mov dl,[enemy_px+bx]
     mov dh,[enemy_py+bx]
     mov al,[enemy_dir+bx]
-    mov ah,[enemy_track_damage+bx]
+    mov ah,1
     call draw_track_dots
+paint_enemy_no_tread_damage:
     pop bx
 paint_enemy_next:
     inc bx
@@ -3850,6 +4008,12 @@ paint_enemy_finished:
 paint_ally_no_shield:
     call ally21_draw_mark
 paint_ally_done:
+    /* A knocked-out 1P leaves 2P to defend HQ alone. */
+    cmp byte ptr [coop_mode],0
+    je paint_player_alive
+    cmp byte ptr [lives],0
+    je paint_player_no_actor
+paint_player_alive:
     /* Player's tank. */
     mov dl, [player_px]
     mov dh, [player_py]
@@ -3869,12 +4033,8 @@ paint_player_normal:
     mov si,offset smooth_shield_outline
     call draw_smooth_sprite
 paint_player_no_shield:
-    /* Moving tread overlay generated in RAM, no 8x480-byte atlas. */
-    mov dl,[player_px]
-    mov dh,[player_py]
-    mov al,[player_dir]
-    xor ah,ah
-    call draw_track_dots
+    /* Ordinary P1 treads remain part of the unmodified CGA sprite. */
+paint_player_no_actor:
     /* Player projectile and up to four enemy projectiles. */
     cmp byte ptr [bullet_active], 0
     je paint_no_bullet
@@ -4336,7 +4496,39 @@ draw_hud:
     push di
     push si
     call draw_enemy_markers
-    mov di, 2625             /* x260,y64: 1P */
+    cmp byte ptr [coop_mode],0
+    je hud_solo_lives
+    /* Exact eight 8px glyphs fit the 64px sidebar: 1Px1 2Px1. */
+    mov di,2624
+    mov al,1
+    call draw_hud_digit
+    mov di,2626
+    mov si,offset hud_p_char
+    call draw_hud_glyph
+    mov di,2628
+    mov si,offset hud_x_char
+    call draw_hud_glyph
+    mov di,2630
+    mov al,[lives]
+    call draw_hud_digit
+    mov di,2632
+    mov al,2
+    call draw_hud_digit
+    mov di,2634
+    mov si,offset hud_p_char
+    call draw_hud_glyph
+    mov di,2636
+    mov si,offset hud_x_char
+    call draw_hud_glyph
+    mov di,2638
+    mov al,[coop_lives]
+    call draw_hud_digit
+    jmp hud_lives_finished
+hud_solo_lives:
+    mov di,2624
+    mov si,offset hud_blank_icon
+    call draw_hud_glyph
+    mov di,2625             /* x260,y64: 1P */
     mov al, 1
     call draw_hud_digit
     mov di, 2627
@@ -4352,6 +4544,14 @@ draw_hud:
 hud_lives_zero:
     mov di, 2632
     call draw_hud_digit
+    mov si,offset hud_blank_icon
+    mov di,2634
+    call draw_hud_glyph
+    mov di,2636
+    call draw_hud_glyph
+    mov di,2638
+    call draw_hud_glyph
+hud_lives_finished:
     mov di, 2945             /* x260,y72: flag */
     mov si, offset hud_flag_icon
     call draw_hud_glyph
@@ -4473,6 +4673,8 @@ bonus20_timer_convert:
     mov di,3910         /* x280 ones */
     call draw_hud_digit
 bonus20_timer_done:
+    cmp byte ptr [coop_mode],0
+    jne bonus24_coop_hud
     mov di,3914         /* x296 V */
     mov si,offset hud_v_char
     cmp byte ptr [ally_life_flash],0
@@ -4488,6 +4690,21 @@ bonus20_v_draw:
     mov di,3918         /* x312 available calls */
     mov al,[ally_stock]
     call draw_hud_digit
+    jmp bonus24_hud_end
+bonus24_coop_hud:
+    /* No AUTO companion in two-human play: show COOP, not a false V. */
+    mov di,3912
+    mov si,offset hud_c_char
+    call draw_hud_glyph
+    mov di,3914
+    mov si,offset hud_o_char
+    call draw_hud_glyph
+    mov di,3916
+    call draw_hud_glyph
+    mov di,3918
+    mov si,offset hud_p_char
+    call draw_hud_glyph
+bonus24_hud_end:
     pop di
     pop si
     pop dx
@@ -4501,6 +4718,9 @@ draw_mode_indicator:
     push cx
     push si
     push di
+    mov bx,offset tactical_coop_glyphs
+    cmp byte ptr [coop_mode],0
+    jne mode_hud_selected
     mov bx, offset tactical_auto_glyphs
     cmp byte ptr [auto_mode], 0
     jne mode_hud_selected
@@ -6195,6 +6415,194 @@ smoke_bonus_replay:
     je 9f
     jmp smoke_extra_fail
 9:
+    /* Phase 100: P2 can join as an independent human ally. */
+    mov byte ptr [test_phase],100
+    call reset_campaign
+    mov byte ptr [auto_mode],1
+    call coop24_join
+    cmp byte ptr [coop_mode],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [coop_lives],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [lives],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp word ptr [ally_ticks],0x7fff
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 101: P2 WASD never commandeers P1 AUTO state. */
+    mov byte ptr [test_phase],101
+    mov ah,1
+    mov bl,0x11
+    call coop24_key_event
+    cmp byte ptr [coop_keys],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [auto_mode],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov ah,1
+    mov bl,0x91
+    call coop24_key_event
+    cmp byte ptr [coop_keys],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 102: Ctrl creates a real projectile owned by P2. */
+    mov byte ptr [test_phase],102
+    mov byte ptr [coop_keys],16
+    mov byte ptr [ally_cooldown],0
+    call coop24_tick
+    mov byte ptr [coop_keys],0
+    cmp byte ptr [extra_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bullet_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 103: disabled automatic companion never steals human P2. */
+    mov byte ptr [test_phase],103
+    call ally20_try_call
+    call bonus17_tick
+    cmp word ptr [ally_ticks],0x7fff
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 104: coop drops half as many power-up candidates. */
+    mov byte ptr [test_phase],104
+    mov byte ptr [bonus_active],0
+    mov byte ptr [enemy_killed],2
+    mov byte ptr [enemy_px],16
+    mov byte ptr [enemy_py],0
+    call maybe_drop_bonus
+    cmp byte ptr [bonus_active],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [coop_mode],0
+    call maybe_drop_bonus
+    cmp byte ptr [bonus_active],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 105: enemy physically picks up and SHOOTS laser. */
+    mov byte ptr [test_phase],105
+    call reset_campaign
+    mov byte ptr [enemy_active],1
+    mov byte ptr [enemy_active+1],0
+    mov byte ptr [enemy_active+2],0
+    mov byte ptr [enemy_active+3],0
+    mov byte ptr [enemy_px],96
+    mov byte ptr [enemy_py],96
+    mov byte ptr [enemy_dir],0
+    mov byte ptr [bonus_col],6
+    mov byte ptr [bonus_row],8
+    mov byte ptr [bonus_active],1
+    mov byte ptr [bonus_type],6
+    call enemy21_collect_bonus
+    cmp byte ptr [enemy_weapon_kind],6
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [enemy_hold],1
+    mov byte ptr [shot_active],0
+    mov byte ptr [laser_flash_ticks],0
+    mov byte ptr [test_mode],0
+    call enemy_fire_cycle
+    mov byte ptr [test_mode],1
+    cmp byte ptr [laser_flash_ticks],7
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 106: P2 is independently damaged; P1 stays alive. */
+    mov byte ptr [test_phase],106
+    call reset_campaign
+    call coop24_join
+    mov byte ptr [ally_shield],0
+    mov byte ptr [shot_active],1
+    mov al,[ally_px]
+    mov [shot_px],al
+    mov al,[ally_py]
+    mov [shot_py],al
+    mov byte ptr [shot_dir],0
+    mov byte ptr [shot_super],0
+    mov byte ptr [test_mode],0
+    xor bx,bx
+    call advance_enemy_shot_smooth
+    mov byte ptr [test_mode],1
+    cmp byte ptr [coop_lives],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [game_state],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [lives],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 107: alternating human AUTO orders are counted. */
+    mov byte ptr [test_phase],107
+    call reset_campaign
+    mov byte ptr [p_loop_last],1
+    mov byte ptr [p_loop_prev],3
+    mov byte ptr [p_loop_count],0
+    mov al,3
+    call tactical24_player_unloop
+    cmp byte ptr [p_loop_count],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 108: enemies have their own reversal counters. */
+    mov byte ptr [test_phase],108
+    mov byte ptr [enemy_loop_last],1
+    mov byte ptr [enemy_loop_prev],3
+    mov byte ptr [enemy_loop_count],0
+    xor bx,bx
+    mov al,3
+    call tactical24_enemy_unloop
+    cmp byte ptr [enemy_loop_count],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 109: both living human tank counts are shown in CGA HUD. */
+    mov byte ptr [test_phase],109
+    call reset_campaign
+    call coop24_join
+    call draw_hud
+    push es
+    mov ax,0xb800
+    mov es,ax
+    mov ax,[hud_digit_1]
+    cmp word ptr es:[2624],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    mov ax,[hud_digit_2]
+    cmp word ptr es:[2632],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    mov ax,[hud_digit_1]
+    cmp word ptr es:[2638],ax
+    je 9f
+    pop es
+    jmp smoke_extra_fail
+9:
+    pop es
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
@@ -6335,6 +6743,8 @@ trace_record_done:
 .include "src/dos/enemy_pickups_v21.inc"
 .include "src/dos/ally_marker_v21.inc"
 .include "src/dos/bonus_v23.inc"
+.include "src/dos/coop_v24.inc"
+.include "src/dos/anti_loop_v24.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -6356,7 +6766,7 @@ bonus_sequence: .byte 0
 bonus_flash_type: .byte 0
 bonus_flash_ticks: .byte 0
 bonus_columns: .byte 2, 10, 4, 8, 1, 11, 6, 12, 5, 9, 3
-bonus_drop_order: .byte 0, 5, 7, 1, 6, 8, 3, 4, 2, 9, 10, 11, 12, 13
+bonus_drop_order: .byte 0, 6, 5, 8, 7, 9, 11, 12, 13, 1, 3, 4, 2, 10
 /* Heart at second pickup, ally third; no more fixed center-row spawn. */
 ally_stock: .byte 1        /* reserve V calls: max nine */
 ally_call_pending: .byte 0 /* keyboard ISR, distinct from movement keys */
@@ -6466,10 +6876,11 @@ game_over_string: .asciz "GAME OVER"
 next_string: .asciz "SPACE - NEXT"
 restart_string: .asciz "R - RESTART"
 tactical_auto_glyphs: .word hud_blank_icon, hud_blank_icon, hud_a_char, hud_u_char, hud_t_char, hud_o_char, hud_blank_icon, hud_blank_icon
+tactical_coop_glyphs: .word hud_blank_icon,hud_blank_icon,hud_c_char,hud_o_char,hud_o_char,hud_p_char,hud_blank_icon,hud_blank_icon
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_a_char, hud_s_char, hud_i_char, hud_c_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_3
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_4
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
