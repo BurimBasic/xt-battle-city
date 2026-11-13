@@ -229,15 +229,16 @@ quad23_spawn:
     push dx
     xor bx,bx
 quad23_fill:
-    mov al,[player_px]
-    mov [extra_px+bx],al
-    mov al,[player_py]
-    mov [extra_py+bx],al
+    mov dl,[player_px]
+    mov dh,[player_py]
     mov al,[player_dir]
     add al,bl
     inc al
     and al,3
     mov [extra_dir+bx],al
+    call gun29_muzzle
+    mov [extra_px+bx],dl
+    mov [extra_py+bx],dh
     mov byte ptr [extra_active+bx],1
     mov byte ptr [extra_homing+bx],0
     inc bx
