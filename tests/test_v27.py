@@ -44,7 +44,7 @@ class V27Tests(unittest.TestCase):
  def test_hud_author_and_version(self):
   self.assertIn('brand_basic_glyphs: .word hud_b_char, hud_u_char, hud_r_char, hud_i_char, hud_m_char',T)
   self.assertIn('hud_r_char',art.generate_hud().__str__())
-  self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_7',T)
+  self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_8',T)
  def test_auto_high_value_pickups_respect_base_guard(self):
   x=A.split('tactical_defense_orders:',1)[1].split('tactical27_normal_orders:',1)[0]
   self.assertIn('cmp al,2',x) # wipe enemies
