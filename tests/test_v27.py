@@ -19,7 +19,8 @@ class V27Tests(unittest.TestCase):
   self.assertEqual(len(art.PLANE_V[0]),16)
   self.assertIn('wide27_draw:',R)
   self.assertIn('mov bp,24',R)
-  self.assertIn('mov cx,8',R)
+  self.assertIn('call wide27_dirty',R)  # optimized one-pass rectangle
+  self.assertIn('mov cx,4',R)  # 4 x 16-bit words per row
  def test_two_animated_propellers(self):
   self.assertIn('wide27_propellers:',R)
   self.assertGreaterEqual(R.split('wide27_propellers:',1)[1].count('call gun27_pixel'),4)
