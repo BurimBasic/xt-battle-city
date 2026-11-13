@@ -745,7 +745,7 @@ tactical_find_threat:
     ja tactical_threat_next
     /* Pick the side with more maneuvering room, not always right. */
     mov al,1
-    cmp byte ptr [player_px],112
+    cmp byte ptr [player_px],128
     jb tactical_threat_found
     mov al,3
     jmp tactical_threat_found
