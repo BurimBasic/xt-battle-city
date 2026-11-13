@@ -286,8 +286,8 @@ def shield_sprite(art):
     """Complete symmetric protective bubble outside tank. Never overwrite tank."""
     g=[list(row) for row in art]
     halo=[]
-    for x in range(3,13):halo.extend([(x,0),(x,11)])
-    for y in range(2,10):halo.extend([(0,y),(15,y)])
+    for x in range(1,15):halo.extend([(x,0),(x,11)])
+    for y in range(1,11):halo.extend([(0,y),(15,y)])
     halo.extend([(1,1),(14,1),(1,10),(14,10)])
     for x,y in halo:
         if g[y][x]=='.':g[y][x]='3'
