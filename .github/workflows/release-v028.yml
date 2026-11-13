@@ -1,0 +1,46 @@
+name: Publish GitHub Release v0.28
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'releases/v0.28/TANKS-v0.28-DOS-CGA.zip'
+      - 'releases/v0.28/RELEASE-NOTES.md'
+      - '.github/workflows/release-v028.yml'
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate immutable release payload
+        run: |
+          test -s dist/TANKS.COM
+          test -s releases/v0.28/TANKS-v0.28-DOS-CGA.zip
+          test -s releases/v0.28/RELEASE-NOTES.md
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,zipfile
+          binary=Path('dist/TANKS.COM').read_bytes()
+          notes=Path('releases/v0.28/RELEASE-NOTES.md').read_text()
+          actual=hashlib.sha256(binary).hexdigest().upper()
+          assert actual in notes, (actual,'not in release notes')
+          assert len(binary)<57344, len(binary)
+          with zipfile.ZipFile('releases/v0.28/TANKS-v0.28-DOS-CGA.zip') as z:
+              assert z.read('TANKS.COM')==binary
+          print('RELEASE_PAYLOAD_OK',actual,len(binary))
+          PY
+      - name: Publish versioned assets with GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=v0.28
+          zip=releases/v0.28/TANKS-v0.28-DOS-CGA.zip
+          notes=releases/v0.28/RELEASE-NOTES.md
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$zip" dist/TANKS.COM --clobber
+            gh release edit "$tag" --notes-file "$notes"
+          else
+            gh release create "$tag" "$zip" dist/TANKS.COM --title 'XT Battle City / Танчики v0.28 — детальный самолёт, винты, отдача и уклонение AUTO' --notes-file "$notes" --target "$GITHUB_SHA"
+          fi
+          gh release view "$tag" --json tagName,url,assets
