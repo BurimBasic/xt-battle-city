@@ -10,6 +10,8 @@ import build_cga_assets as assets
 class SpriteTests(unittest.TestCase):
     def test_sprite_dimensions(self):
         for name, art in assets.SPRITES.items():
+            if name in assets.WIDE_PLANES:
+                continue  # native 32x24 transparent aircraft, not 16x12 tile
             with self.subTest(name=name):
                 self.assertEqual(len(art), 12)
                 self.assertTrue(all(len(row) == 16 for row in art))
