@@ -1,4 +1,4 @@
-name: Stage v0.29 approved art and muzzle release candidate
+name: Stage v0.29 approved art and muzzle candidate (HQ interception)
 on:
   push:
     branches: [feat/v029-approved-cga-art-muzzle]
