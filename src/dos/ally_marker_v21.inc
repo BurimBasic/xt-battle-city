@@ -1,8 +1,7 @@
-/* v0.21: two-by-two magenta cockpit marker. Distinguishes the
- * attacking ally after its temporary shield has expired, without
- * giving it a fake permanent protective silhouette. Only 4 pixel
- * writes into the same frame buffer as the ordinary player chassis.
- * CGA palette index 1 is the contrasting magenta/green accent.
+/* v0.29: companion uses exactly the approved cyan P1 hull, plus TWO
+ * magenta 5px stripes flanking its turret. Rotation follows ally_dir.
+ * No misleading permanent shield and no extra smooth atlas (saves 1920B).
+ * 8086: ten bounded 2bpp pixel writes, no allocation or BIOS calls.
  */
 .section .text
 ally21_draw_mark:
@@ -10,48 +9,49 @@ ally21_draw_mark:
     push bx
     push cx
     push dx
-    push di
-    push es
-    mov ax,[frame_seg]
-    mov es,ax
+    push si
+    xor si,si
+    mov bl,2                 /* CGA magenta */
+ally29_next_stripe:
     mov dl,[ally_px]
-    add dl,7
     mov dh,[ally_py]
+    mov al,[ally_dir]
+    test al,1
+    jz ally29_vertical
+    /* Horizontal heading: two short horizontal chassis/roof bars
+       above and below the white turret. */
+    add dl,6
     add dh,3
-    call ally21_dot
+    test si,1
+    jz ally29_draw_horizontal
+    add dh,6
+ally29_draw_horizontal:
+    mov cx,5
+ally29_h_loop:
+    call gun27_pixel
     inc dl
-    call ally21_dot
-    dec dl
+    loop ally29_h_loop
+    jmp ally29_stripe_done
+ally29_vertical:
+    /* Vertical heading: same two magenta roof bars, rotated 90deg. */
+    add dl,4
+    add dh,3
+    test si,1
+    jz ally29_draw_vertical
+    add dl,7
+ally29_draw_vertical:
+    mov cx,5
+ally29_v_loop:
+    call gun27_pixel
     inc dh
-    call ally21_dot
-    inc dl
-    call ally21_dot
-    pop es
-    pop di
+    loop ally29_v_loop
+ally29_stripe_done:
+    inc si
+    cmp si,2
+    jb ally29_next_stripe
+    pop si
     pop dx
     pop cx
     pop bx
     pop ax
-    ret
-
-ally21_dot:
-    xor bx,bx
-    mov bl,dl
-    and bl,3
-    mov cl,[laser19_masks+bx]
-    not cl
-    mov ah,[laser19_color1+bx]
-    xor bx,bx
-    mov bl,dh
-    shl bx,1
-    mov di,[cga_scanline_offsets+bx]
-    xor bx,bx
-    mov bl,dl
-    shr bx,1
-    shr bx,1
-    add di,bx
-    mov al,es:[di]
-    and al,cl
-    or al,ah
-    mov es:[di],al
     ret
