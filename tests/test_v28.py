@@ -49,6 +49,8 @@ class V28Tests(unittest.TestCase):
         self.assertIn("tactical_player_idle:", AI)
         self.assertIn("call tactical_find_threat", AI)
         self.assertIn("cmp bx,7\n    jae tactical_threat_clear", AI)
+        self.assertIn("mov byte ptr [tactical_threat_range],24", AI)
+        self.assertIn("mov byte ptr [tactical_threat_range],72", AI)
         self.assertIn("cmp byte ptr [player_px],128", AI)
 
 
