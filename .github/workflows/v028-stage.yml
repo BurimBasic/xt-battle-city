@@ -1,4 +1,4 @@
-name: Stage v0.28 for SLOW1 native tests (emergency dodge fixed)
+name: Stage v0.28 SLOW1 verified candidate (24px fast-dodge gate)
 on:
   push:
     branches: [feat/v028-aircraft-recoil-dodge]
