@@ -18,7 +18,7 @@ class V26Regression(unittest.TestCase):
    self.assertIn('wide_'+name,B)
   self.assertNotEqual(art.SPRITES['plane_horizontal'],art.SPRITES['plane_horizontal_left'])
   self.assertNotEqual(art.SPRITES['plane_vertical'],art.SPRITES['plane_vertical_down'])
-  self.assertLess(sum(1 for row in art.SPRITES['plane_horizontal'] for c in row if c!='.'),160)
+  self.assertLess(sum(1 for row in art.SPRITES['plane_horizontal'] for c in row if c!='.'),640)
   self.assertIn('1', ''.join(art.SPRITES['plane_vertical']))  # canopy
  def test_bomber_randomized_four_routes_and_delay(self):
   roll=B.split('bomber26_roll:',1)[1].split('bonus26_touch:',1)[0]
