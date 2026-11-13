@@ -8,8 +8,27 @@
 .section .text
 
 tactical_player_tick:
-    test byte ptr [game_tick], 3
+    /* Normal strategic decisions remain every 4 ticks. On the intervening
+       even ticks perform ONLY an emergency shell scan (including spread
+       weapons), so a 2px/tick player can start dodging earlier. */
+    test byte ptr [game_tick],3
     jz tactical_player_decide
+    test byte ptr [game_tick],1
+    jnz tactical_player_idle
+    cmp byte ptr [player_shield],0
+    jne tactical_player_idle
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    call tactical_find_threat
+    jc tactical_player_quick_escape
+    jmp tactical_player_leave
+tactical_player_quick_escape:
+    mov byte ptr [tactical_fire_request],0
+    jmp tactical_player_steer
+tactical_player_idle:
     ret
 tactical_player_decide:
     push ax
@@ -724,10 +743,11 @@ tactical_find_threat:
  tactical_threat_vertical_range:
     cmp al, 72
     ja tactical_threat_next
-    mov al, 1
-    cmp byte ptr [player_px], 210
+    /* Pick the side with more maneuvering room, not always right. */
+    mov al,1
+    cmp byte ptr [player_px],112
     jb tactical_threat_found
-    mov al, 3
+    mov al,3
     jmp tactical_threat_found
  tactical_threat_horizontal:
     mov al, [shot_py+bx]
@@ -764,7 +784,8 @@ tactical_find_threat:
     jmp tactical_threat_done
  tactical_threat_next:
     inc bx
-    cmp bx, 4
+    /* Extra enemy projectiles from spread weapons occupy slots 4..6. */
+    cmp bx,7
     jae tactical_threat_clear
     jmp tactical_threat_loop
 tactical_threat_clear:
