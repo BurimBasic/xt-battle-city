@@ -15,8 +15,8 @@ class V27Tests(unittest.TestCase):
    self.assertIn(name,art.SPRITES)
    data=art.pack_wide_plane(art.SPRITES[name])
    self.assertEqual(len(data),384)
-  self.assertEqual(len(art.PLANE_V),12)
-  self.assertEqual(len(art.PLANE_V[0]),16)
+  self.assertEqual(len(art.PLANE_V),24)
+  self.assertEqual(len(art.PLANE_V[0]),32)
   self.assertIn('wide27_draw:',R)
   self.assertIn('mov bp,24',R)
   self.assertIn('call wide27_dirty',R)  # optimized one-pass rectangle
