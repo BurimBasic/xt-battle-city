@@ -63,6 +63,9 @@ class ReadabilityTests(unittest.TestCase):
 
     def test_packed_assets_and_8088_binary_size(self):
         for k,asset in a.SPRITES.items():
+            if k in a.WIDE_PLANES:
+                self.assertEqual(len(a.pack_wide_plane(asset)),384,k)
+                continue
             self.assertEqual(len(a.pack(asset)),48,k)
             if k in a.SMOOTH_SPRITES:
                 self.assertEqual(len(a.pack_smooth(asset)),480,k)
