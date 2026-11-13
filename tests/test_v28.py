@@ -49,7 +49,7 @@ class V28Tests(unittest.TestCase):
         self.assertIn("tactical_player_idle:", AI)
         self.assertIn("call tactical_find_threat", AI)
         self.assertIn("cmp bx,7\n    jae tactical_threat_clear", AI)
-        self.assertIn("cmp byte ptr [player_px],112", AI)
+        self.assertIn("cmp byte ptr [player_px],128", AI)
 
 
 if __name__ == "__main__":
