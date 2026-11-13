@@ -357,22 +357,25 @@ def pack(rows):
 # five mask bytes followed by five color bytes; zero pixels are transparent.
 # This makes arbitrary-pixel CGA compositing fast enough to test on an 8088
 # without allocating a 16 KB off-screen framebuffer. 4*12*10=480 bytes.
-# v0.27 original 1942-era twin-engine plane, 2x enlarged in CGA.
-# Independently drawn pixel clusters, not commercial 1942 ROM art.
+# v0.28: ONE original top-view 1942-style twin-engine source sprite.
+# Four headings are generated strictly by rotation of this master, never
+# redrawn independently; CGA mode 4 retains the game's selected 4-color
+# hardware palette. 2x nearest-neighbour scaling yields a 32x24 aircraft.
+# Nose, canopy, inset engines, tapered wings and twin tailplane tips.
 PLANE_V = sprite(
  '.......22.......',
  '.......33.......',
- '...2...11...2...',
- '...33..33..33...',
- '...33..33..33...',
- '1111113333111111',
- '1111113333111111',
+ '...23..33..32...',
+ '...2311331132...',
+ '..113113311311..',
+ '1111111331111111',
+ '2111111331111112',
  '.11111333311111.',
- '...33..33..33...',
+ '...2213333122...',
  '......3333......',
  '....11333311....',
- '......3333......')
-PLANE_V_DOWN = sprite(*reversed(PLANE_V))
+ '.....223322.....')
+PLANE_V_DOWN = sprite(*(row[::-1] for row in reversed(PLANE_V)))
 def plane_turn_right(rows):
     return sprite(*tuple(''.join(rows[min(11,(15-x)*12//16)][min(15,y*16//12)] for x in range(16)) for y in range(12)))
 PLANE_H = plane_turn_right(PLANE_V)
