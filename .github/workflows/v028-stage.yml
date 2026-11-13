@@ -1,4 +1,4 @@
-name: Stage CI-validated v0.28 DOS candidate and plane art
+name: Stage CI-validated v0.28 DOS candidate and plane art (HUD 0.28)
 on:
   push:
     branches: [feat/v028-aircraft-recoil-dodge]
