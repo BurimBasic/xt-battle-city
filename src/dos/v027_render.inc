@@ -187,6 +187,27 @@ gun27_inward:
     inc dl
     ret
 
+/* Opposite of gun27_inward. Used to put the firing flash OUTSIDE
+ * the barrel, never inside the tank's body. */
+gun27_outward:
+    cmp byte ptr [gun27_dir],0
+    jne 1f
+    dec dh
+    ret
+1:
+    cmp byte ptr [gun27_dir],1
+    jne 2f
+    inc dl
+    ret
+2:
+    cmp byte ptr [gun27_dir],2
+    jne 3f
+    inc dh
+    ret
+3:
+    dec dl
+    ret
+
 /* AL recoil phase 3/2/1, BL heading 0..3, DL/DH tank origin.
  * Blackens 2/1 tip pixels to give visible kickback; one rounded 2px
  * flash at the muzzle on phase 3. Sprite is redrawn before each frame. */
@@ -228,10 +249,21 @@ gun27_blacken:
     call gun27_pixel
     cmp byte ptr [gun27_phase],3
     jne gun27_done
-    call gun27_inward
+    /* Blackened barrel is recessed 2px; flash sits just in front
+       of its original muzzle and is 2 adjacent sparkling pixels. */
+    call gun27_outward
+    call gun27_outward
     mov bl,3
     call gun27_pixel
+    cmp byte ptr [gun27_dir],0
+    je 1f
+    cmp byte ptr [gun27_dir],2
+    je 1f
+    inc dh
+    jmp 2f
+1:
     inc dl
+2:
     call gun27_pixel
 gun27_done:
     pop dx
@@ -250,34 +282,64 @@ gun27_tick:
 2:
     ret
 
-/* Two discrete spinning propeller tips, 1px amplitude, one per engine.
- * World coordinates are 32x24 wide-plane origin. */
+/* Two visible propellers on ONE rotated master aircraft. Clockwise
+ * 0=right, 1=left, 2=down, 3=up. Draw black hubs and alternating
+ * white perpendicular blade tips. Alternation occurs every game tick;
+ * the aircraft's dirty rectangle clears the previous blade positions. */
 wide27_propellers:
     push ax
     push bx
     push dx
-    mov bl,3
+    mov bl,0
     cmp byte ptr [bomber25_axis],0
     jne wide27_vertical_props
-    add dl,14
-    add dh,5
-    test byte ptr [game_tick],2
-    jz 1f
-    inc dl
-1:
+    cmp byte ptr [bomber26_reverse],0
+    jne wide27_props_left
+    add dl,25
+    jmp wide27_horizontal_hubs
+wide27_props_left:
+    add dl,6
+wide27_horizontal_hubs:
+    add dh,6
     call gun27_pixel
-    add dh,13
+    add dh,12
+    call gun27_pixel
+    sub dh,12
+    mov bl,3
+    test byte ptr [game_tick],1
+    jz wide27_horizontal_blade_a
+    add dh,2
+    jmp wide27_horizontal_blades
+wide27_horizontal_blade_a:
+    sub dh,2
+wide27_horizontal_blades:
+    call gun27_pixel
+    add dh,12
     call gun27_pixel
     jmp wide27_props_done
 wide27_vertical_props:
-    add dl,7
-    add dh,4  /* twin engine propellers ahead of the wings */
-    test byte ptr [game_tick],2
-    jz 2f
-    inc dh
-2:
+    cmp byte ptr [bomber26_reverse],0
+    jne wide27_props_up
+    add dh,19
+    jmp wide27_vertical_hubs
+wide27_props_up:
+    add dh,4
+wide27_vertical_hubs:
+    add dl,8
     call gun27_pixel
-    add dl,18
+    add dl,16
+    call gun27_pixel
+    sub dl,16
+    mov bl,3
+    test byte ptr [game_tick],1
+    jz wide27_vertical_blade_a
+    add dl,2
+    jmp wide27_vertical_blades
+wide27_vertical_blade_a:
+    sub dl,2
+wide27_vertical_blades:
+    call gun27_pixel
+    add dl,16
     call gun27_pixel
 wide27_props_done:
     pop dx
