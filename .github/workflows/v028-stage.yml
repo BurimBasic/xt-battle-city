@@ -1,4 +1,4 @@
-name: Stage v0.28 SLOW1 verified candidate (24px fast-dodge gate)
+name: Stage v0.28 SLOW1 acceptance build (24px urgent scan)
 on:
   push:
     branches: [feat/v028-aircraft-recoil-dodge]
