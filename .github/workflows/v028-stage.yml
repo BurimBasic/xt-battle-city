@@ -1,7 +1,7 @@
 name: Stage CI-validated v0.28 DOS candidate and plane art
 on:
   push:
-    branches: [feat/v028-1942-plane-recoil]
+    branches: [feat/v028-aircraft-recoil-dodge]
     paths: ['.github/workflows/v028-stage.yml']
 permissions:
   contents: write
@@ -47,5 +47,5 @@ jobs:
           git add src/dos/cga_assets.inc dist/TANKS.COM releases/v0.28/TANKS-v0.28-DOS-CGA.zip docs/art/v028-airplane-sprite-preview.png
           if ! git diff --cached --quiet; then
             git commit -m 'release(v0.28): CI-validated candidate DOS COM, ZIP and aircraft art preview'
-            git push origin HEAD:feat/v028-1942-plane-recoil
+            git push origin HEAD:feat/v028-aircraft-recoil-dodge
           fi
