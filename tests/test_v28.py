@@ -23,10 +23,10 @@ class V28Tests(unittest.TestCase):
 
     def test_twin_engine_and_wings_remain_legible(self):
         p = art.PLANE_V
-        self.assertEqual(len(p), 12)
-        self.assertTrue(all(len(r) == 16 for r in p))
-        self.assertEqual(p[0][7:9], "22")
-        self.assertGreaterEqual(p[5].count("1"), 12)
+        self.assertEqual(len(p), 24)
+        self.assertTrue(all(len(r) == 32 for r in p))
+        self.assertEqual(p[0][15:17], "22")
+        self.assertGreaterEqual(p[12].count("1"), 22)
         self.assertGreaterEqual(sum(row.count("3") for row in p), 26)
 
     def test_propellers_animate_in_all_four_directions(self):
