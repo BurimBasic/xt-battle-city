@@ -1,4 +1,4 @@
-name: Stage CI-validated v0.28 DOS candidate and plane art (HUD 0.28)
+name: Stage v0.28 for SLOW1 native tests (emergency dodge fixed)
 on:
   push:
     branches: [feat/v028-aircraft-recoil-dodge]
