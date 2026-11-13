@@ -3,16 +3,69 @@
 .section .text
 /* DL/DH = 32x24 upper left. Mark four 16x12 tile-sized regions. */
 wide27_dirty:
+    /* Directly mark the full 32x24 aircraft tile rectangle, in one pass.
+       Avoid the old 4x mark_dirty_rect calls every video frame. */
+    push ax
+    push bx
+    push cx
     push dx
-    call mark_dirty_rect
-    add dl,16
-    call mark_dirty_rect
-    sub dl,16
-    add dh,12
-    call mark_dirty_rect
-    add dl,16
-    call mark_dirty_rect
+    push si
+    mov al,dl
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov cl,al
+    mov al,dl
+    add al,31
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov ch,al
+    xor bx,bx
+    mov bl,dh
+    mov al,[pixel_y_tile_lookup+bx]
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov dl,al
+    add bl,23
+    mov al,[pixel_y_tile_lookup+bx]
+    shr al,1
+    shr al,1
+    shr al,1
+    shr al,1
+    mov dh,al
+wide27_dirty_row:
+    xor bx,bx
+    mov bl,dl
+    shl bx,1
+    shl bx,1
+    shl bx,1
+    shl bx,1
+    xor ax,ax
+    mov al,cl
+wide27_dirty_col:
+    cmp al,16
+    jae wide27_dirty_skip
+    mov si,bx
+    add si,ax
+    mov byte ptr [dirty_tiles+si],1
+    mov byte ptr [upload_tiles+si],1
+wide27_dirty_skip:
+    inc al
+    cmp al,ch
+    jbe wide27_dirty_col
+    inc dl
+    cmp dl,dh
+    jbe wide27_dirty_row
+    pop si
     pop dx
+    pop cx
+    pop bx
+    pop ax
     ret
 
 /* SI: packed 384-byte wide_plane frame (8 masks then 8 colors per row).
@@ -44,16 +97,17 @@ wide27_row:
     shr bx,1
     shr bx,1
     add di,bx
-    mov cx,8
+    /* Four 16-bit RMW mask+color pairs instead of eight byte writes. */
+    mov cx,4
 wide27_byte:
-    mov al,es:[di]
-    mov ah,[si]
-    not ah
-    and al,ah
-    or al,[si+8]
-    mov es:[di],al
-    inc si
-    inc di
+    mov ax,es:[di]
+    mov bx,[si]
+    not bx
+    and ax,bx
+    or ax,[si+8]
+    mov es:[di],ax
+    add si,2
+    add di,2
     loop wide27_byte
     add si,8
     inc byte ptr [wide27_origin+1]
