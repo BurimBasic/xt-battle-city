@@ -1,0 +1,55 @@
+name: Stage v0.28 SLOW1 acceptance build (24px urgent scan)
+on:
+  push:
+    branches: [feat/v028-aircraft-recoil-dodge]
+    paths: ['.github/workflows/v028-stage.yml']
+permissions:
+  contents: write
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Generate original CGA graphics and validate release build
+        run: |
+          make assets
+          make clean all test
+          make build/TANKS-TRACE.COM build/TANKS-PERF.COM
+      - name: Stage size-checked candidate and ZIP for SLOW1 hardware-emulator acceptance
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          from zipfile import ZipFile,ZIP_DEFLATED
+          exe=Path('build/TANKS.COM').read_bytes()
+          digest=sha256(exe).hexdigest().upper()
+          assert len(exe)<57344,len(exe)
+          Path('dist/TANKS.COM').write_bytes(exe)
+          qa=Path('releases/v0.28/qa')
+          qa.mkdir(parents=True,exist_ok=True)
+          for name in ('TANKS-TRACE.COM','TANKS-PERF.COM'):
+              (qa/name).write_bytes((Path('build')/name).read_bytes())
+          path=Path('releases/v0.28/TANKS-v0.28-DOS-CGA.zip')
+          path.parent.mkdir(parents=True,exist_ok=True)
+          with ZipFile(path,'w',compression=ZIP_DEFLATED,compresslevel=9) as z:
+              z.writestr('TANKS.COM',exe)
+          with ZipFile(path) as z:
+              assert z.read('TANKS.COM')==exe
+          print('CANDIDATE_BUILD_PASS',len(exe),digest)
+          PY
+      - name: Produce documented CGA source-derived art preview
+        run: python tools/render_v028_preview.py
+      - name: Commit exact binary, ZIP and honest source-derived art
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/dos/cga_assets.inc dist/TANKS.COM releases/v0.28/TANKS-v0.28-DOS-CGA.zip releases/v0.28/qa/TANKS-TRACE.COM releases/v0.28/qa/TANKS-PERF.COM docs/art/v028-airplane-sprite-preview.png
+          if ! git diff --cached --quiet; then
+            git commit -m 'release(v0.28): CI-validated candidate DOS COM, ZIP and aircraft art preview'
+            git push origin HEAD:feat/v028-aircraft-recoil-dodge
+          fi

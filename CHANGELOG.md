@@ -1,3 +1,12 @@
+## v0.28 — Native-resolution aircraft, animated twin propellers, reliable muzzle recoil, fast AUTO dodge (2026-11-13)
+
+- Replaced the enlarged 16×12 block silhouette with **one original 32×24-pixel top-view WWII twin-engine master**: tapered wings, distinct nacelles, canopy and tail. **All four orientations are algorithmically rotated/reflected from the same source artwork**; the packed four-frame CGA memory budget remains unchanged.
+- Propeller hubs and 1px highlight tips now sit in the correct places for **right, left, up and down** flight and alternate every simulated tick. Previous dots had the wrong coordinates and appeared static.
+- Fixed the gun animation frame ordering: initial recoil is stored as phase 4 so update-before-paint renders phase 3's **outward muzzle flash**, with a **2px kickback** followed by **1px/tick return**, for both human tanks.
+- Solo AUTO sees all **seven** ordinary/spread enemy projectile slots. It scans on the spare even tick between 4-tick decisions, but only performs early emergency maneuvers for shells within **24px**; distant threats are handled by the normal 72px strategic scan. This protects last-enemy pursuit from unnecessary dodge-driven detours.
+- **170 Python tests PASS**, all 35 maps and 8086 ISA audit PASS. On SLOW1 real-mode DOSBox-X CGA: internal **/TEST PASS**, deterministic **2048-tick /TRACE PASS**, 20/20 kills and stage clear. Native COM **56,894 bytes**, SHA-256 `5C061F5D0D4F148C769668A3AEC32F5CF5BC6432B1E3AC275AFE4CB28B1464A3`.
+- Accurate art source preview (not gameplay screenshot), 384-frame ABBA XT speed comparison, staged QA binaries and exact release manifest are described in `releases/v0.28/RELEASE-NOTES.md`.
+
 ## v0.27 — Twin-engine 1942-style airplane, gun recoil, BURIM and AUTO pickups (2026-11-13)
 
 - Original **32×24 CGA top-down twin-engine airplane** (twice the 16×12 tank footprint), with independently animated 1px propeller tips; authentic 1940s arcade silhouette without copied 1942 ROM data. Four flight directions and random approach direction/start/lane retained.
