@@ -59,7 +59,7 @@ class BonusFreezeSteelV22(unittest.TestCase):
     def test_native_8086_pickup_phases(self):
         for number in (94,95):
             self.assertIn(f"mov byte ptr [test_phase],{number}",GAME)
-        self.assertIn("brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_8",GAME)
+        self.assertIn("brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_9",GAME)
 
 if __name__ == "__main__":
     unittest.main()
