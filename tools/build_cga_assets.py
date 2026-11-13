@@ -288,7 +288,8 @@ def shield_sprite(art):
     halo=[]
     for x in range(1,15):halo.extend([(x,0),(x,11)])
     for y in range(1,11):halo.extend([(0,y),(15,y)])
-    halo.extend([(1,1),(14,1),(1,10),(14,10)])
+    halo.extend([(0,0),(15,0),(0,11),(15,11),
+                 (1,1),(14,1),(1,10),(14,10)])
     for x,y in halo:
         if g[y][x]=='.':g[y][x]='3'
     return sprite(*(''.join(row) for row in g))
