@@ -357,29 +357,51 @@ def pack(rows):
 # five mask bytes followed by five color bytes; zero pixels are transparent.
 # This makes arbitrary-pixel CGA compositing fast enough to test on an 8088
 # without allocating a 16 KB off-screen framebuffer. 4*12*10=480 bytes.
-# v0.28: ONE original top-view 1942-style twin-engine source sprite.
-# Four headings are generated strictly by rotation of this master, never
-# redrawn independently; CGA mode 4 retains the game's selected 4-color
-# hardware palette. 2x nearest-neighbour scaling yields a 32x24 aircraft.
-# Nose, canopy, inset engines, tapered wings and twin tailplane tips.
-PLANE_V = sprite(
- '.......22.......',
- '.......33.......',
- '...23..33..32...',
- '...2311331132...',
- '..113113311311..',
- '1111111331111111',
- '2111111331111112',
- '.11111333311111.',
- '...2213333122...',
- '......3333......',
- '....11333311....',
- '.....223322.....')
-PLANE_V_DOWN = sprite(*(row[::-1] for row in reversed(PLANE_V)))
+# v0.28: ONE native-resolution 32x24 original top-view twin-engine plane.
+# 8086 packs each orientation as 24*16 bytes, unchanged from v0.27.
+# All four directions are mathematical turns/mirrors of THIS master.
+# 2bpp transparent original art: swept wings, twin nacelles, glazed
+# cockpit, rudder, tailplane and discrete visible propeller hubs.
+def plane_sprite(*rows):
+    assert len(rows) == 24
+    assert all(len(row) == 32 and set(row) <= set('.0123') for row in rows)
+    return rows
+
+PLANE_V = plane_sprite(
+ '...............22...............',
+ '..............2222..............',
+ '........2.....1331.....2........',
+ '.......333....1331....333.......',
+ '......21112...1331...21112......',
+ '......13331...1331...13331......',
+ '......13331...1111...13331......',
+ '......13331...3113...13331......',
+ '......13321.11311311.13321......',
+ '......11121111111111111121......',
+ '.....1111213311111133111211.....',
+ '.113331112131112211131112133311.',
+ '11111111121111122111111121111111',
+ '22211111111111111111111111111222',
+ '..2221111111111111111111111222..',
+ '.....2211121111111111211122.....',
+ '.........11111111111111.........',
+ '..............1111..............',
+ '..............1111..............',
+ '............11133111............',
+ '.........13333111133331.........',
+ '..........221111111122..........',
+ '.............111111.............',
+ '...............22...............')
+PLANE_V_DOWN = plane_sprite(*(row[::-1] for row in reversed(PLANE_V)))
 def plane_turn_right(rows):
-    return sprite(*tuple(''.join(rows[min(11,(15-x)*12//16)][min(15,y*16//12)] for x in range(16)) for y in range(12)))
+    # Rotate around the sprite centre then resample to the same 32x24
+    # viewport; no separately painted directional variants.
+    return plane_sprite(*(
+        ''.join(rows[23 - x*24//32][y*32//24] for x in range(32))
+        for y in range(24)
+    ))
 PLANE_H = plane_turn_right(PLANE_V)
-PLANE_H_LEFT = sprite(*(row[::-1] for row in PLANE_H))
+PLANE_H_LEFT = plane_sprite(*(row[::-1] for row in PLANE_H))
 SPRITES['plane_horizontal'] = PLANE_H
 SPRITES['plane_horizontal_left'] = PLANE_H_LEFT
 SPRITES['plane_vertical'] = PLANE_V
@@ -387,7 +409,7 @@ SPRITES['plane_vertical_down'] = PLANE_V_DOWN
 WIDE_PLANES = ('plane_horizontal','plane_horizontal_left','plane_vertical','plane_vertical_down')
 def pack_wide_plane(rows):
     """32x24, 8 mask + 8 color bytes per scanline, 384 B/direction."""
-    expanded=[''.join(p*2 for p in row) for row in rows for _ in range(2)]
+    expanded=list(rows)  # genuine 32x24 master; no 2x block scaling
     assert len(expanded)==24 and all(len(row)==32 for row in expanded)
     out=[]
     for row in expanded:
