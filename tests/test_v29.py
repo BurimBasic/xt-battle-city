@@ -62,4 +62,11 @@ class ApprovedArtworkV29(unittest.TestCase):
   self.assertIn('add dl,29',R)
   self.assertIn('add dh,9',R)
 
+ def test_close_hq_raider_intercept_is_bounded_by_distance(self):
+  tactics=(ROOT/'src/dos/tactics.inc').read_text()
+  aim=tactics.split('tactical_player_aim_if_aligned:',1)[1].split('tactical_aim_fail:',1)[0]
+  self.assertIn('cmp byte ptr [tactical_aim_distance],24',aim)
+  self.assertIn('cmp byte ptr [enemy_py+bx],160',aim)
+  self.assertIn('jae tactical_aim_fail',aim)
+
 if __name__=='__main__':unittest.main()
