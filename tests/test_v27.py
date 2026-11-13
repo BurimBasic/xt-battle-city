@@ -24,7 +24,7 @@ class V27Tests(unittest.TestCase):
  def test_two_animated_propellers(self):
   self.assertIn('wide27_propellers:',R)
   self.assertGreaterEqual(R.split('wide27_propellers:',1)[1].count('call gun27_pixel'),4)
-  self.assertIn('test byte ptr [game_tick],2',R)
+  self.assertIn('test byte ptr [game_tick],1',R)
  def test_stage_limit_1_2_3(self):
   reset=B.split('bomber25_reset:',1)[1].split('bomber26_roll:',1)[0]
   self.assertIn('cmp byte ptr [stage],6',reset)
@@ -37,8 +37,8 @@ class V27Tests(unittest.TestCase):
   self.assertIn('gun27_draw:',R)
   self.assertIn('gun27_pixel:',R)
   self.assertIn('gun27_tick:',R)
-  self.assertIn('mov byte ptr [gun27_p1],3',T)
-  self.assertIn('mov byte ptr [gun27_p2],3',C)
+  self.assertIn('mov byte ptr [gun27_p1],4',T)
+  self.assertIn('mov byte ptr [gun27_p2],4',C)
   self.assertIn('call gun27_draw',T)
   self.assertIn('call gun27_inward',R)
  def test_hud_author_and_version(self):
