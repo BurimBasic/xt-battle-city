@@ -247,6 +247,11 @@ FAST_UP,FAST_RIGHT,FAST_DOWN,FAST_LEFT=directions(tank_up_geometry('fast'))
 POWER_UP,POWER_RIGHT,POWER_DOWN,POWER_LEFT=directions(tank_up_geometry('power'))
 ARMOR_UP,ARMOR_RIGHT,ARMOR_DOWN,ARMOR_LEFT=directions(tank_up_geometry('armor'))
 
+# v0.29 user-approved 16x12 cyan P1, one canonical RIGHT master.
+# Import before constructing SPRITES, including its shielded P1 versions.
+from approved_art_v029 import player_sprites
+TANK_UP,TANK_RIGHT,TANK_DOWN,TANK_LEFT = player_sprites()
+
 def track_overlay(direction,phase):
     """Two synchronized travelling bars per track, not white pixel confetti."""
     core=[['.']*12 for _ in range(12)]
@@ -402,6 +407,10 @@ def plane_turn_right(rows):
     ))
 PLANE_H = plane_turn_right(PLANE_V)
 PLANE_H_LEFT = plane_sprite(*(row[::-1] for row in PLANE_H))
+# v0.29 user's chosen WWII twin-engine airplane from the screenshot,
+# native 32x24, pre-rotated at BUILD TIME from ONE right-facing master.
+from approved_art_v029 import plane_sprites
+PLANE_V,PLANE_H,PLANE_V_DOWN,PLANE_H_LEFT = plane_sprites()
 SPRITES['plane_horizontal'] = PLANE_H
 SPRITES['plane_horizontal_left'] = PLANE_H_LEFT
 SPRITES['plane_vertical'] = PLANE_V
