@@ -1446,7 +1446,7 @@ do_fire_normal:
     call extra17_player_fire
     jmp fire_done
 fire_primary:
-    mov byte ptr [gun27_p1],3
+    mov byte ptr [gun27_p1],4
     mov al, [player_col]
     mov [bullet_col], al
     mov al, [player_row]
