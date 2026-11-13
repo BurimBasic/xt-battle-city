@@ -8,6 +8,16 @@ bomber25_reset:
     mov byte ptr [bomber25_state],0
     mov byte ptr [bomber25_step],0
     mov byte ptr [bomber25_timer],0
+    mov byte ptr [bomber27_passes],0
+    mov byte ptr [bomber27_wait],0
+    mov byte ptr [bomber27_limit],1
+    cmp byte ptr [stage],6
+    jb bomber27_limit_ready
+    inc byte ptr [bomber27_limit]
+    cmp byte ptr [stage],15
+    jb bomber27_limit_ready
+    inc byte ptr [bomber27_limit]
+bomber27_limit_ready:
     mov byte ptr [bomber25_fx_ticks],0
     mov byte ptr [bomber25_fx_ticks+1],0
     mov byte ptr [paint_bomber25_valid],0
@@ -119,11 +129,18 @@ bomber25_state_tick:
 1:
     cmp byte ptr [bomber25_state],1
     je bomber25_flying
+    cmp byte ptr [bomber27_passes],0
+    je bomber27_first_wait
+    cmp byte ptr [bomber27_wait],0
+    je bomber27_takeoff
+    dec byte ptr [bomber27_wait]
+    ret
+bomber27_first_wait:
     mov al,[game_tick]
     cmp al,[bomber26_departure]
-    jae 1f
+    jae bomber27_takeoff
     ret
-1:
+bomber27_takeoff:
     mov byte ptr [bomber25_state],1
     mov byte ptr [bomber25_step],0
     mov byte ptr [bomber25_timer],0
@@ -136,7 +153,7 @@ bomber25_state_tick:
     mov byte ptr [bomber25_x],0
     cmp byte ptr [bomber26_reverse],0
     je bomber25_flying
-    mov byte ptr [bomber25_x],240
+    mov byte ptr [bomber25_x],224
     jmp bomber25_flying
 bomber25_vertical_start:
     mov al,[bomber25_lane]
@@ -148,13 +165,13 @@ bomber25_vertical_start:
     mov byte ptr [bomber25_y],0
     cmp byte ptr [bomber26_reverse],0
     je bomber25_flying
-    mov byte ptr [bomber25_y],180
+    mov byte ptr [bomber25_y],168
 bomber25_flying:
     cmp byte ptr [bomber25_axis],0
     jne bomber25_vertical_move
     cmp byte ptr [bomber26_reverse],0
     jne bomber26_left_move
-    cmp byte ptr [bomber25_x],240
+    cmp byte ptr [bomber25_x],224
     jb 1f
     jmp bomber25_finished
 1:
@@ -179,7 +196,7 @@ bomber26_x_advanced:
     sub al,16
     jmp 2f
 1:
-    add al,16
+    add al,32  /* rear of wide plane flying left */
 2:
     shr al,1
     shr al,1
@@ -192,7 +209,7 @@ bomber26_x_advanced:
 bomber25_vertical_move:
     cmp byte ptr [bomber26_reverse],0
     jne bomber26_up_move
-    cmp byte ptr [bomber25_y],180
+    cmp byte ptr [bomber25_y],168
     jb 1f
     jmp bomber25_finished
 1:
@@ -217,7 +234,7 @@ bomber26_y_advanced:
     sub al,12
     jmp 2f
 1:
-    add al,12
+    add al,24  /* rear of tall plane flying up */
 2:
     xor ah,ah
     mov cl,12
@@ -256,6 +273,16 @@ bomber25_wave_done:
 bomber25_done:
     ret
 bomber25_finished:
+    inc byte ptr [bomber27_passes]
+    mov al,[bomber27_passes]
+    cmp al,[bomber27_limit]
+    jae bomber27_all_done
+    call bomber26_roll
+    mov al,[bomber26_departure]
+    mov [bomber27_wait],al
+    mov byte ptr [bomber25_state],0
+    ret
+bomber27_all_done:
     mov byte ptr [bomber25_state],2
     ret
 
@@ -410,7 +437,7 @@ bomber25_mark_old:
     je 1f
     mov dl,[paint_bomber25_x]
     mov dh,[paint_bomber25_y]
-    call mark_dirty_rect
+    call wide27_dirty
 1:
     mov byte ptr [paint_bomber25_valid],0
     xor bx,bx
@@ -444,20 +471,21 @@ bomber25_paint:
     mov [paint_bomber25_x],dl
     mov [paint_bomber25_y],dh
     mov byte ptr [paint_bomber25_valid],1
-    mov si,offset smooth_plane_horizontal
+    mov si,offset wide_plane_horizontal
     cmp byte ptr [bomber25_axis],0
     jne bomber26_vertical_sprite
     cmp byte ptr [bomber26_reverse],0
     je bomber26_sprite_ready
-    mov si,offset smooth_plane_horizontal_left
+    mov si,offset wide_plane_horizontal_left
     jmp bomber26_sprite_ready
 bomber26_vertical_sprite:
-    mov si,offset smooth_plane_vertical_down
+    mov si,offset wide_plane_vertical_down
     cmp byte ptr [bomber26_reverse],0
     je bomber26_sprite_ready
-    mov si,offset smooth_plane_vertical
+    mov si,offset wide_plane_vertical
 bomber26_sprite_ready:
-    call draw_smooth_sprite
+    call wide27_draw
+    call wide27_propellers
 bomber25_paint_fx:
     xor bx,bx
 bomber25_paint_fx_loop:
@@ -488,7 +516,10 @@ bomber25_paint_done:
     ret
 
 .section .data
-bomber25_state: .byte 0   /* 0 not started, 1 flying, 2 done */
+bomber25_state: .byte 0   /* 0 waiting, 1 flying, 2 finished */
+bomber27_passes: .byte 0
+bomber27_limit: .byte 1
+bomber27_wait: .byte 0
 bomber25_axis: .byte 0    /* 0 horizontal, 1 vertical */
 bomber26_reverse: .byte 0  /* 0 right/down, 1 left/up */
 bomber26_direction: .byte 0

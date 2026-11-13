@@ -64,7 +64,9 @@ tactical23_normal_orders:
     cmp byte ptr [freeze_ticks],0
     je tactical_defense_orders
     call tactical_find_target
-    jnc tactical_bonus_objective
+    jc tactical27_freeze_target
+    jmp tactical_bonus_objective
+tactical27_freeze_target:
     call tactical_player_aim_if_aligned
     jnc tactical_freeze_seek
     jmp tactical_player_hold_and_fire
@@ -89,6 +91,26 @@ tactical_freeze_vertical:
 tactical_freeze_go:
     jmp tactical_player_steer
 tactical_defense_orders:
+    /* Powerful pickups beat routine combat ONLY while base defense is safe:
+       2 = destroy all enemies, 6 = laser, 5 = extra life.  The BFS
+       explicitly vetoes dangerous detours near HQ. */
+    cmp byte ptr [bonus_active],0
+    je tactical27_normal_orders
+    cmp byte ptr [tactical23_hunting],0
+    jne tactical27_normal_orders
+    mov al,[bonus_type]
+    cmp al,2
+    je tactical27_priority_pickup
+    cmp al,6
+    je tactical27_priority_pickup
+    cmp al,5
+    jne tactical27_normal_orders
+tactical27_priority_pickup:
+    call strategy_bonus_heading
+    jnc tactical27_normal_orders
+    mov byte ptr [tactical_fire_request],0
+    jmp tactical_player_steer
+tactical27_normal_orders:
     /* A real clear firing lane outranks even an attractive pickup.
        A steel-blocked shot does NOT hold our player in place. */
     call tactical_find_target

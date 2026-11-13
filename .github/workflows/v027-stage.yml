@@ -1,0 +1,53 @@
+name: Stage verified v0.27 DOS release and plane art
+on:
+  push:
+    branches: [feat/v027-1942-plane-recoil]
+    paths: ['.github/workflows/v027-stage.yml']
+permissions:
+  contents: write
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Generate original CGA graphics and validate release build
+        run: |
+          make assets
+          make clean all test
+          make build/TANKS-TRACE.COM build/TANKS-PERF.COM
+      - name: Verify exact SLOW1-tested binary and build versioned ZIP
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          from zipfile import ZipFile,ZIP_DEFLATED
+          exe=Path('build/TANKS.COM').read_bytes()
+          digest=sha256(exe).hexdigest().upper()
+          expected='970DF8D7B8B23B9212BF7CCB7452FDB3CC1C3727160F0F5EF5F06FA34EE11BA3'
+          assert digest==expected,(digest,expected)
+          assert len(exe)==56726,len(exe)
+          Path('dist/TANKS.COM').write_bytes(exe)
+          path=Path('releases/v0.27/TANKS-v0.27-DOS-CGA.zip')
+          path.parent.mkdir(parents=True,exist_ok=True)
+          with ZipFile(path,'w',compression=ZIP_DEFLATED,compresslevel=9) as z:
+              z.writestr('TANKS.COM',exe)
+          with ZipFile(path) as z:
+              assert z.read('TANKS.COM')==exe
+          print('EXACT_TESTED_RELEASE_PASS',len(exe),digest)
+          PY
+      - name: Produce documented CGA source-derived art preview
+        run: python tools/render_v027_preview.py
+      - name: Commit exact binary, ZIP and honest source-derived art
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add dist/TANKS.COM releases/v0.27/TANKS-v0.27-DOS-CGA.zip docs/art/v027-airplane-sprite-preview.png
+          if ! git diff --cached --quiet; then
+            git commit -m 'release(v0.27): exact 56,726-byte native-tested DOS COM, ZIP and aircraft art preview'
+            git push origin HEAD:feat/v027-1942-plane-recoil
+          fi

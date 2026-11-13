@@ -524,6 +524,7 @@ tick_p1_pickup_done:
     call tick_powerups
     call bonus17_tick
     call bonus23_tick
+    call gun27_tick
     call bomber25_tick
     call enemy23_tick
     call ally20_pickup
@@ -1433,7 +1434,9 @@ fire_alive:
     cmp byte ptr [pong_ticks],0
     je do_fire_normal
     cmp byte ptr [pong_active],0
-    jne fire_done     /* exactly one ricochet until it expires */
+    je fire27_pong_ready
+    jmp fire_done     /* exactly one ricochet until it expires */
+fire27_pong_ready:
     xor al,al
     call pong23_launch
     ret
@@ -1443,6 +1446,7 @@ do_fire_normal:
     call extra17_player_fire
     jmp fire_done
 fire_primary:
+    mov byte ptr [gun27_p1],3
     mov al, [player_col]
     mov [bullet_col], al
     mov al, [player_row]
@@ -1473,7 +1477,9 @@ fire23_standard:
     call quad23_spawn
 fire23_not_quad:
     cmp byte ptr [super_bullet_active],0
-    jne fire_done
+    je fire27_super_clear
+    jmp fire_done
+fire27_super_clear:
     cmp byte ptr [laser_ticks],0
     je fire_done
     call laser17_fire
@@ -3854,6 +3860,11 @@ paint_enemy_finished:
     mov si,[smooth_enemy_ptrs+bx]
 paint_ally_color_ready:
     call draw_smooth_sprite
+    mov al,[gun27_p2]
+    mov bl,[ally_dir]
+    mov dl,[ally_px]
+    mov dh,[ally_py]
+    call gun27_draw
     cmp byte ptr [ally_shield],0
     je paint_ally_no_shield
     test byte ptr [game_tick],4
@@ -3889,6 +3900,11 @@ paint_player_normal:
     mov si,[smooth_enemy_ptrs+bx] /* brief magenta vs cyan */
 paint_player_color_ready:
     call draw_smooth_sprite
+    mov al,[gun27_p1]
+    mov bl,[player_dir]
+    mov dl,[player_px]
+    mov dh,[player_py]
+    call gun27_draw
     cmp byte ptr [player_shield],0
     je paint_player_no_shield
     test byte ptr [game_tick],4
@@ -6556,9 +6572,9 @@ smoke26_first_moved:
     je 9f
     jmp smoke_extra_fail
 smoke26_first_reverse:
-    cmp al,238
+    cmp al,222
     je smoke26_first_back_x
-    cmp al,178
+    cmp al,166
     je 9f
     jmp smoke_extra_fail
 smoke26_first_back_x:
@@ -6890,6 +6906,73 @@ smoke25_flight_loop:
     jbe 9f
     jmp smoke_extra_fail
 9:
+    /* Phase 130: exactly 1/2/2/3 scheduled flybys at L1/L6/L11/L15. */
+    mov byte ptr [test_phase],130
+    mov byte ptr [stage],1
+    call bomber25_reset
+    cmp byte ptr [bomber27_limit],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [stage],6
+    call bomber25_reset
+    cmp byte ptr [bomber27_limit],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [stage],11
+    call bomber25_reset
+    cmp byte ptr [bomber27_limit],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [stage],15
+    call bomber25_reset
+    cmp byte ptr [bomber27_limit],3
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 131: completed first flight queues another with a delay. */
+    mov byte ptr [test_phase],131
+    mov byte ptr [stage],6
+    call bomber25_reset
+    mov byte ptr [bomber25_state],1
+    mov byte ptr [bomber25_axis],0
+    mov byte ptr [bomber26_reverse],0
+    mov byte ptr [bomber25_x],224
+    call bomber25_tick
+    cmp byte ptr [bomber27_passes],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    cmp byte ptr [bomber25_state],0
+    je 9f
+    jmp smoke_extra_fail
+9:
+    mov byte ptr [bomber27_wait],0
+    call bomber25_tick
+    cmp byte ptr [bomber25_state],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    /* Phase 132: barrel jumps back two pixels and restores 1px/tick. */
+    mov byte ptr [test_phase],132
+    mov byte ptr [gun27_p1],3
+    call gun27_tick
+    cmp byte ptr [gun27_p1],2
+    je 9f
+    jmp smoke_extra_fail
+9:
+    call gun27_tick
+    cmp byte ptr [gun27_p1],1
+    je 9f
+    jmp smoke_extra_fail
+9:
+    call gun27_tick
+    cmp byte ptr [gun27_p1],0
+    je 9f
+    jmp smoke_extra_fail
+9:
     jmp smoke_pass
 smoke_extra_fail:
     jmp smoke_fail
@@ -7033,6 +7116,7 @@ trace_record_done:
 .include "src/dos/coop_v24.inc"
 .include "src/dos/anti_loop_v24.inc"
 .include "src/dos/bomber_v25.inc"
+.include "src/dos/v027_render.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -7167,8 +7251,8 @@ tactical_auto_glyphs: .word hud_blank_icon, hud_blank_icon, hud_a_char, hud_u_ch
 tactical_coop_glyphs: .word hud_blank_icon,hud_blank_icon,hud_c_char,hud_o_char,hud_o_char,hud_p_char,hud_blank_icon,hud_blank_icon
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
-brand_basic_glyphs: .word hud_b_char, hud_a_char, hud_s_char, hud_i_char, hud_c_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_6
+brand_basic_glyphs: .word hud_b_char, hud_u_char, hud_r_char, hud_i_char, hud_m_char
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_7
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0

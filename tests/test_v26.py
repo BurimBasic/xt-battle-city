@@ -14,8 +14,8 @@ class V26Regression(unittest.TestCase):
  def test_bomber_four_original_directional_sprites_not_an_oval(self):
   for name in ('plane_horizontal','plane_horizontal_left','plane_vertical','plane_vertical_down'):
    self.assertIn(name,art.SPRITES)
-   self.assertEqual(len(art.pack_smooth(art.SPRITES[name])),480)
-   self.assertIn('smooth_'+name,B)
+   self.assertEqual(len(art.pack_wide_plane(art.SPRITES[name])),384)
+   self.assertIn('wide_'+name,B)
   self.assertNotEqual(art.SPRITES['plane_horizontal'],art.SPRITES['plane_horizontal_left'])
   self.assertNotEqual(art.SPRITES['plane_vertical'],art.SPRITES['plane_vertical_down'])
   self.assertLess(sum(1 for row in art.SPRITES['plane_horizontal'] for c in row if c!='.'),160)
@@ -40,9 +40,9 @@ class V26Regression(unittest.TestCase):
   self.assertNotIn('add dh,2',wave)
   self.assertNotIn('add dl,2',wave)
   self.assertIn('sub al,16',B)
-  self.assertIn('add al,16',B)
+  self.assertIn('add al,32',B)
   self.assertIn('sub al,12',B)
-  self.assertIn('add al,12',B)
+  self.assertIn('add al,24',B)
  def test_bomb_can_damage_brick_like_normal_shell_but_never_base(self):
   impact=B.split('bomber25_impact:',1)[1].split('bomber25_hit_enemies:',1)[0]
   self.assertLess(impact.index("cmp al,'B'"),impact.index('call damage_brick'))

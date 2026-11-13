@@ -70,7 +70,9 @@ coop24_entered:
     call coop25_try_respawn
 coop24_pending_checked:
     cmp byte ptr [game_state],0
-    jne coop24_done
+    je coop27_game_active
+    jmp coop24_done
+coop27_game_active:
     cmp byte ptr [coop_lives],0
     je coop24_done
     cmp word ptr [ally_ticks],0
@@ -116,10 +118,12 @@ coop24_shoot:
     jne coop24_pickup_now
     mov al,2
     call pong23_launch
+    mov byte ptr [gun27_p2],3
     mov byte ptr [ally_cooldown],12
     jmp coop24_pickup_now
 coop24_normal_fire:
     call extra17_ally_fire
+    mov byte ptr [gun27_p2],3
 coop24_pickup_now:
     call coop24_pickup
 coop24_done:
