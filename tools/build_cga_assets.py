@@ -247,6 +247,11 @@ FAST_UP,FAST_RIGHT,FAST_DOWN,FAST_LEFT=directions(tank_up_geometry('fast'))
 POWER_UP,POWER_RIGHT,POWER_DOWN,POWER_LEFT=directions(tank_up_geometry('power'))
 ARMOR_UP,ARMOR_RIGHT,ARMOR_DOWN,ARMOR_LEFT=directions(tank_up_geometry('armor'))
 
+# v0.29 user-approved 16x12 cyan P1, one canonical RIGHT master.
+# Import before constructing SPRITES, including its shielded P1 versions.
+from approved_art_v029 import player_sprites
+TANK_UP,TANK_RIGHT,TANK_DOWN,TANK_LEFT = player_sprites()
+
 def track_overlay(direction,phase):
     """Two synchronized travelling bars per track, not white pixel confetti."""
     core=[['.']*12 for _ in range(12)]
@@ -281,9 +286,10 @@ def shield_sprite(art):
     """Complete symmetric protective bubble outside tank. Never overwrite tank."""
     g=[list(row) for row in art]
     halo=[]
-    for x in range(3,13):halo.extend([(x,0),(x,11)])
-    for y in range(2,10):halo.extend([(0,y),(15,y)])
-    halo.extend([(1,1),(14,1),(1,10),(14,10)])
+    for x in range(1,15):halo.extend([(x,0),(x,11)])
+    for y in range(1,11):halo.extend([(0,y),(15,y)])
+    halo.extend([(0,0),(15,0),(0,11),(15,11),
+                 (1,1),(14,1),(1,10),(14,10)])
     for x,y in halo:
         if g[y][x]=='.':g[y][x]='3'
     return sprite(*(''.join(row) for row in g))
@@ -402,6 +408,10 @@ def plane_turn_right(rows):
     ))
 PLANE_H = plane_turn_right(PLANE_V)
 PLANE_H_LEFT = plane_sprite(*(row[::-1] for row in PLANE_H))
+# v0.29 user's chosen WWII twin-engine airplane from the screenshot,
+# native 32x24, pre-rotated at BUILD TIME from ONE right-facing master.
+from approved_art_v029 import plane_sprites
+PLANE_V,PLANE_H,PLANE_V_DOWN,PLANE_H_LEFT = plane_sprites()
 SPRITES['plane_horizontal'] = PLANE_H
 SPRITES['plane_horizontal_left'] = PLANE_H_LEFT
 SPRITES['plane_vertical'] = PLANE_V

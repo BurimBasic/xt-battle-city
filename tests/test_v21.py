@@ -64,10 +64,10 @@ class VisualFixesV21(unittest.TestCase):
         self.assertIn('cmp byte ptr [ally_shield],0',collision)
         self.assertIn('jne smooth_shot_out',collision)
     def test_marker_color_is_contrasting_and_overlay_only(self):
-        self.assertIn('call ally21_dot',MARK)
-        self.assertIn('laser19_color1+bx',MARK)
-        self.assertIn('mov ax,[frame_seg]',MARK)
-        self.assertIn('mov es:[di],al',MARK)
+        self.assertIn('ally21_draw_mark:',MARK)
+        self.assertIn('call gun27_pixel',MARK)
+        self.assertIn('mov bl,2',MARK)
+        self.assertIn('cmp si,2',MARK)
         self.assertNotIn('smooth_shield_ptrs',MARK)
     def test_real_dos_phases_89_to_93(self):
         for phase in range(89,94):
@@ -82,7 +82,7 @@ class VisualFixesV21(unittest.TestCase):
         self.assertNotIn('inc byte ptr [enemy_hp+bx]',collect)
         self.assertIn('inc byte ptr [enemy_hp+bx]',ENEMY.split('enemy21_armor:',1)[1])
     def test_shipped_version_label(self):
-        self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_8',GAME)
+        self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_9',GAME)
 
 if __name__=='__main__':
     unittest.main()

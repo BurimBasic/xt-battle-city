@@ -208,7 +208,36 @@ gun27_outward:
     dec dl
     ret
 
-/* AL recoil phase 3/2/1, BL heading 0..3, DL/DH tank origin.
+/* AL direction 0=up 1=right 2=down 3=left, DL/DH = tank origin.
+ * Return TOP-LEFT of the 16x12 bullet, whose visible dot is centered
+ * at (+8,+6). That visible dot starts just OUTSIDE the muzzle, not in
+ * the middle of the firing tank. Clamp border cases instead of wrapping.
+ * Same routine is used by P1, co-op P2 and spare/triple projectiles. */
+gun29_muzzle:
+    cmp al,0
+    jne gun29_right
+    cmp dh,7
+    jb gun29_finish
+    sub dh,7
+    ret
+gun29_right:
+    cmp al,1
+    jne gun29_down
+    add dl,8
+    ret
+gun29_down:
+    cmp al,2
+    jne gun29_left
+    add dh,6
+    ret
+gun29_left:
+    cmp dl,9
+    jb gun29_finish
+    sub dl,9
+gun29_finish:
+    ret
+
+/* AL recoil phase 4/3/2/1, BL heading 0..3, DL/DH tank origin.
  * Blackens 2/1 tip pixels to give visible kickback; one rounded 2px
  * flash at the muzzle on phase 3. Sprite is redrawn before each frame. */
 gun27_draw:
@@ -228,8 +257,8 @@ gun27_draw:
 gun27_right:
     cmp bl,1
     jne gun27_down
-    add dl,13
-    add dh,5
+    add dl,15
+    add dh,6
     jmp gun27_blacken
 gun27_down:
     cmp bl,2
@@ -238,8 +267,7 @@ gun27_down:
     add dh,11
     jmp gun27_blacken
 gun27_left:
-    add dl,2
-    add dh,5
+    add dh,6
 gun27_blacken:
     xor bx,bx
     call gun27_pixel
@@ -248,7 +276,7 @@ gun27_blacken:
     call gun27_inward
     call gun27_pixel
     cmp byte ptr [gun27_phase],3
-    jne gun27_done
+    jb gun27_done
     /* Blackened barrel is recessed 2px; flash sits just in front
        of its original muzzle and is 2 adjacent sparkling pixels. */
     call gun27_outward
@@ -295,16 +323,16 @@ wide27_propellers:
     jne wide27_vertical_props
     cmp byte ptr [bomber26_reverse],0
     jne wide27_props_left
-    add dl,25
+    add dl,29
     jmp wide27_horizontal_hubs
 wide27_props_left:
-    add dl,6
+    add dl,2
 wide27_horizontal_hubs:
-    add dh,6
+    add dh,7
     call gun27_pixel
-    add dh,12
+    add dh,9
     call gun27_pixel
-    sub dh,12
+    sub dh,9
     mov bl,3
     test byte ptr [game_tick],1
     jz wide27_horizontal_blade_a
@@ -314,7 +342,7 @@ wide27_horizontal_blade_a:
     sub dh,2
 wide27_horizontal_blades:
     call gun27_pixel
-    add dh,12
+    add dh,9
     call gun27_pixel
     jmp wide27_props_done
 wide27_vertical_props:

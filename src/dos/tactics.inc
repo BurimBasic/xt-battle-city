@@ -421,7 +421,15 @@ tactical_player_aim_if_aligned:
     cmp byte ptr [player_px],96
     jb tactical_aim_check_cover
     cmp byte ptr [player_px],128
-    jbe tactical_aim_fail
+    ja tactical_aim_check_cover
+    /* v0.29: an enemy already inside our forward hull gap must be shot
+       BEFORE it reaches the HQ. At <24px the real projectile collides
+       with that visible enemy BEFORE entering the protected HQ tile.
+       Still prohibit arbitrary downward shots from this lane. */
+    cmp byte ptr [tactical_aim_distance],24
+    ja tactical_aim_fail
+    cmp byte ptr [enemy_py+bx],160
+    jae tactical_aim_fail
  tactical_aim_check_cover:
     call tactical_player_line_clear
     jnc tactical_aim_fail

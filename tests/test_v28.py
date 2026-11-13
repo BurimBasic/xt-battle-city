@@ -16,7 +16,8 @@ C = (ROOT / "src/dos/coop_v24.inc").read_text()
 class V28Tests(unittest.TestCase):
     def test_one_master_plane_generates_all_headings(self):
         self.assertEqual(art.PLANE_V_DOWN, tuple(row[::-1] for row in reversed(art.PLANE_V)))
-        self.assertEqual(art.PLANE_H, art.plane_turn_right(art.PLANE_V))
+        self.assertEqual(art.PLANE_V, art.plane_sprites()[0])
+        self.assertEqual(art.PLANE_H, art.plane_sprites()[1])
         self.assertEqual(art.PLANE_H_LEFT, tuple(row[::-1] for row in art.PLANE_H))
         for name in art.WIDE_PLANES:
             self.assertEqual(len(art.pack_wide_plane(art.SPRITES[name])), 384)
@@ -25,8 +26,8 @@ class V28Tests(unittest.TestCase):
         p = art.PLANE_V
         self.assertEqual(len(p), 24)
         self.assertTrue(all(len(r) == 32 for r in p))
-        self.assertEqual(p[0][15:17], "22")
-        self.assertGreaterEqual(p[12].count("1"), 22)
+        self.assertEqual(art.PLANE_H[0][17:20], "222")
+        self.assertGreaterEqual(p[12].count("1"), 20)
         self.assertGreaterEqual(sum(row.count("3") for row in p), 26)
 
     def test_propellers_animate_in_all_four_directions(self):
@@ -38,8 +39,8 @@ class V28Tests(unittest.TestCase):
         self.assertGreaterEqual(R.count("call gun27_pixel"), 10)
 
     def test_flash_survives_update_before_first_paint(self):
-        self.assertIn("fire_primary:\n    mov byte ptr [gun27_p1],4", T)
-        self.assertEqual(C.count("mov byte ptr [gun27_p2],4"), 2)
+        self.assertIn("fire_primary:\n    mov byte ptr [gun27_p1],5", T)
+        self.assertEqual(C.count("mov byte ptr [gun27_p2],5"), 2)
         self.assertIn("gun27_outward:", R)
         self.assertIn("call gun27_outward", R)
         self.assertIn("cmp byte ptr [gun27_phase],3", R)

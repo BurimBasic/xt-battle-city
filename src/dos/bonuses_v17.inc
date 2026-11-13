@@ -59,12 +59,13 @@ extra17_slot:
 extra17_fail:
     ret
 extra17_create:
-    mov al,[player_px]
-    mov [extra_px+bx],al
-    mov al,[player_py]
-    mov [extra_py+bx],al
+    mov dl,[player_px]
+    mov dh,[player_py]
     mov al,[player_dir]
     mov [extra_dir+bx],al
+    call gun29_muzzle
+    mov [extra_px+bx],dl
+    mov [extra_py+bx],dh
     mov byte ptr [extra_active+bx],1
     mov al,0
     cmp byte ptr [homing_ticks],0
@@ -89,12 +90,13 @@ extra17_ally_find:
     jb extra17_ally_find
     ret
 extra17_ally_spawn:
-    mov al,[ally_px]
-    mov [extra_px+bx],al
-    mov al,[ally_py]
-    mov [extra_py+bx],al
+    mov dl,[ally_px]
+    mov dh,[ally_py]
     mov al,[ally_dir]
     mov [extra_dir+bx],al
+    call gun29_muzzle
+    mov [extra_px+bx],dl
+    mov [extra_py+bx],dh
     mov byte ptr [extra_active+bx],1
     mov byte ptr [extra_homing+bx],0
     mov byte ptr [ally_cooldown],12
@@ -255,9 +257,9 @@ laser17_fire:
     push cx
     mov al,[bullet_dir]
     mov [laser_dir],al
-    mov al,[player_px]
+    mov al,[bullet_px]
     mov [laser_start_x],al
-    mov al,[player_py]
+    mov al,[bullet_py]
     mov [laser_start_y],al
     mov byte ptr [laser_flash_ticks],3
     mov cx,88

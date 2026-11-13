@@ -37,14 +37,14 @@ class V27Tests(unittest.TestCase):
   self.assertIn('gun27_draw:',R)
   self.assertIn('gun27_pixel:',R)
   self.assertIn('gun27_tick:',R)
-  self.assertIn('mov byte ptr [gun27_p1],4',T)
-  self.assertIn('mov byte ptr [gun27_p2],4',C)
+  self.assertIn('mov byte ptr [gun27_p1],5',T)
+  self.assertIn('mov byte ptr [gun27_p2],5',C)
   self.assertIn('call gun27_draw',T)
   self.assertIn('call gun27_inward',R)
  def test_hud_author_and_version(self):
   self.assertIn('brand_basic_glyphs: .word hud_b_char, hud_u_char, hud_r_char, hud_i_char, hud_m_char',T)
   self.assertIn('hud_r_char',art.generate_hud().__str__())
-  self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_8',T)
+  self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_9',T)
  def test_auto_high_value_pickups_respect_base_guard(self):
   x=A.split('tactical_defense_orders:',1)[1].split('tactical27_normal_orders:',1)[0]
   self.assertIn('cmp al,2',x) # wipe enemies
