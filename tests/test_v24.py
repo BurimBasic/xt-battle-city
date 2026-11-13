@@ -56,7 +56,7 @@ class NewFeaturesV24(unittest.TestCase):
             self.assertIn('mov di,'+str(pos),hud)
         self.assertIn('tactical_coop_glyphs:',T)
         self.assertIn('bonus24_coop_hud:',T)
-        self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_8',T)
+        self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_9',T)
     def test_enemy_laser_is_real_and_visible(self):
         self.assertIn('mov [enemy_weapon_kind+bx],al',E)
         self.assertIn('mov byte ptr [enemy_weapon_ticks+bx],180',E)
