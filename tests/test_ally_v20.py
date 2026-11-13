@@ -85,7 +85,7 @@ class AllyAndTransitions(unittest.TestCase):
         for i in range(79,89):
             self.assertIn("mov byte ptr [test_phase],"+str(i),T)
     def test_version_footer(self):
-        self.assertIn("brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_8",T)
+        self.assertIn("brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_9",T)
 
 if __name__=="__main__":
     unittest.main()
