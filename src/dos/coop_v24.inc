@@ -118,12 +118,12 @@ coop24_shoot:
     jne coop24_pickup_now
     mov al,2
     call pong23_launch
-    mov byte ptr [gun27_p2],4
+    mov byte ptr [gun27_p2],5
     mov byte ptr [ally_cooldown],12
     jmp coop24_pickup_now
 coop24_normal_fire:
     call extra17_ally_fire
-    mov byte ptr [gun27_p2],4
+    mov byte ptr [gun27_p2],5
 coop24_pickup_now:
     call coop24_pickup
 coop24_done:
