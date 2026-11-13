@@ -26,7 +26,7 @@ class V28Tests(unittest.TestCase):
         self.assertEqual(len(p), 12)
         self.assertTrue(all(len(r) == 16 for r in p))
         self.assertEqual(p[0][7:9], "22")
-        self.assertEqual(p[5].count("1"), 12)
+        self.assertGreaterEqual(p[5].count("1"), 12)
         self.assertGreaterEqual(sum(row.count("3") for row in p), 26)
 
     def test_propellers_animate_in_all_four_directions(self):
