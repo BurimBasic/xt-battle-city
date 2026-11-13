@@ -1,3 +1,11 @@
+## v0.29 — User-approved WWII airplane and P1/companion pixel masters; muzzle-correct firing (2026-11-13)
+
+- **Approved source art is now native CGA**: right-facing 32×24 bomber master with four compile-time transformations; 16×12 cyan/gray player tank with black turret channels and a clearly visible cannon. Companion shares that hull with **exactly two short magenta turret-side strips** applied dynamically; saves a separate 1920-byte masked-sprite atlas.
+- **Firing correction:** ordinary, triple, quad and co-op shells now originate at the actual barrel muzzle. Laser trace origin also moves to the tip; a two-frame flash and 2-pixel recoil are followed by a 1-pixel-per-tick return. All four headings are mapped and border cases clamped without byte wrap.
+- **AUTO HQ interception:** allows a close, explicitly targeted southbound interception only before the hostile enters the HQ, while retaining the strong prohibition on stray fire through the base. Corrected after real 2048-tick trace exposed an HQ loss.
+- **176 Python tests, 35 maps, Intel 8086 ISA audit PASS.** Native SLOW1 DOSBox-X CGA /TEST PASS and full 2048-tick first-stage AUTO replay **20/20 enemies, STAGE CLEAR**.
+- Final native DOS COM: **56,956 bytes** (less than 57,344), SHA-256 `5D97A581AEE8FB2DAD019A4640D6D4412D58E74D3616544BB9B18985E0E376FA`. See `releases/v0.29/RELEASE-NOTES.md` for measured speed, exact tested release payload, SLOW1 install, rollback and screenshot provenance.
+
 ## v0.28 — Native-resolution aircraft, animated twin propellers, reliable muzzle recoil, fast AUTO dodge (2026-11-13)
 
 - Replaced the enlarged 16×12 block silhouette with **one original 32×24-pixel top-view WWII twin-engine master**: tapered wings, distinct nacelles, canopy and tail. **All four orientations are algorithmically rotated/reflected from the same source artwork**; the packed four-frame CGA memory budget remains unchanged.
