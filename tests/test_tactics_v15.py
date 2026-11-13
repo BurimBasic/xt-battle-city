@@ -22,7 +22,8 @@ class V15Tests(unittest.TestCase):
         p=A[A.index(' tactical_threat_found:'):A.index(' tactical_threat_next:')]
         self.assertIn('xor al,2',p)
         self.assertEqual(p.count('call tactical_player_path_open'),2)
-        self.assertIn('cmp al, 72',A)
+        self.assertIn('tactical_threat_range: .byte 72',A)
+        self.assertIn('cmp al,[tactical_threat_range]',A)
     def test_base_breach_precedes_bonus(self):
         self.assertIn('cmp byte ptr [enemy_py+bx],140',N)
         self.assertIn('cmp byte ptr [enemy_py+bx],96',A)
