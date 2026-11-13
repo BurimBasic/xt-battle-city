@@ -1,7 +1,7 @@
 name: Stage v0.29 approved art and muzzle release candidate
 on:
   push:
-    branches: [feat/v029-aircraft-recoil-dodge]
+    branches: [feat/v029-approved-cga-art-muzzle]
     paths: ['.github/workflows/v029-stage.yml']
 permissions:
   contents: write
@@ -51,5 +51,5 @@ jobs:
           git add src/dos/cga_assets.inc dist/TANKS.COM releases/v0.29/TANKS-v0.29-DOS-CGA.zip releases/v0.29/qa/TANKS-TRACE.COM releases/v0.29/qa/TANKS-PERF.COM docs/art/v029-airplane-sprite-preview.png docs/art/v029-player-companion-preview.png
           if ! git diff --cached --quiet; then
             git commit -m 'release(v0.29): tested candidate COM, ZIP and all approved pixel art previews'
-            git push origin HEAD:feat/v029-aircraft-recoil-dodge
+            git push origin HEAD:feat/v029-approved-cga-art-muzzle
           fi
