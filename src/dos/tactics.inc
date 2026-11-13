@@ -22,7 +22,11 @@ tactical_player_tick:
     push cx
     push dx
     push si
+    /* React mid-cadence only if impact is imminent; long-range shells
+       remain the 4-tick strategic dodge and must not divert the hunter. */
+    mov byte ptr [tactical_threat_range],24
     call tactical_find_threat
+    mov byte ptr [tactical_threat_range],72
     jc tactical_player_quick_escape
     jmp tactical_player_leave
 tactical_player_quick_escape:
@@ -741,7 +745,7 @@ tactical_find_threat:
     mov al, [shot_py+bx]
     sub al, [player_py]
  tactical_threat_vertical_range:
-    cmp al, 72
+    cmp al,[tactical_threat_range]
     ja tactical_threat_next
     /* Pick the side with more maneuvering room, not always right. */
     mov al,1
@@ -764,7 +768,7 @@ tactical_find_threat:
     mov al, [shot_px+bx]
     sub al, [player_px]
  tactical_threat_horizontal_range:
-    cmp al, 72
+    cmp al,[tactical_threat_range]
     ja tactical_threat_next
     mov al, 0
     cmp byte ptr [player_py], 15
@@ -1275,6 +1279,7 @@ squad_target_y: .byte 168
 enemy_hold: .space 4
 enemy_blocked: .space 4
 tactical_heading: .byte 0
+tactical_threat_range: .byte 72 /* 24px early warning, 72px planned */
 /* v0.12 route selection scratch: tiny bounded, per-decision only. */
 tactical_goal_x: .byte 0
 tactical_goal_y: .byte 0
