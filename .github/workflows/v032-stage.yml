@@ -1,4 +1,4 @@
-name: Stage v0.32 XT CGA candidate - brick title and silhouette treads
+name: Stage v0.32 XT CGA final - heavy intro and silhouette treads
 on:
   push:
     branches: [feat/v032-intro-contained-treads]
