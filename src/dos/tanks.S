@@ -176,6 +176,7 @@ reset_campaign:
     mov byte ptr [stage], 1
     mov byte ptr [lives], 3
     mov word ptr [score], 0
+    mov word ptr [score31_progress],0
     mov byte ptr [bonus_sequence], 0
     mov byte ptr [coop_mode],0
     mov byte ptr [coop_lives],0
@@ -328,6 +329,7 @@ init_brick_store:
     call strategy_reset
     call tactical24_reset
     call bomber25_reset
+    call score31_reset_stage
     /* 2P uses the existing ally sprite but not its autonomous brain. */
     cmp byte ptr [coop_mode],0
     je load_stage_no_coop
@@ -526,6 +528,7 @@ tick_p1_pickup_done:
     call bonus23_tick
     call gun27_tick
     call bomber25_tick
+    call score31_tick
     call enemy23_tick
     call ally20_pickup
     call slide_player_smooth
@@ -788,7 +791,7 @@ grenade_next:
     inc al
     mov dl, 100
     mul dl
-    add [score], ax
+    call score31_award
     mov dl, [enemy_col+bx]
     mov dh, [enemy_row+bx]
     call draw_cell
@@ -1601,7 +1604,7 @@ bullet_enemy_destroyed:
     inc al
     mov cl, 100
     mul cl
-    add [score], ax
+    call score31_award
     call draw_hud
     jmp bullet_impact
 bullet_out:
@@ -2382,7 +2385,7 @@ smooth_enemy_destroyed:
     inc al
     mov cl, 100
     mul cl
-    add [score], ax
+    call score31_award
     call draw_hud
     cmp byte ptr [super_bullet_active],0
     jne smooth_bullet_enemy_next
@@ -3380,6 +3383,7 @@ mark_rect_next_col:
 
 mark_old_sprites:
     call bomber25_mark_old
+    call score31_mark_old
     cmp byte ptr [paint_player_valid], 0
     je old_player_done
     mov dl, [paint_player_x]
@@ -4015,6 +4019,7 @@ paint_explosion_valid_frame:
 paint_explosion_done:
     call grenade17_fx_paint
     call bomber25_paint
+    call score31_paint
     /* Finish the actor/background composition first. The beam is a
        transient VRAM-only overlay, NEVER written into the RAM shadow.
        Next frame's pending tile upload scrubs it even after expiry. */
@@ -7126,6 +7131,7 @@ trace_record_done:
 .include "src/dos/anti_loop_v24.inc"
 .include "src/dos/bomber_v25.inc"
 .include "src/dos/v027_render.inc"
+.include "src/dos/score_v31.inc"
 
 .section .data
 .ifdef TRACE_BUILD
