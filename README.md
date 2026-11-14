@@ -6,7 +6,7 @@
 
 ### Скачать и запустить — v0.34
 
-**[Скачать ZIP с игрой из GitHub Releases](https://github.com/BurimBasic/xt-battle-city/releases/download/v0.34/TANKS-v0.34-DOS-CGA.zip)** · **[TANKS.COM отдельно](https://github.com/BurimBasic/xt-battle-city/releases/download/v0.34/TANKS.COM)** · [Страница релиза v0.33](https://github.com/BurimBasic/xt-battle-city/releases/tag/v0.34) · [История](CHANGELOG.md) · [Техническая приёмка](releases/v0.34/RELEASE-NOTES.md)
+**[Скачать ZIP с игрой из GitHub Releases](https://github.com/BurimBasic/xt-battle-city/releases/download/v0.34/TANKS-v0.34-DOS-CGA.zip)** · **[TANKS.COM отдельно](https://github.com/BurimBasic/xt-battle-city/releases/download/v0.34/TANKS.COM)** · [Страница релиза v0.34](https://github.com/BurimBasic/xt-battle-city/releases/tag/v0.34) · [История](CHANGELOG.md) · [Техническая приёмка](releases/v0.34/RELEASE-NOTES.md)
 
 ![Подлинная заставка TANKS v0.33 на DOSBox-X / 8086 / CGA](docs/screenshots/CGA-DOSBox-X-v0.33-title-real.png)
 
@@ -16,7 +16,7 @@
 
 **Переносная версия для Windows x64 с DOSBox-X:** архив `C:\XT-Battle-City\TANKS-v0.34-PORTABLE-WIN64.zip` лежит **на SLOW1** (это не ZIP из GitHub Releases). Распаковывается в любую папку; внутри `START-TANKS.cmd` с AdLib, `START-SPEAKER.cmd` без OPL2 и `START-XT-240.cmd` с замедленной эмуляцией XT. На другом компьютере с установленным DOSBox-X также можно запустить скачанный `TANKS.COM`, выбрав 8086/CGA и смонтировав каталог игры.
 
-**Проверено 15 ноября 2026 на SLOW1:** `run\TANKS.COM` — **57 226 байт**, SHA-256 `0C0C98AA1EFA4355A6A9F25BB4A56B03929584978731F3B36A874ECCC30C98D5` (совпадает с GitHub v0.33). Обновлённый профиль обычного запуска сохранил включённый AdLib/OPL2; DOS `/TEST` и распознавание AdLib/PC Speaker проверены также для v0.34. **Реальный двойной щелчок через `RUN-CGA.cmd` также проверен:** открылось интерактивное окно `DOSBox-X 2026.10.01: TANKS - 1000 cycles/ms`, процесс игры продолжил работать; тестовую копию закрыли отдельно. Перед заменой сценариев сделаны их резервные копии. Также пройдены **200 тестов**, 35 карт, аудит 8086 и AUTO 20/20; подробности в [заметках v0.33](releases/v0.34/RELEASE-NOTES.md).
+**Проверено 15 ноября 2026 на SLOW1:** `run\TANKS.COM` — **57 266 байт**, SHA-256 `B5BC7F872BAF4DE62762D501C680B903DED8EFDBE9A96DAE76A7CB3173A9CB4F` (совпадает с кандидатом v0.34). Обновлённый профиль обычного запуска сохранил включённый AdLib/OPL2; DOS `/TEST` и распознавание AdLib/PC Speaker проверены также для v0.34. **Реальный двойной щелчок через `RUN-CGA.cmd` также проверен:** открылось интерактивное окно `DOSBox-X 2026.10.01: TANKS - 1000 cycles/ms`, процесс игры продолжил работать; тестовую копию закрыли отдельно. Перед заменой сценариев сделаны их резервные копии. Также пройдены **200 тестов**, 35 карт, аудит 8086 и AUTO 20/20; подробности в [заметках v0.34](releases/v0.34/RELEASE-NOTES.md).
 
 Реальный PC/XT на 4,77 МГц пока отдельно не проверялся; нативные EGA/VGA/Hercules и «Поиск-1» не реализованы. После обновления файла игры уже открытое окно DOSBox-X необходимо перезапустить.
 
