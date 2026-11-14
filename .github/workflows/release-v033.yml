@@ -41,6 +41,6 @@ jobs:
             gh release upload "$tag" "$zip" dist/TANKS.COM --clobber
             gh release edit "$tag" --notes-file "$notes"
           else
-            gh release create "$tag" "$zip" dist/TANKS.COM --title 'XT Battle City / Танчики v0.33 — кирпичная заставка TANKS, точные гусеницы 12x12, 1982 BURIM' --notes-file "$notes" --target "$GITHUB_SHA"
+            gh release create "$tag" "$zip" dist/TANKS.COM --title 'XT Battle City / Танчики v0.33 — аркадные звуки AdLib, мягкий PC Speaker и новая FM-мелодия' --notes-file "$notes" --target "$GITHUB_SHA"
           fi
           gh release view "$tag" --json tagName,url,assets
