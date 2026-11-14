@@ -310,24 +310,28 @@ gun27_tick:
 2:
     ret
 
-/* Two visible propellers on ONE rotated master aircraft. Clockwise
- * 0=right, 1=left, 2=down, 3=up. Draw black hubs and alternating
- * white perpendicular blade tips. Alternation occurs every game tick;
- * the aircraft's dirty rectangle clears the previous blade positions. */
+/* v0.30: anchor TWO propeller hubs to the ACTUAL approved v0.29
+ * 32x24 aircraft pixels. Pixel coordinates were inspected on the source
+ * master and on its exact build-time rotations:
+ * RIGHT: (25,7),(25,16); LEFT: (6,7),(6,16)
+ * UP: (10,5),(22,5); DOWN: (9,18),(21,18).
+ * Previous x=29 / x=2 and up x=8 / x=24 drew off-engine dots.
+ * Every tick, two 1px highlights switch ends of the blade; no extra
+ * atlas, no frame-buffer or sprite rotation in the XT game loop. */
 wide27_propellers:
     push ax
     push bx
     push dx
     mov bl,0
     cmp byte ptr [bomber25_axis],0
-    jne wide27_vertical_props
+    jne wide30_vertical
     cmp byte ptr [bomber26_reverse],0
-    jne wide27_props_left
-    add dl,29
-    jmp wide27_horizontal_hubs
-wide27_props_left:
-    add dl,2
-wide27_horizontal_hubs:
+    jne wide30_horizontal_left
+    add dl,25
+    jmp wide30_horizontal
+wide30_horizontal_left:
+    add dl,6
+wide30_horizontal:
     add dh,7
     call gun27_pixel
     add dh,9
@@ -335,41 +339,46 @@ wide27_horizontal_hubs:
     sub dh,9
     mov bl,3
     test byte ptr [game_tick],1
-    jz wide27_horizontal_blade_a
-    add dh,2
-    jmp wide27_horizontal_blades
-wide27_horizontal_blade_a:
-    sub dh,2
-wide27_horizontal_blades:
+    jnz wide30_horizontal_b
+    sub dh,2              /* first engine: upper blade tip */
     call gun27_pixel
-    add dh,9
+    add dh,11             /* second engine: upper blade tip */
     call gun27_pixel
-    jmp wide27_props_done
-wide27_vertical_props:
+    jmp wide30_done
+wide30_horizontal_b:
+    add dh,2              /* first engine: lower blade tip */
+    call gun27_pixel
+    add dh,9              /* second engine: lower blade tip */
+    call gun27_pixel
+    jmp wide30_done
+wide30_vertical:
     cmp byte ptr [bomber26_reverse],0
-    jne wide27_props_up
-    add dh,19
-    jmp wide27_vertical_hubs
-wide27_props_up:
-    add dh,4
-wide27_vertical_hubs:
-    add dl,8
+    jne wide30_vertical_up
+    add dh,18             /* down: hubs at x9,21 y18 */
+    add dl,9
+    jmp wide30_vertical_hubs
+wide30_vertical_up:
+    add dh,5              /* up: hubs at x10,22 y5 */
+    add dl,10
+wide30_vertical_hubs:
     call gun27_pixel
-    add dl,16
+    add dl,12
     call gun27_pixel
-    sub dl,16
+    sub dl,12
     mov bl,3
     test byte ptr [game_tick],1
-    jz wide27_vertical_blade_a
-    add dl,2
-    jmp wide27_vertical_blades
-wide27_vertical_blade_a:
+    jnz wide30_vertical_b
     sub dl,2
-wide27_vertical_blades:
     call gun27_pixel
-    add dl,16
+    add dl,12
     call gun27_pixel
-wide27_props_done:
+    jmp wide30_done
+wide30_vertical_b:
+    add dl,2
+    call gun27_pixel
+    add dl,12
+    call gun27_pixel
+wide30_done:
     pop dx
     pop bx
     pop ax
