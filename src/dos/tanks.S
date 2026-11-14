@@ -1388,10 +1388,15 @@ enemy_fire_now:
     call advance_enemy_shot
     jmp enemy_fire_next
 enemy_fire_smooth_init:
-    mov al, [enemy_px+bx]
-    mov [shot_px+bx], al
-    mov al, [enemy_py+bx]
-    mov [shot_py+bx], al
+    /* v0.30: Enemy projectile has visible center at (+8,+6).
+       Shift its origin to the real 12x12 barrel tip (all four headings),
+       exactly as P1/P2, including weapon-equipped and heavy tanks. */
+    mov dl,[enemy_px+bx]
+    mov dh,[enemy_py+bx]
+    mov al,[enemy_dir+bx]
+    call gun29_muzzle
+    mov [shot_px+bx],dl
+    mov [shot_py+bx],dh
     cmp byte ptr [enemy_weapon_ticks+bx],0
     jne 9f
     jmp enemy_fire_next
@@ -7256,7 +7261,7 @@ tactical_coop_glyphs: .word hud_blank_icon,hud_blank_icon,hud_c_char,hud_o_char,
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_u_char, hud_r_char, hud_i_char, hud_m_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_2, hud_digit_9
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_3, hud_digit_0
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0

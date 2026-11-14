@@ -50,6 +50,8 @@ pong23_enemy_origin:
     mov dh,[enemy_py+bx]
     mov al,[enemy_dir+bx]
 pong23_origin_ready:
+    /* v0.30: diagonal ricochet also leaves the barrel, not the hull. */
+    call gun29_muzzle
     mov [pong_px],dl
     mov [pong_py],dh
     /* Four diagonal directions, both axes always move. */
@@ -377,10 +379,14 @@ enemy23_burst_loop:
 enemy23_burst_slot:
     cmp byte ptr [shot_active+si],0
     jne enemy23_burst_skip
-    mov al,[enemy_px+bx]
-    mov [shot_px+si],al
-    mov al,[enemy_py+bx]
-    mov [shot_py+si],al
+    /* Every spread projectile emerges from the ORIGINAL barrel muzzle,
+       then acquires its own spread direction; no center-of-hull start. */
+    mov dl,[enemy_px+bx]
+    mov dh,[enemy_py+bx]
+    mov al,[enemy_dir+bx]
+    call gun29_muzzle
+    mov [shot_px+si],dl
+    mov [shot_py+si],dh
     mov al,[enemy_dir+bx]
     add al,cl
     and al,3
@@ -405,9 +411,10 @@ enemy23_burst_skip:
 enemy23_laser:
     push ax
     push cx
-    mov al,[enemy_px+bx]
+    /* Beam begins at the same muzzle as the normal enemy shell. */
+    mov al,[shot_px+bx]
     mov [laser_start_x],al
-    mov al,[enemy_py+bx]
+    mov al,[shot_py+bx]
     mov [laser_start_y],al
     mov al,[enemy_dir+bx]
     mov [laser_dir],al

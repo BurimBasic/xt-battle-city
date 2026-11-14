@@ -31,10 +31,10 @@ class V28Tests(unittest.TestCase):
         self.assertGreaterEqual(sum(row.count("3") for row in p), 26)
 
     def test_propellers_animate_in_all_four_directions(self):
-        self.assertIn("wide27_horizontal_hubs:", R)
-        self.assertIn("wide27_vertical_hubs:", R)
-        self.assertIn("wide27_props_left:", R)
-        self.assertIn("wide27_props_up:", R)
+        self.assertIn("wide30_horizontal:", R)
+        self.assertIn("wide30_vertical_hubs:", R)
+        self.assertIn("wide30_horizontal_left:", R)
+        self.assertIn("wide30_vertical_up:", R)
         self.assertIn("test byte ptr [game_tick],1", R)
         self.assertGreaterEqual(R.count("call gun27_pixel"), 10)
 

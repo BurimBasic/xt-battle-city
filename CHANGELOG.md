@@ -1,3 +1,10 @@
+## v0.30 — Авторские 12×12 танки, выстрелы врагов из дула, винты в настоящих координатах (14.11.2026)
+
+- Внедрены все шесть оригинальных пользовательских 12×12 спрайтов в порядке P1, напарник, light, medium, assault, heavy. Индивидуальные матрицы сохранены без ретуши; 90° повороты квадратной матрицы без растяжения; четыре дополнительные розовые точки напарника без второго атласа.
+- Вражеские обычные и дополнительные снаряды, лазер и рикошет стартуют у дула, а не из середины танка. Винты самолёта закреплены на настоящих пикселях ступиц во всех четырёх направлениях.
+- 181 тест и аудит 8086 — PASS. SLOW1 DOSBox-X /TEST PASS, AUTO 2048 тактов — 20/20, performance ABBA при 240 cycles/ms — v0.30 на 9,87% быстрее принятой v0.19. Атомарная установка с откатом к v0.29 и проверка установленного файла — PASS.
+- 56 992 байта, SHA-256 `8686E853A6BB3D7E675B182919721E48DC2114A2DE071D338E74AFB43222B5D9`. Подробности — `releases/v0.30/RELEASE-NOTES.md`.
+
 ## v0.29 — User-approved WWII airplane and P1/companion pixel masters; muzzle-correct firing (2026-11-13)
 
 - **Approved source art is now native CGA**: right-facing 32×24 bomber master with four compile-time transformations; 16×12 cyan/gray player tank with black turret channels and a clearly visible cannon. Companion shares that hull with **exactly two short magenta turret-side strips** applied dynamically; saves a separate 1920-byte masked-sprite atlas.
