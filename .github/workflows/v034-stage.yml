@@ -1,7 +1,7 @@
 name: Stage v0.34 CGA candidate - folk Korobeiniki FM and Yamaha noise percussion
 on:
   push:
-    branches: [feat/v034-opl-arcade-sound-slow-intro]
+    branches: [feat/v034-public-domain-fm-rhythm-noise]
     paths: ['.github/workflows/v034-stage.yml']
 permissions:
   contents: write
@@ -49,5 +49,5 @@ jobs:
           git add src/dos/cga_assets.inc dist/TANKS.COM releases/v0.34/TANKS-v0.34-DOS-CGA.zip releases/v0.34/qa/TANKS-TRACE.COM releases/v0.34/qa/TANKS-PERF.COM
           if ! git diff --cached --quiet; then
             git commit -m 'release(v0.34): tested candidate COM, ZIP, public domain melody and hardware rhythm noise'
-            git push origin HEAD:feat/v034-opl-arcade-sound-slow-intro
+            git push origin HEAD:feat/v034-public-domain-fm-rhythm-noise
           fi
