@@ -76,7 +76,7 @@ class Release31Tests(unittest.TestCase):
 
  def test_all_tanks_move_linked_tracks_and_dotted_shield(self):
   self.assertIn('mov cl,dl\n    add cl,dh',T)
-  self.assertIn('test cl,4',T)
+  self.assertIn('and cl,4',T)
   for marker in ('paint_enemy_color_ready:', 'paint_ally_color_ready:', 'paint_player_color_ready:'):
    segment=T.split(marker,1)[1][:720]
    self.assertIn('call draw_track_dots',segment)
