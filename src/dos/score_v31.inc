@@ -106,12 +106,10 @@ score31_paint_skip:
     ret
 
 /* BX=slot, DL/DH=screen pixel. 11x3 author artwork decoded on the fly. */
+/* Private renderer: outer render_frame saves CX/DX/SI/BP; preserve only
+ * BX because it indexes the 4 active scoring slots. */
 score31_draw:
     push bx
-    push cx
-    push dx
-    push si
-    push bp
     xor ax,ax
     mov al,[score31_kind+bx]
     mov cl,6
@@ -136,10 +134,6 @@ score31_pixel_skip:
     inc dh
     dec bp
     jnz score31_row
-    pop bp
-    pop si
-    pop dx
-    pop cx
     pop bx
     ret
 
