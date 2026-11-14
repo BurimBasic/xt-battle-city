@@ -16,9 +16,33 @@ _start:
     cld
     /* .bss occupies address space but no on-disk COM bytes. DOS .COM does
        not promise zero-filled private paragraphs: initialize explicitly. */
+    push cs
+    pop es
     mov di,offset bss_start
     mov cx,offset bss_end-bss_start
     xor al,al
+    rep stosb
+    /* Build the same 256-byte 12px row lookup ONCE at boot rather than
+       store zero-cost CPU data in the .COM. No per-frame division or shifts:
+       paint code still reads the precomputed O(1) array from RAM. */
+    mov di,offset pixel_y_tile_lookup
+    xor dx,dx               /* DH=tile row, DL=pixel within tile */
+    mov cx,192
+lookup34_next:
+    mov al,dh
+    mov ah,16
+    mul ah                  /* row<<4, 0..15 */
+    or al,dl
+    stosb
+    inc dl
+    cmp dl,12
+    jne lookup34_no_row
+    xor dl,dl
+    inc dh
+lookup34_no_row:
+    loop lookup34_next
+    mov al,0xf0             /* y192..255 clamped to last row */
+    mov cx,64
     rep stosb
     /* DOS .COM occupies one allocation. Shrink it and reserve 16 KiB
        conventional RAM for the composed CGA bitmap. Keep a 4 KiB stack
@@ -7311,17 +7335,7 @@ scan_x: .byte 0
 scan_y: .byte 0
 /* y in 0..191; byte: high nibble tile row, low nibble y%12.
    Out-of-range y in 192..255 is clamped to row 15 for sprite restores. */
-.p2align 1
-pixel_y_tile_lookup:
-.set y_lookup,0
-.rept 256
-    .if y_lookup < 192
-        .byte (((y_lookup / 12) << 4) | (y_lookup % 12))
-    .else
-        .byte 0xf0
-    .endif
-    .set y_lookup,y_lookup+1
-.endr
+/* pixel_y_tile_lookup moved to boot-filled .bss, exact y/12 mapping */
 .p2align 1
 cga_scanline_offsets:
 .set scan_lookup,0
@@ -7355,6 +7369,7 @@ paint_shot_y: .space 7
 .section .bss
 .p2align 1
 bss_start:
+pixel_y_tile_lookup: .space 256
 brick_masks: .space 256
 dirty_tiles: .space 256
 upload_tiles: .space 256
