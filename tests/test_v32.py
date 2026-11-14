@@ -77,11 +77,7 @@ class V32Tests(unittest.TestCase):
   self.assertIn('mov cx,offset bss_end-bss_start',T)
   self.assertIn('rep stosb',T)
   for name in ('brick_masks','dirty_tiles','upload_tiles','level_data'):
-   self.assertRegex(T,rf'(?m)^{name}: \.space 256
-  self.assertIn('.include "src/dos/title_v32.inc"',T)
-
-if __name__=='__main__':unittest.main()
-,name)
+   self.assertIn(name+': .space 256',T)
   self.assertIn('.include "src/dos/title_v32.inc"',T)
 
 if __name__=='__main__':unittest.main()
