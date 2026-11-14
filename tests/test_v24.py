@@ -14,7 +14,7 @@ TACT=(ROOT/'src/dos/tactics.inc').read_text()
 class NewFeaturesV24(unittest.TestCase):
     def test_hud_only_damaged_armour_black_treads(self):
         renderer=T.split('paint_enemy_selected:',1)[1].split('paint_enemy_next:',1)[0]
-        self.assertIn('mov ah,[enemy_track_damage+bx]',renderer)
+        self.assertIn('or ah,[enemy_track_damage+bx]',renderer)
         self.assertIn('call draw_track_dots',renderer)
         self.assertIn('call draw_track_dots',renderer)
         player=T.split('paint_player_normal:',1)[1].split('paint_no_bullet:',1)[0]
