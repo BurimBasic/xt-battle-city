@@ -62,9 +62,8 @@ score31_tick_skip:
 
 /* Previous popup positions always get restored, including when the final
  * flash expires. The current popup position is marked separately in paint. */
+/* mark_old_sprites already clobbers BX/DX; no duplicate saves. */
 score31_mark_old:
-    push bx
-    push dx
     xor bx,bx
 score31_mark_next:
     cmp byte ptr [score31_paint_valid+bx],0
@@ -77,14 +76,10 @@ score31_mark_skip:
     inc bx
     cmp bx,4
     jb score31_mark_next
-    pop dx
-    pop bx
     ret
 
+/* Called only by render_frame, which already saves AX/BX/DX. */
 score31_paint:
-    push ax
-    push bx
-    push dx
     xor bx,bx
 score31_paint_next:
     mov al,[score31_timer+bx]
@@ -108,14 +103,10 @@ score31_paint_skip:
     inc bx
     cmp bx,4
     jb score31_paint_next
-    pop dx
-    pop bx
-    pop ax
     ret
 
 /* BX=slot, DL/DH=screen pixel. 11x3 author artwork decoded on the fly. */
 score31_draw:
-    push ax
     push bx
     push cx
     push dx
@@ -150,7 +141,6 @@ score31_pixel_skip:
     pop dx
     pop cx
     pop bx
-    pop ax
     ret
 
 .section .data
