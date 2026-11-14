@@ -48,7 +48,11 @@ title32_no_key:
     je title32_loop
     mov [title32_clock],dx
     call title32_clear_battle
+    /* Tanks disappear as their explosion begins, not under the blast. */
+    cmp byte ptr [title32_frame],42
+    jae title32_no_tanks
     call title32_tanks
+title32_no_tanks:
     cmp byte ptr [title32_frame],37
     jb title32_advance
     cmp byte ptr [title32_frame],42
@@ -97,6 +101,7 @@ title32_done:
  * at y64..91 in both alternating CGA banks (nothing outside a sprite). */
 title32_clear_battle:
     push ax
+    push bx
     push cx
     push di
     push es
@@ -121,6 +126,7 @@ title32_clear_row:
     pop es
     pop di
     pop cx
+    pop bx
     pop ax
     ret
 
