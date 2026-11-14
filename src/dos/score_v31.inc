@@ -5,24 +5,6 @@
  * Four independent kill popups support simultaneous explosions. */
 .section .text
 
-/* Keep 15k progress across stages, but discard stage-local floating text. */
-score31_reset_stage:
-    push ax
-    push cx
-    push di
-    mov di,offset score31_timer
-    mov cx,4
-    xor al,al
-    rep stosb
-    mov di,offset score31_paint_valid
-    mov cx,4
-    rep stosb
-    mov byte ptr [score31_hud_flash],0
-    pop di
-    pop cx
-    pop ax
-    ret
-
 /* AX=awarded points (100..400), BX=destroyed enemy slot 0..3.
  * The counter is kept modulo 15000, independently of 16-bit score wrap. */
 score31_award:
@@ -60,7 +42,6 @@ score31_no_life:
     ret
 
 score31_tick:
-    push ax
     push bx
     cmp byte ptr [score31_hud_flash],0
     je score31_tick_popups
@@ -77,7 +58,6 @@ score31_tick_skip:
     cmp bx,4
     jb score31_tick_next
     pop bx
-    pop ax
     ret
 
 /* Previous popup positions always get restored, including when the final
