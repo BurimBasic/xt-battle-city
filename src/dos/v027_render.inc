@@ -342,7 +342,7 @@ wide30_horizontal:
     jnz wide30_horizontal_b
     sub dh,2              /* first engine: upper blade tip */
     call gun27_pixel
-    add dh,11             /* second engine: upper blade tip */
+    add dh,9              /* second engine: upper blade tip */
     call gun27_pixel
     jmp wide30_done
 wide30_horizontal_b:
