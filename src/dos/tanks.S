@@ -3814,16 +3814,12 @@ paint_enemy_selected:
     mov si,[smooth_player_ptrs+si]
 paint_enemy_color_ready:
     call draw_smooth_sprite
-    /* Black wear only on surviving ARMOUR with an actually damaged tread.
-       Healthy enemy tracks and all player tanks retain the original sprite. */
-    cmp byte ptr [enemy_type+bx],3
-    jne paint_enemy_no_tread_damage
-    cmp byte ptr [enemy_track_damage+bx],0
-    je paint_enemy_no_tread_damage
+    /* All enemy classes animate the actual tread links. Damaged ARMOUR
+       continues to show black dead links, preserving its slowdown. */
     mov dl,[enemy_px+bx]
     mov dh,[enemy_py+bx]
     mov al,[enemy_dir+bx]
-    mov ah,1
+    mov ah,[enemy_track_damage+bx]
     call draw_track_dots
 paint_enemy_no_tread_damage:
     pop bx
@@ -3859,6 +3855,11 @@ paint_ally_color_ready:
     mov dl,[ally_px]
     mov dh,[ally_py]
     call gun27_draw
+    mov dl,[ally_px]
+    mov dh,[ally_py]
+    mov al,[ally_dir]
+    xor ah,ah
+    call draw_track_dots
     cmp byte ptr [ally_shield],0
     je paint_ally_no_shield
     test byte ptr [game_tick],4
@@ -3899,6 +3900,11 @@ paint_player_color_ready:
     mov dl,[player_px]
     mov dh,[player_py]
     call gun27_draw
+    mov dl,[player_px]
+    mov dh,[player_py]
+    mov al,[player_dir]
+    xor ah,ah
+    call draw_track_dots
     cmp byte ptr [player_shield],0
     je paint_player_no_shield
     test byte ptr [game_tick],4
