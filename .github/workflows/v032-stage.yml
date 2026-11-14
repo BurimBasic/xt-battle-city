@@ -1,4 +1,4 @@
-name: Stage v0.32 XT CGA final2 - complete keys and heavy intro
+name: Stage v0.32 XT CGA final3 - dense shaded brick typography
 on:
   push:
     branches: [feat/v032-intro-contained-treads]
