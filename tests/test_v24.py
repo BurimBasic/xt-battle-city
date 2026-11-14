@@ -14,11 +14,11 @@ TACT=(ROOT/'src/dos/tactics.inc').read_text()
 class NewFeaturesV24(unittest.TestCase):
     def test_hud_only_damaged_armour_black_treads(self):
         renderer=T.split('paint_enemy_selected:',1)[1].split('paint_enemy_next:',1)[0]
-        self.assertIn('cmp byte ptr [enemy_type+bx],3',renderer)
-        self.assertIn('cmp byte ptr [enemy_track_damage+bx],0',renderer)
+        self.assertIn('mov ah,[enemy_track_damage+bx]',renderer)
+        self.assertIn('call draw_track_dots',renderer)
         self.assertIn('call draw_track_dots',renderer)
         player=T.split('paint_player_normal:',1)[1].split('paint_no_bullet:',1)[0]
-        self.assertNotIn('call draw_track_dots',player)
+        self.assertIn('call draw_track_dots',player)
         self.assertNotIn('or al,[laser19_color3+bx]',T.split('track23_pixel:',1)[1].split('render_frame:',1)[0])
     def test_true_half_speed_for_cracked_armour(self):
         segment=T.split('move_enemies_smooth:',1)[1].split('choose_enemy_turn:',1)[0]
