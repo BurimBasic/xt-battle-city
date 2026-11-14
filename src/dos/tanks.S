@@ -466,29 +466,6 @@ player_check_pickup:
     ret
 
 slide_player:
-    cmp byte ptr [slide_ticks], 0
-    je slide_done
-    test byte ptr [game_tick], 3
-    jnz slide_done
-    mov dl, [player_col]
-    mov dh, [player_row]
-    mov [slide_old_col], dl
-    mov [slide_old_row], dh
-    mov al, [player_dir]
-    call step_position
-    jc slide_end
-    call try_move
-    mov al, [slide_old_col]
-    cmp al, [player_col]
-    jne slide_done
-    mov al, [slide_old_row]
-    cmp al, [player_row]
-    jne slide_done
-    /* The next tile was blocked, so do not repeat futile slide steps. */
-    jmp slide_end
-slide_end:
-    mov byte ptr [slide_ticks], 0
-slide_done:
     ret
 
 /* 18.2 Hz game tick, no busy-wait dependent on CPU MHz. */
@@ -1252,99 +1229,8 @@ enemy_at_continue:
     pop bx
     ret
 
-/* Enemies generally head toward the HQ but change direction at walls. */
+/* Legacy grid-step enemy AI is replaced by move_enemies_smooth. */
 move_enemies:
-    xor bx, bx
-enemy_move_loop:
-    cmp byte ptr [enemy_active+bx], 0
-    jne enemy_move_active
-    jmp enemy_move_next
-enemy_move_active:
-    cmp byte ptr [only_fast], 0
-    je enemy_move_unfiltered
-    cmp byte ptr [enemy_type+bx], 1
-    je enemy_move_unfiltered
-    jmp enemy_move_next
-enemy_move_unfiltered:
-    call random_byte
-    and al, 15
-    cmp al, 11
-    jb enemy_keep_direction
-    cmp al, 16
-    jae enemy_random_dir
-    mov al, 2
-    jmp enemy_direction_chosen
-enemy_keep_direction:
-    mov al, [enemy_dir+bx]
-    jmp enemy_direction_chosen
-enemy_random_dir:
-    and al, 3
-enemy_direction_chosen:
-    mov [enemy_dir+bx], al
-    mov dl, [enemy_col+bx]
-    mov dh, [enemy_row+bx]
-    cmp al, 0
-    jne enemy_not_up
-    test dh, dh
-    jz enemy_move_next
-    dec dh
-    jmp enemy_target
-enemy_not_up:
-    cmp al, 1
-    jne enemy_not_right
-    cmp dl, 15
-    je enemy_move_next
-    inc dl
-    jmp enemy_target
-enemy_not_right:
-    cmp al, 2
-    jne enemy_not_down
-    cmp dh, 15
-    je enemy_move_next
-    inc dh
-    jmp enemy_target
-enemy_not_down:
-    test dl, dl
-    jz enemy_move_next
-    dec dl
-enemy_target:
-    mov [next_col], dl
-    mov [next_row], dh
-    call get_tile
-    cmp al, '.'
-    je enemy_floor_ok
-    cmp al, 'F'
-    je enemy_floor_ok
-    cmp al, 'I'
-    je enemy_floor_ok
-    jmp enemy_move_next
-enemy_floor_ok:
-    mov dl, [next_col]
-    mov dh, [next_row]
-    cmp dl, [player_col]
-    jne enemy_no_player
-    cmp dh, [player_row]
-    je enemy_move_next
-enemy_no_player:
-    call enemy_at
-    cmp al, 0xff
-    jne enemy_move_next
-    mov dl, [enemy_col+bx]
-    mov dh, [enemy_row+bx]
-    mov al, [next_col]
-    mov [enemy_col+bx], al
-    mov al, [next_row]
-    mov [enemy_row+bx], al
-    call draw_cell
-    mov dl, [enemy_col+bx]
-    mov dh, [enemy_row+bx]
-    call draw_cell
-enemy_move_next:
-    inc bx
-    cmp bx, 4
-    jae enemy_move_finished
-    jmp enemy_move_loop
-enemy_move_finished:
     ret
 
 enemy_fire_cycle:
