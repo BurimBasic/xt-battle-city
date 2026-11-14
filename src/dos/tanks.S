@@ -943,6 +943,7 @@ adlib_timer_wait:
     jne adlib_detect_done
     mov byte ptr [adlib_present], 1
     call adlib_setup
+    call sound34_rhythm_setup
 adlib_detect_done:
     pop dx
     pop cx
@@ -1003,8 +1004,12 @@ sound_play:
     cmp byte ptr [sound_muted],0
     jne sound_play_done
     mov bx,ax
-    mov byte ptr [sound33_kind],0  /* brief soft fire click */
+    mov byte ptr [sound33_kind],0  /* shot: FM chirp + noisy hi-hat */
     mov byte ptr [sound_ticks],1
+    cmp bx,1100
+    jae sound34_not_pickup
+    mov byte ptr [sound33_kind],2  /* melodic bonus pickup */
+sound34_not_pickup:
     cmp bx,1800
     jb sound33_classified
     mov byte ptr [sound33_kind],1  /* low, short explosion */
@@ -1014,13 +1019,33 @@ sound33_classified:
     je sound33_speaker
     mov ax,0xb010             /* key off before re-trigger */
     call adlib_write
-    mov ax,0xa08c             /* dry fire click, mid range */
+    mov ax,0xa0c0             /* fast hard shot: brighter attack */
     cmp byte ptr [sound33_kind],0
     je sound33_opl_pitch
-    mov ax,0xa044             /* explosion begins low */
+    mov ax,0xa0a8             /* punchy lower burst: descending pitch */
+    /* Low-volume bonus gliss: distinguish pickup from a shot. */
 sound33_opl_pitch:
+    cmp byte ptr [sound33_kind],2
+    jne sound34_note_ready
+    mov ax,0xa078
+sound34_note_ready:
     call adlib_write
-    mov ax,0xb02d             /* OPL BLOCK3, FNUM1, key on */
+    mov ax,0xb02d
+    call adlib_write
+    /* Yamaha rhythm mode: hardware noise, no PCM or ISR.
+       Each strike must clear the previous latch before retriggering. */
+    mov ax,0xbd20
+    call adlib_write
+    cmp byte ptr [sound33_kind],1
+    jne sound34_not_explosion
+    mov ax,0xbd38             /* bass drum + noisy snare */
+    jmp sound34_play_drum
+sound34_not_explosion:
+    mov ax,0xbd21             /* very short airy hi-hat shot */
+    cmp byte ptr [sound33_kind],2
+    jne sound34_play_drum
+    mov ax,0xbd20             /* pickup: melody but no metallic noise */
+sound34_play_drum:
     call adlib_write
     jmp sound_play_done
 sound33_speaker:
@@ -1058,7 +1083,7 @@ sound_tick:
     push ax
     cmp byte ptr [adlib_present],0
     je sound33_sweep_pit
-    mov ax,0xa018
+    mov ax,0xa040            /* rapidly falling explosion transient */
     call adlib_write
     jmp sound33_sweep_done
 sound33_sweep_pit:
@@ -1086,6 +1111,8 @@ sound_stop:
     je speaker_stopped
     mov ax,0xb00d          /* OPL channel 0: KEY OFF */
     call adlib_write
+    mov ax,0xbd20          /* clear all noisy drum triggers */
+    call adlib_write
 speaker_stopped:
     mov byte ptr [sound_ticks],0
     pop ax
@@ -1096,8 +1123,8 @@ sound33_kind: .byte 0
 /* 2-op bass/percussion patch. Modulator TL and rapid ADSR form short,
    band-limited ticks instead of the v0.32 pure sine piercing beep. */
 sound33_opl0:
-    .word 0x2011,0x2302,0x4026,0x431a,0x60f5
-    .word 0x63f5,0x8047,0x8316,0xc006
+    .word 0x2007,0x2301,0x4014,0x4329,0x60f7
+    .word 0x63f9,0x8055,0x8326,0xc00c
 .section .text
 
 /* A full brick starts with four 8x6 quarters. Shots chip the nearest
@@ -7116,7 +7143,7 @@ trace_record_done:
 .include "src/dos/v027_render.inc"
 .include "src/dos/score_v31.inc"
 .include "src/dos/title_v32.inc"
-.include "src/dos/sound_v33.inc"
+.include "src/dos/sound_v34.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -7139,7 +7166,6 @@ bonus_timer: .byte 0
 bonus_sequence: .byte 0
 bonus_flash_type: .byte 0
 bonus_flash_ticks: .byte 0
-bonus_columns: .byte 2, 10, 4, 8, 1, 11, 6, 12, 5, 9, 3
 bonus_drop_order: .byte 0, 6, 5, 8, 7, 9, 11, 12, 13, 1, 3, 4, 2, 10
 /* Heart at second pickup, ally third; no more fixed center-row spawn. */
 ally_stock: .byte 1        /* reserve V calls: max nine */
@@ -7153,8 +7179,6 @@ hq_shield: .byte 0
 hq_originals: .space 4
 hq_original_masks: .space 4
 slide_ticks: .byte 0
-slide_old_col: .byte 0
-slide_old_row: .byte 0
 sound_muted: .byte 0
 adlib_present: .byte 0
 palette_index: .byte 0
@@ -7166,7 +7190,6 @@ paint_explosion_valid: .byte 0
 paint_explosion_x: .byte 0
 paint_explosion_y: .byte 0
 sound_ticks: .byte 0
-sound_tone: .word 0
 /* brick_masks: .space 256 -> zeroed .bss */
 test_phase: .byte 0
 lives: .byte 3
@@ -7183,7 +7206,6 @@ bullet_delay: .byte 0
 game_state: .byte 0
 game_tick: .byte 0
 enemy_ai_phase: .byte 0
-only_fast: .byte 0
 enemy_spawned: .byte 0
 enemy_killed: .byte 0
 rng_state: .word 0x51ab
@@ -7287,7 +7309,6 @@ rect_y0: .byte 0
 rect_y1: .byte 0
 scan_x: .byte 0
 scan_y: .byte 0
-scan_bank: .word 0
 /* y in 0..191; byte: high nibble tile row, low nibble y%12.
    Out-of-range y in 192..255 is clamped to row 15 for sprite restores. */
 .p2align 1
