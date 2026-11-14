@@ -50,6 +50,15 @@ class V32Tests(unittest.TestCase):
   fonts=INTRO.split('title32_font:',1)[1].split('title32_lines:',1)[0]
   self.assertEqual(sum(len(re.findall(r'\b\d+\b',line)) for line in fonts.splitlines() if '.byte' in line),35)
 
+ def test_title_3x3_dense_masonry_with_black_mortar(self):
+  body=INTRO.split('title32_bricks:',1)[1].split('title32_text:',1)[0]
+  self.assertEqual(body.count('call gun27_pixel'),9)
+  self.assertIn('mov bl,3',body)  # white top brick highlight
+  self.assertIn('mov bl,2',body)  # magenta lower brick body
+  self.assertIn('sub dh,2',body)
+  self.assertIn('add dl,4',body)  # 3px brick + 1px black mortar
+  self.assertIn('add dh,4',body)
+
  def test_approach_fires_explodes_and_any_key_skips_before_irq_install(self):
   self.assertIn('call title32_intro\n    call refresh_screen\n    call install_keyboard',T)
   self.assertIn('title32_loop:',INTRO)
