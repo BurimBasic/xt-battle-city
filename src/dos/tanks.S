@@ -4483,6 +4483,28 @@ hud_score_loop:
     inc bx
     cmp bx, 5
     jb hud_score_loop
+    /* Three synchronized on/off flashes of score AND life counters.
+       24 ticks = 3 periods of 8 ticks, each 4 ticks invisible. */
+    cmp byte ptr [score31_hud_flash],0
+    je hud31_blink_done
+    test byte ptr [score31_hud_flash],4
+    jz hud31_blink_done
+    mov si,offset hud_blank_icon
+    mov di,3587
+    mov cx,5
+hud31_blank_score:
+    call draw_hud_glyph
+    add di,2
+    loop hud31_blank_score
+    mov di,2632
+    cmp byte ptr [coop_mode],0
+    je hud31_blank_lives
+    mov di,2630
+    call draw_hud_glyph
+    mov di,2638
+hud31_blank_lives:
+    call draw_hud_glyph
+hud31_blink_done:
     pop si
     pop di
     pop dx
