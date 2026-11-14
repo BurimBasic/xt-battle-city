@@ -67,7 +67,7 @@ class VisualFixesV21(unittest.TestCase):
         self.assertIn('ally21_draw_mark:',MARK)
         self.assertIn('call gun27_pixel',MARK)
         self.assertIn('mov bl,2',MARK)
-        self.assertIn('cmp si,2',MARK)
+        self.assertIn('mov cx,4',MARK)
         self.assertNotIn('smooth_shield_ptrs',MARK)
     def test_real_dos_phases_89_to_93(self):
         for phase in range(89,94):
