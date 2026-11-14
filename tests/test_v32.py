@@ -42,7 +42,7 @@ class V32Tests(unittest.TestCase):
   for text in strings:self.assertLessEqual(len(text),40)
   full=' '.join(strings)
   for key in ('ARROWS','SPACE','WASD','CTRL','TAB','AUTO/MAN','V ALLY',
-              'P PAUSE','PGUP/PGDN','C PALETTE','M SOUND','R RESTART','ESC EXIT'):
+              'P PAUSE','PGUP/PGDN','SPACE NEXT(WIN)','C PALETTE','M SOUND','R RESTART','ESC EXIT'):
    self.assertIn(key,full,key)
   self.assertIn('title32_copyright: .asciz "1982 BURIM"',INTRO)
   self.assertIn('ANY KEY TO START',INTRO)
