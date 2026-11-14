@@ -278,7 +278,7 @@ title32_help2: .asciz "2P WASD MOVE       CTRL FIRE"
 title32_help3: .asciz "TAB AUTO/MAN   V ALLY   P PAUSE"
 title32_help4: .asciz "PGUP/PGDN LEVEL (WHEN PAUSED)"
 title32_help5: .asciz "C PALETTE   M SOUND   R RESTART"
-title32_help6: .asciz "ESC EXIT     COOP: 2P CONTROLS"
+title32_help6: .asciz "ESC EXIT SPACE NEXT(WIN) COOP:2P KEYS"
 title32_help7: .asciz "ANY KEY TO START"
 title32_copyright: .asciz "1982 BURIM"
 .section .text
