@@ -1,5 +1,5 @@
 /* v0.32 original 8086/CGA opening sequence; invoked only at DOS start.
- * Brick letters are rendered from 5x7 bitmap rows as 3x2 CGA pixel bricks,
+ * Brick letters are rendered from 5x7 bitmap rows as 3x3 CGA pixel bricks,
  * with 1px black grout. Real approved 12x12 tanks move slowly toward
  * one another. Two barrel-tip shots collide and both tanks burst.
  * BIOS keyboard polling happens before IRQ1 installation: ANY key skips.
