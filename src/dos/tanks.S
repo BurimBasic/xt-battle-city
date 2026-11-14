@@ -3677,73 +3677,54 @@ draw_track_dots:
     push bx
     push cx
     push dx
-    mov [track23_mode],ah
-    mov bx,ax            /* BL heading, BH damaged flag */
-    mov cx,dx            /* CL x, CH y */
-    test bl,1
-    jnz track23_horizontal
-    add dl,2
+    mov [track23_mode],ah      /* 0 animated white, 1 black damaged tread */
+    mov cl,dl
+    add cl,dh                 /* phase follows ACTUAL movement, not idle time */
+    test al,1
+    jnz track31_horizontal
+    add dl,3                  /* both vertical tread centerlines */
     add dh,3
+    test cl,4
+    jz track31_v_ready
+    inc dh
+track31_v_ready:
     call track23_pixel
-    add dl,11
+    add dl,9
     call track23_pixel
-    add dh,5
+    add dh,4
     call track23_pixel
-    sub dl,11
+    sub dl,9
     call track23_pixel
-    jmp track23_done
-track23_horizontal:
+    jmp track31_done
+track31_horizontal:
     add dl,3
     add dh,2
+    test cl,4
+    jz track31_h_ready
+    inc dl
+track31_h_ready:
     call track23_pixel
-    add dh,8
+    add dh,9
     call track23_pixel
-    add dl,8
+    add dl,7
     call track23_pixel
-    sub dh,8
+    sub dh,9
     call track23_pixel
-track23_done:
+track31_done:
     pop dx
     pop cx
     pop bx
     pop ax
     ret
 track23_pixel:
-    push ax
     push bx
-    push dx
-    push di
-    push es
-    /* Shift one pixel every other frame, but never outside 16x12. */
-    mov al,[game_tick]
-    and al,1
-    add dl,al
-    xor ax,ax
-    mov al,dh
-    shl ax,1
-    mov di,ax
-    mov di,[cga_scanline_offsets+di]
-    xor ax,ax
-    mov al,dl
-    mov bl,al
-    shr al,1
-    shr al,1
-    xor ah,ah
-    add di,ax
-    and bl,3
-    xor bh,bh
-    mov ax,[frame_seg]
-    mov es,ax
-    mov al,[laser19_masks+bx]
-    not al
-    and al,es:[di]
-    /* No healthy highlights: paint black only on damaged armour. */
-    mov es:[di],al
-    pop es
-    pop di
-    pop dx
+    mov bl,3                  /* bright moving tread links on every tank */
+    cmp byte ptr [track23_mode],0
+    je track31_pixel_ready
+    xor bl,bl                 /* destroyed armor tread stays black */
+track31_pixel_ready:
+    call gun27_pixel
     pop bx
-    pop ax
     ret
 
 /* Called after each simulated tick, and once after switching a stage. */
