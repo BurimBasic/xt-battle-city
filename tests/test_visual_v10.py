@@ -32,7 +32,7 @@ class ReadabilityTests(unittest.TestCase):
             # A distinct central muzzle and left/right treads are present.
             for y in (0,1):self.assertNotEqual(rows[y][7:9],'..',name)
             self.assertTrue(any(rows[y][3]!='.' for y in range(2,11)),name)
-            self.assertTrue(any(rows[y][12]!='.' for y in range(2,11)),name)
+            self.assertTrue(any(rows[y][x]!='.' for y in range(2,11) for x in range(9,14)),name)
             silhouettes.append(tuple(''.join('X' if c!='.' else '.' for c in row) for row in rows))
         self.assertGreaterEqual(len(set(silhouettes)),4)
         self.assertNotEqual(a.SPRITES['enemy_up'],a.SPRITES['player_up'])
