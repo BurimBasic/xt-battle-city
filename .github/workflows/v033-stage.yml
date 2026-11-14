@@ -1,7 +1,7 @@
 name: Stage v0.33 CGA candidate - FM arcade effects and half-speed title
 on:
   push:
-    branches: [feat/v033-intro-contained-treads]
+    branches: [feat/v033-opl-arcade-sound-slow-intro]
     paths: ['.github/workflows/v033-stage.yml']
 permissions:
   contents: write
@@ -49,5 +49,5 @@ jobs:
           git add src/dos/cga_assets.inc dist/TANKS.COM releases/v0.33/TANKS-v0.33-DOS-CGA.zip releases/v0.33/qa/TANKS-TRACE.COM releases/v0.33/qa/TANKS-PERF.COM
           if ! git diff --cached --quiet; then
             git commit -m 'release(v0.33): tested candidate COM, ZIP, AdLib cue and quiet speaker regression'
-            git push origin HEAD:feat/v033-intro-contained-treads
+            git push origin HEAD:feat/v033-opl-arcade-sound-slow-intro
           fi
