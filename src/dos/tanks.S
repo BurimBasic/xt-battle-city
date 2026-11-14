@@ -111,8 +111,8 @@ normal_play:
     jne normal_play_doctrine_ready
     mov byte ptr [squad_phase],1
 normal_play_doctrine_ready:
-    call render_frame
-    call transition20_open
+    call title32_intro
+    call refresh_screen
     call install_keyboard
     mov ah, 0
     int 0x1a
@@ -388,7 +388,11 @@ refresh_screen:
     call render_frame
     call draw_mode_indicator
     call draw_bonus_indicator
+    cmp byte ptr [title32_skip],0
+    jne refresh32_skip_transition
     call transition20_open     /* only once per level / restarts */
+refresh32_skip_transition:
+    mov byte ptr [title32_skip],0
     ret
 exit_game:
     call restore_keyboard
@@ -7072,6 +7076,7 @@ trace_record_done:
 .include "src/dos/bomber_v25.inc"
 .include "src/dos/v027_render.inc"
 .include "src/dos/score_v31.inc"
+.include "src/dos/title_v32.inc"
 
 .section .data
 .ifdef TRACE_BUILD
