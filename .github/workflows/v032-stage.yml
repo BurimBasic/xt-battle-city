@@ -1,7 +1,7 @@
 name: Stage v0.32 XT CGA candidate - brick title and silhouette treads
 on:
   push:
-    branches: [feat/v032-tracks-score-popups-extra-lives-bomber]
+    branches: [feat/v032-intro-contained-treads]
     paths: ['.github/workflows/v032-stage.yml']
 permissions:
   contents: write
@@ -42,12 +42,12 @@ jobs:
               assert z.read('TANKS.COM')==exe
           print('CANDIDATE_BUILD_PASS',len(exe),digest)
           PY
-      - name: Commit exact binary, ZIP and honest source-derived art
+      - name: Commit exact binary, ZIP and QA builds
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/dos/cga_assets.inc dist/TANKS.COM releases/v0.32/TANKS-v0.32-DOS-CGA.zip releases/v0.32/qa/TANKS-TRACE.COM releases/v0.32/qa/TANKS-PERF.COM
           if ! git diff --cached --quiet; then
-            git commit -m 'release(v0.32): tested candidate COM, ZIP and all user-authored 12x12 pixel previews'
-            git push origin HEAD:feat/v032-tracks-score-popups-extra-lives-bomber
+            git commit -m 'release(v0.32): tested candidate COM, ZIP, intro and tread regression'
+            git push origin HEAD:feat/v032-intro-contained-treads
           fi
