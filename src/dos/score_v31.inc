@@ -53,7 +53,7 @@ score31_no_life:
     mov [score31_y+bx],dh
     mov al,[enemy_type+bx]
     mov [score31_kind+bx],al
-    mov byte ptr [score31_timer+bx],18
+    mov byte ptr [score31_timer+bx],24
     pop dx
     pop bx
     pop ax
@@ -108,25 +108,16 @@ score31_paint:
     xor bx,bx
 score31_paint_next:
     mov al,[score31_timer+bx]
-    cmp al,16
-    jae score31_show
-    cmp al,13
-    jae score31_paint_skip
-    cmp al,10
-    jae score31_show
-    cmp al,7
-    jae score31_paint_skip
-    cmp al,4
-    jb score31_paint_skip
-score31_show:
+    test al,4               /* visible 4 ticks, hidden 4; three flashes */
+    jz score31_paint_skip
     mov dl,[score31_x+bx]
     mov dh,[score31_y+bx]
-    cmp al,13
+    cmp al,16
     jae score31_rise_ready
-    dec dh
-    cmp al,7
+    dec dh                  /* second appearance rises one pixel */
+    cmp al,8
     jae score31_rise_ready
-    dec dh
+    dec dh                  /* third appearance rises another pixel */
 score31_rise_ready:
     mov [score31_paint_x+bx],dl
     mov [score31_paint_y+bx],dh
