@@ -3633,17 +3633,8 @@ track32_h_first:
     add dl,3
     call track23_pixel
     sub dl,3
-    mov al,[track32_heading]
-    cmp al,1
-    jne track32_h_lower
     mov al,[track32_span]
-    add dh,al               /* right: y1 -> y9/10 */
-    jmp track32_h_second
-track32_h_lower:
-    mov al,11
-    sub al,dh
-    add dh,al               /* left: second tread at y10 */
-track32_h_second:
+    add dh,al               /* right y1->y9/10; left y1/2->y10 */
     call track23_pixel
     add dl,3
     call track23_pixel
@@ -7089,6 +7080,8 @@ trace_count: .byte 0
 trace_buffer: .space 2048
 .endif
 track23_mode: .byte 0
+track32_heading: .byte 0
+track32_span: .byte 9
 kills_by_type: .space 4
 stage: .byte 1
 /* Six original effects in a new arrangement; all durations are BIOS ticks. */
