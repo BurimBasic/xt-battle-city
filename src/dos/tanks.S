@@ -3558,47 +3558,94 @@ smooth_byte:
     pop bp
     ret
 
-/* One tiny animated highlight on each physical tread. On a disabled
- * enemy track, the same four points are BLACK damage spots. AL=heading,
- * AH=damage flag, DL/DH=top-left. The active hull already marks dirty.
- * This replaces 3,840 bytes of old 4-phase masked tread sprites. */
+/* v0.32: tread highlights are placed STRICTLY on the opaque user-drawn
+ * 12x12 tank pixels (padded by two transparent columns in the 16x12 slot).
+ * AL direction 0..3, DL/DH actor origin, AH=(0=P1/ally; enemy type+1
+ * shifted left 1) OR low-bit damaged. xR=9 for light/assault and xR=10
+ * for player/medium/heavy. Rotate mathematically for all four headings.
+ * Both tread phases use existing opaque cells: never extend a silhouette.
+ * Phase comes from travelled position, so stationary tanks stay still. */
 draw_track_dots:
     push ax
     push bx
     push cx
     push dx
-    mov [track23_mode],ah      /* 0 animated white, 1 black damaged tread */
+    mov [track23_mode],ah
+    mov [track32_heading],al
+    mov byte ptr [track32_span],9
+    and ah,0xfe
+    cmp ah,2                 /* light: inner right tread at x9 */
+    je track32_narrow
+    cmp ah,6                 /* assault: same asymmetric outline */
+    jne track32_span_ready
+track32_narrow:
+    dec byte ptr [track32_span]
+track32_span_ready:
     mov cl,dl
-    add cl,dh                 /* phase follows ACTUAL movement, not idle time */
+    add cl,dh                /* movement only, not animation by idle time */
+    and cl,4
+    shr cl,1
+    shr cl,1                /* phase=0 or 1 */
+    mov al,[track32_heading]
     test al,1
-    jnz track31_horizontal
-    add dl,3                  /* both vertical tread centerlines */
+    jnz track32_horizontal
+    add dl,3
+    cmp al,2
+    jne track32_up
+    cmp byte ptr [track32_span],8
+    jne track32_down
+    inc dl                  /* down: rotated asymmetric right tread */
+track32_down:
     add dh,3
-    test cl,4
-    jz track31_v_ready
-    inc dh
-track31_v_ready:
-    call track23_pixel
-    add dl,9
-    call track23_pixel
+    jmp track32_v_phase
+track32_up:
     add dh,4
+track32_v_phase:
+    add dh,cl
     call track23_pixel
-    sub dl,9
+    add dh,3
+    call track23_pixel
+    sub dh,3
+    mov al,[track32_span]
+    add dl,al
+    call track23_pixel
+    add dh,3
     call track23_pixel
     jmp track31_done
-track31_horizontal:
+track32_horizontal:
+    add dl,6
+    cmp al,3
+    je track32_left
+    add dh,1                /* right: y1 & y9/10 */
+    sub dl,cl
+    jmp track32_h_first
+track32_left:
+    cmp byte ptr [track32_span],8
+    jne track32_left_normal
+    add dh,2                /* left: y2 for the asymmetric tread */
+    jmp track32_left_ready
+track32_left_normal:
+    inc dh                  /* left: y1 for normal tread */
+track32_left_ready:
+    add dl,cl
+track32_h_first:
+    call track23_pixel
     add dl,3
-    add dh,2
-    test cl,4
-    jz track31_h_ready
-    inc dl
-track31_h_ready:
     call track23_pixel
-    add dh,9
+    sub dl,3
+    mov al,[track32_heading]
+    cmp al,1
+    jne track32_h_lower
+    mov al,[track32_span]
+    add dh,al               /* right: y1 -> y9/10 */
+    jmp track32_h_second
+track32_h_lower:
+    mov al,11
+    sub al,dh
+    add dh,al               /* left: second tread at y10 */
+track32_h_second:
     call track23_pixel
-    add dl,7
-    call track23_pixel
-    sub dh,9
+    add dl,3
     call track23_pixel
 track31_done:
     pop dx
@@ -3608,10 +3655,10 @@ track31_done:
     ret
 track23_pixel:
     push bx
-    mov bl,3                  /* bright moving tread links on every tank */
-    cmp byte ptr [track23_mode],0
-    je track31_pixel_ready
-    xor bl,bl                 /* destroyed armor tread stays black */
+    mov bl,3
+    test byte ptr [track23_mode],1
+    jz track31_pixel_ready
+    xor bl,bl               /* black wear only when damaged */
 track31_pixel_ready:
     call gun27_pixel
     pop bx
@@ -3709,7 +3756,10 @@ paint_enemy_color_ready:
     mov dl,[enemy_px+bx]
     mov dh,[enemy_py+bx]
     mov al,[enemy_dir+bx]
-    mov ah,[enemy_track_damage+bx]
+    mov ah,[enemy_type+bx]
+    inc ah
+    shl ah,1
+    or ah,[enemy_track_damage+bx]
     call draw_track_dots
 paint_enemy_no_tread_damage:
     pop bx
