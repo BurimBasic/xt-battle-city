@@ -21,8 +21,14 @@ class XT19(unittest.TestCase):
         block=fragment(T,'pixel_is_blocked:','rect_passable:')
         self.assertNotIn('div',block)
         self.assertIn('pixel_y_tile_lookup+bx',block)
-        self.assertIn('.rept 256',T)
-        self.assertIn('pixel_y_tile_lookup:',T)
+        # v0.34: same 256-entry RAM lookup, built once during DOS boot
+        # instead of carrying a 256-byte initialised table in the COM.
+        self.assertIn('pixel_y_tile_lookup: .space 256',T)
+        self.assertIn('mov di,offset pixel_y_tile_lookup',T)
+        self.assertIn('mov cx,192',T)
+        self.assertIn('mov cx,64',T)
+        self.assertIn('lookup34_next:',T)
+        self.assertIn('rep stosb',T)
         for y in range(192):
             packed=((y//12)<<4)|(y%12)
             self.assertLessEqual(packed,255)
