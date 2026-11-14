@@ -1,0 +1,53 @@
+name: Stage v0.33 CGA candidate - FM arcade effects and half-speed title
+on:
+  push:
+    branches: [feat/v033-opl-arcade-sound-slow-intro]
+    paths: ['.github/workflows/v033-stage.yml']
+permissions:
+  contents: write
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Generate original CGA graphics and validate release build
+        run: |
+          make assets
+          make clean all test
+          make build/TANKS-TRACE.COM build/TANKS-PERF.COM
+      - name: Stage size-checked candidate and ZIP for SLOW1 hardware-emulator acceptance
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          from zipfile import ZipFile,ZIP_DEFLATED
+          exe=Path('build/TANKS.COM').read_bytes()
+          digest=sha256(exe).hexdigest().upper()
+          assert len(exe)<57344,len(exe)
+          Path('dist/TANKS.COM').write_bytes(exe)
+          qa=Path('releases/v0.33/qa')
+          qa.mkdir(parents=True,exist_ok=True)
+          for name in ('TANKS-TRACE.COM','TANKS-PERF.COM'):
+              (qa/name).write_bytes((Path('build')/name).read_bytes())
+          path=Path('releases/v0.33/TANKS-v0.33-DOS-CGA.zip')
+          path.parent.mkdir(parents=True,exist_ok=True)
+          with ZipFile(path,'w',compression=ZIP_DEFLATED,compresslevel=9) as z:
+              z.writestr('TANKS.COM',exe)
+          with ZipFile(path) as z:
+              assert z.read('TANKS.COM')==exe
+          print('CANDIDATE_BUILD_PASS',len(exe),digest)
+          PY
+      - name: Commit exact binary, ZIP and QA builds
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/dos/cga_assets.inc dist/TANKS.COM releases/v0.33/TANKS-v0.33-DOS-CGA.zip releases/v0.33/qa/TANKS-TRACE.COM releases/v0.33/qa/TANKS-PERF.COM
+          if ! git diff --cached --quiet; then
+            git commit -m 'release(v0.33): tested candidate COM, ZIP, AdLib cue and quiet speaker regression'
+            git push origin HEAD:feat/v033-opl-arcade-sound-slow-intro
+          fi

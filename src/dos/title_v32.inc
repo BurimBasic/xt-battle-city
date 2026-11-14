@@ -30,6 +30,7 @@ title32_intro:
     call apply_cga_palette
     call title32_bricks
     call title32_text
+    call music33_start
     xor ah,ah
     int 0x1a
     mov [title32_clock],dx
@@ -47,20 +48,21 @@ title32_no_key:
     cmp dx,[title32_clock]
     je title32_loop
     mov [title32_clock],dx
+    call music33_tick
     call title32_clear_battle
     /* Tanks disappear as their explosion begins, not under the blast. */
-    cmp byte ptr [title32_frame],42
+    cmp byte ptr [title32_frame],80
     jae title32_no_tanks
     call title32_tanks
 title32_no_tanks:
-    cmp byte ptr [title32_frame],37
+    cmp byte ptr [title32_frame],74
     jb title32_advance
-    cmp byte ptr [title32_frame],42
+    cmp byte ptr [title32_frame],80
     jae title32_explosions
     call title32_projectiles
     jmp title32_advance
 title32_explosions:
-    cmp byte ptr [title32_frame],53
+    cmp byte ptr [title32_frame],104
     jae title32_advance
     mov bl,2
     test byte ptr [title32_frame],1
@@ -76,16 +78,19 @@ title32_blast_color:
     mov dh,77
     call title32_burst
 title32_advance:
-    cmp byte ptr [title32_frame],37
+    cmp byte ptr [title32_frame],74
     jae title32_stationary
+    test byte ptr [title32_frame],1
+    jnz title32_stationary
     inc byte ptr [title32_x1]
     dec byte ptr [title32_x2]
 title32_stationary:
     inc byte ptr [title32_frame]
-    cmp byte ptr [title32_frame],57
+    cmp byte ptr [title32_frame],112
     jae title32_done
     jmp title32_loop         /* 8086 near JMP, not 386 near conditional */
 title32_done:
+    call music33_stop
     mov ax,[title32_oldseg]
     mov [frame_seg],ax
     pop es
@@ -144,7 +149,7 @@ title32_tanks:
 
 title32_projectiles:
     mov al,[title32_frame]
-    sub al,37
+    sub al,74
     shl al,1
     mov dl,[title32_x1]
     add dl,13

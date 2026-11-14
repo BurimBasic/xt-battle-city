@@ -65,7 +65,7 @@ class V32Tests(unittest.TestCase):
   self.assertIn('mov ah,1\n    int 0x16',INTRO)
   self.assertIn('xor ah,ah\n    int 0x16',INTRO)
   self.assertIn('mov byte ptr [title32_skip],1',INTRO)
-  self.assertIn('cmp byte ptr [title32_frame],57',INTRO)
+  self.assertIn('cmp byte ptr [title32_frame],112',INTRO)
   self.assertIn('call title32_projectiles',INTRO)
   self.assertIn('call title32_burst',INTRO)
   self.assertIn('inc byte ptr [title32_x1]',INTRO)
