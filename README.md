@@ -4,15 +4,21 @@
 
 Авторская подпись на панели — **TANKS ©1982 BURIM v0.33**. Самостоятельная аркада для **1–2 игроков** в духе классических танков: **35 собственных карт, по 20 противников на уровень**, штаб, разрушаемые кирпичи, сталь, вода, лес, лёд, разные классы танков, кооператив с отдельными жизнями и тактический AUTO. Код работает в 16-битном реальном режиме, без DOS-расширителей и обязательной звуковой карты.
 
-### Скачать и запустить
+### Скачать и запустить — v0.33
 
-**[Скачать v0.33 — ZIP из GitHub Releases](https://github.com/BurimBasic/xt-battle-city/releases/download/v0.33/TANKS-v0.33-DOS-CGA.zip)** · **[Отдельный TANKS.COM](https://github.com/BurimBasic/xt-battle-city/releases/download/v0.33/TANKS.COM)** · [Все релизы](https://github.com/BurimBasic/xt-battle-city/releases) · [История](CHANGELOG.md) · [Изменения v0.33](releases/v0.33/RELEASE-NOTES.md)
+**[Скачать ZIP с игрой из GitHub Releases](https://github.com/BurimBasic/xt-battle-city/releases/download/v0.33/TANKS-v0.33-DOS-CGA.zip)** · **[TANKS.COM отдельно](https://github.com/BurimBasic/xt-battle-city/releases/download/v0.33/TANKS.COM)** · [Страница релиза v0.33](https://github.com/BurimBasic/xt-battle-city/releases/tag/v0.33) · [История](CHANGELOG.md) · [Техническая приёмка](releases/v0.33/RELEASE-NOTES.md)
 
-**Проверенный бинарник v0.33:** 57 226 байт (менее 56 КиБ), SHA-256 `0C0C98AA1EFA4355A6A9F25BB4A56B03929584978731F3B36A874ECCC30C98D5`. **196 тестов PASS**, 35 карт и аудит 8086 PASS, DOS `/TEST` PASS и 2048-тактовый AUTO-бой 20/20 PASS. Контроль скорости/отката — в [заметках к релизу](releases/v0.33/RELEASE-NOTES.md). Не путай эту DOS/CGA-сборку с ещё не существующими нативными EGA/VGA/Hercules/«Поиск-1» версиями.
+![Подлинная заставка TANKS v0.33 на DOSBox-X / 8086 / CGA](docs/screenshots/CGA-DOSBox-X-v0.33-title-real.png)
 
-На SLOW1 запуск: `C:\XT-Battle-City\RUN-CGA.cmd`. Для переноса на другой Windows x64 собран отдельный ZIP с DOSBox-X: `C:\XT-Battle-City\TANKS-v0.33-PORTABLE-WIN64.zip` (3 запуска: FM, Speaker, XT-240). На другой системе с DOSBox-X: выбери эмуляцию **8086**, **CGA**, смонтируй каталог с `TANKS.COM` как диск `C:` и введи `TANKS.COM`. После переустановки исполняемого файла уже открытое окно игры нужно перезапустить.
+*Реальный кадр заставки v0.33 из DOSBox-X на SLOW1. Звук проверялся отдельно; скриншот не демонстрирует аудио.*
 
-Версия предназначена для CGA-совместимого DOS. Реальная скорость на физическом XT 4,77 МГц и нативная загрузка «Поиск-1» пока не подтверждены; тест DOSBox-X не заменяет испытание на железе.
+**Обычный запуск на SLOW1:** дважды нажми `C:\XT-Battle-City\RUN-CGA.cmd`. Это **уже установленная v0.33** из `run\TANKS.COM`; старые пути и ручная распаковка не нужны. Стартовый сценарий явно включает **CGA 320×200, Intel 8086 и AdLib/OPL2** в DOSBox-X. `GO.BAT` теперь запускает только актуальный `TANKS.COM`, а не случайно оставшийся старый `TANKS.EXE`. [Исходник RUN-CGA.cmd](tools/slow1/RUN-CGA.cmd) · [Исходник GO.BAT](tools/slow1/GO.BAT).
+
+**Переносная версия для Windows x64 с DOSBox-X:** архив `C:\XT-Battle-City\TANKS-v0.33-PORTABLE-WIN64.zip` лежит **на SLOW1** (это не ZIP из GitHub Releases). Распаковывается в любую папку; внутри `START-TANKS.cmd` с AdLib, `START-SPEAKER.cmd` без OPL2 и `START-XT-240.cmd` с замедленной эмуляцией XT. На другом компьютере с установленным DOSBox-X также можно запустить скачанный `TANKS.COM`, выбрав 8086/CGA и смонтировав каталог игры.
+
+**Проверено 15 ноября 2026 на SLOW1:** `run\TANKS.COM` — **57 226 байт**, SHA-256 `0C0C98AA1EFA4355A6A9F25BB4A56B03929584978731F3B36A874ECCC30C98D5` (совпадает с GitHub v0.33). Обновлённый профиль обычного запуска повторно прошёл автоматическое определение AdLib и `/TEST` в DOSBox-X (**PASS, 9,87 с**). Перед заменой сценариев сделаны их резервные копии. Также пройдены **196 тестов**, 35 карт, аудит 8086 и AUTO 20/20; подробности в [заметках v0.33](releases/v0.33/RELEASE-NOTES.md).
+
+Реальный PC/XT на 4,77 МГц пока отдельно не проверялся; нативные EGA/VGA/Hercules и «Поиск-1» не реализованы. После обновления файла игры уже открытое окно DOSBox-X необходимо перезапустить.
 
 ## Как играть: полное управление
 
@@ -110,9 +116,7 @@
 
 ## Скриншоты и поддержка видеоадаптеров
 
-![Подлинная заставка TANKS v0.33 — более медленное встречное движение танков; 8086/CGA в DOSBox-X](docs/screenshots/CGA-DOSBox-X-v0.33-title-real.png)
-
-*Кадр живого запуска **v0.33** в DOSBox-X на SLOW1 (8086, CGA mode 4, 1000 cycles/ms). Это **заставка**, не запись звука и не новый игровой спрайт. Наличие FM/AdLib подтверждено отдельно тестом `/AUDIO`.*
+[Кадр заставки v0.33 из DOSBox-X](docs/screenshots/CGA-DOSBox-X-v0.33-title-real.png) — снят на SLOW1; FM/AdLib проверен отдельно через `/AUDIO`.
 
 ![Подлинная заставка TANKS v0.32: кирпичный заголовок, два танка и управление, CGA в DOSBox-X](docs/screenshots/CGA-DOSBox-X-v0.32-title-real.png)
 
@@ -136,7 +140,7 @@
 
 ![Архивный игровой CGA-кадр v0.21 на SLOW1](docs/screenshots/CGA-DOSBox-X-v0.21-live.png)
 
-*Архивный CGA-кадр v0.21 (SLOW1, DOSBox-X 2026.10.01), честно подписанный своей версией. Актуальный v0.32-скриншот будет опубликован только после настоящего захвата.*
+*Архивный игровой кадр v0.21 (SLOW1, DOSBox-X 2026.10.01). Заставка v0.33 снята отдельно; актуальный игровой кадр v0.33 ещё не публиковался.*
 
 | Адаптер | Поддержка | Скриншот |
 |---|---|---|
