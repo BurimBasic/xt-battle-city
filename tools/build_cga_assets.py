@@ -247,10 +247,15 @@ FAST_UP,FAST_RIGHT,FAST_DOWN,FAST_LEFT=directions(tank_up_geometry('fast'))
 POWER_UP,POWER_RIGHT,POWER_DOWN,POWER_LEFT=directions(tank_up_geometry('power'))
 ARMOR_UP,ARMOR_RIGHT,ARMOR_DOWN,ARMOR_LEFT=directions(tank_up_geometry('armor'))
 
-# v0.29 user-approved 16x12 cyan P1, one canonical RIGHT master.
-# Import before constructing SPRITES, including its shielded P1 versions.
-from approved_art_v029 import player_sprites
-TANK_UP,TANK_RIGHT,TANK_DOWN,TANK_LEFT = player_sprites()
+# v0.30 six EXACT user-authored 12x12 matrices, without any scaling.
+# The smooth renderer still uses padded 16x12 slots; 2 transparent columns
+# per side are deliberate and all four orientations rotate the 12x12 core.
+from approved_art_v030 import directions as user30_directions
+TANK_UP,TANK_RIGHT,TANK_DOWN,TANK_LEFT = user30_directions('player')
+ENEMY_UP,ENEMY_RIGHT,ENEMY,ENEMY_LEFT = user30_directions('light')
+FAST_UP,FAST_RIGHT,FAST_DOWN,FAST_LEFT = user30_directions('medium')
+POWER_UP,POWER_RIGHT,POWER_DOWN,POWER_LEFT = user30_directions('assault')
+ARMOR_UP,ARMOR_RIGHT,ARMOR_DOWN,ARMOR_LEFT = user30_directions('heavy')
 
 def track_overlay(direction,phase):
     """Two synchronized travelling bars per track, not white pixel confetti."""
