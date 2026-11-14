@@ -20,8 +20,8 @@ title32_intro:
     mov word ptr [frame_seg],0xb800
     mov byte ptr [title32_skip],0
     mov byte ptr [title32_frame],0
-    mov byte ptr [title32_x1],32
-    mov byte ptr [title32_x2],202
+    mov byte ptr [title32_x1],69
+    mov byte ptr [title32_x2],169
     mov ax,0x0004
     int 0x10
     mov ax,0x0b00
@@ -78,8 +78,8 @@ title32_blast_color:
 title32_advance:
     cmp byte ptr [title32_frame],37
     jae title32_stationary
-    add byte ptr [title32_x1],2
-    sub byte ptr [title32_x2],2
+    inc byte ptr [title32_x1]
+    dec byte ptr [title32_x2]
 title32_stationary:
     inc byte ptr [title32_frame]
     cmp byte ptr [title32_frame],57
@@ -243,8 +243,8 @@ title32_text_next:
 .section .data
 title32_oldseg: .word 0
 title32_clock: .word 0
-title32_x1: .byte 32
-title32_x2: .byte 202
+title32_x1: .byte 69
+title32_x2: .byte 169
 title32_skip: .byte 0
 title32_frame: .byte 0
 title32_rowcolor: .byte 0
