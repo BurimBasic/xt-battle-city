@@ -83,7 +83,8 @@ title32_advance:
 title32_stationary:
     inc byte ptr [title32_frame]
     cmp byte ptr [title32_frame],57
-    jb title32_loop
+    jae title32_done
+    jmp title32_loop         /* 8086 near JMP, not 386 near conditional */
 title32_done:
     mov ax,[title32_oldseg]
     mov [frame_seg],ax
