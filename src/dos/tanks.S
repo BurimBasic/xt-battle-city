@@ -14,6 +14,12 @@ _start:
     push ds
     pop es
     cld
+    /* .bss occupies address space but no on-disk COM bytes. DOS .COM does
+       not promise zero-filled private paragraphs: initialize explicitly. */
+    mov di,offset bss_start
+    mov cx,offset bss_end-bss_start
+    xor al,al
+    rep stosb
     /* DOS .COM occupies one allocation. Shrink it and reserve 16 KiB
        conventional RAM for the composed CGA bitmap. Keep a 4 KiB stack
        inside our program block. If either DOS call fails, fall back to
@@ -7127,7 +7133,7 @@ paint_explosion_x: .byte 0
 paint_explosion_y: .byte 0
 sound_ticks: .byte 0
 sound_tone: .word 0
-brick_masks: .space 256
+/* brick_masks: .space 256 -> zeroed .bss */
 test_phase: .byte 0
 lives: .byte 3
 score: .word 0
@@ -7268,8 +7274,8 @@ cga_scanline_offsets:
     .word ((scan_lookup / 2) * 80 + (scan_lookup & 1) * 8192)
     .set scan_lookup,scan_lookup+1
 .endr
-dirty_tiles: .space 256
-upload_tiles: .space 256
+/* dirty_tiles: .space 256 -> zeroed .bss */
+/* upload_tiles: .space 256 -> zeroed .bss */
 frame_seg: .word 0xb800
 paint_player_valid: .byte 0
 paint_player_x: .byte 0
@@ -7286,8 +7292,18 @@ paint_enemy_y: .space 4
 paint_shot_valid: .space 7
 paint_shot_x: .space 7
 paint_shot_y: .space 7
-level_data: .space 256
+/* level_data: .space 256 -> zeroed .bss */
 .include "src/dos/cga_assets.inc"
 
-/* First free byte of this .COM. DOS stack is positioned 4K above it. */
+/* Boot-zeroed NOBITS: 1024 bytes of scratch, formerly in the COM file.
+ * Keep the 4KiB stack above the END of .bss, never inside the arrays. */
+.section .bss
+.p2align 1
+bss_start:
+brick_masks: .space 256
+dirty_tiles: .space 256
+upload_tiles: .space 256
+level_data: .space 256
+bss_end:
+/* End of reserved memory, INCLUDING .bss, for DOS resize and stack. */
 program_end:
