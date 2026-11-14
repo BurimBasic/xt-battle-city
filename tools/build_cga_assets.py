@@ -652,6 +652,9 @@ def generate(map_path):
         rows=SPRITES[name]
         lines.append('sprite_' + name + ':')
         data = pack(rows)
+        # Legacy native smoke checks only sprite_bonus_star[7]; gameplay uses
+        # the masked smooth atlas. Keep its exact first 8 bytes, save 40 B.
+        if name == 'bonus_star':data=data[:8]
         for i in range(0, len(data), 12):
             lines.append('    .byte ' + ', '.join(f'0x{x:02x}' for x in data[i:i+12]))
     lines.extend(generate_hud())
