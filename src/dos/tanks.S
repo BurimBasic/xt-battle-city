@@ -50,7 +50,16 @@ lookup34_no_row:
        the original direct-VRAM drawing path. No extra adapter is required. */
     mov ax, offset program_end
     add ax, 0x0fff
+    jnc stack34_within_segment
+    /* 8086 .COM has ONE 64 KiB segment. Large TRACE builds may place
+       BSS > F000h, causing 4KiB stack addition to WRAP and overwrite
+       the PSP command tail, silently defeating /TRACE. Clamp top to
+       FFF0h rather than wrapping below 0100h. Still ~3.9KiB stack. */
+    mov ax,0xfff0
+    jmp stack34_end_position
+stack34_within_segment:
     and ax, 0xfff0
+stack34_end_position:
     mov sp, ax
     mov bx, ax
     shr bx, 1
