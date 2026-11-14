@@ -1,4 +1,4 @@
-name: Stage v0.34 CGA candidate - folk Korobeiniki FM and Yamaha noise percussion
+name: Stage v0.34 CGA final - safe 8086 DOS stack and public domain rhythm
 on:
   push:
     branches: [feat/v034-public-domain-fm-rhythm-noise]
