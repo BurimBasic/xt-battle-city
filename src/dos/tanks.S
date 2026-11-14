@@ -6575,8 +6575,8 @@ smoke_bonus_replay:
     /* Phase 113: randomized launch deadline and four flight directions. */
     mov byte ptr [test_phase],113
     call reset_campaign
-    mov al,[bomber26_departure]
-    mov [game_tick],al
+    mov byte ptr [enemy_killed],10
+    mov byte ptr [bomber27_wait],0
     call bomber25_tick
     cmp byte ptr [bomber25_state],1
     je 9f
@@ -6739,8 +6739,8 @@ smoke25_flight_loop:
     mov byte ptr [test_phase],121
     mov byte ptr [stage],2
     call load_stage
-    mov al,[bomber26_departure]
-    mov [game_tick],al
+    mov byte ptr [enemy_killed],10
+    mov byte ptr [bomber27_wait],0
     call bomber25_tick
     cmp byte ptr [bomber25_state],1
     je 9f
@@ -6925,11 +6925,11 @@ smoke25_flight_loop:
     jb 9f
     jmp smoke_extra_fail
 9:
-    cmp byte ptr [bomber26_departure],48
+    cmp byte ptr [bomber27_wait],48
     jae 9f
     jmp smoke_extra_fail
 9:
-    cmp byte ptr [bomber26_departure],175
+    cmp byte ptr [bomber27_wait],175
     jbe 9f
     jmp smoke_extra_fail
 9:
