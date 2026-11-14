@@ -178,7 +178,6 @@ title32_burst:
 title32_bricks:
     mov si,offset title32_font
     mov dh,12
-    mov byte ptr [title32_rowcolor],0
     mov bp,7
 title32_font_row:
     mov dl,100
@@ -194,11 +193,18 @@ title32_font_bit:
     shl ah,1
     jnc title32_empty_brick
     push ax
+    /* Each brick is a FULL 3x3 solid pixel block with 1px black mortar
+       all around, not the prior loose horizontal dash. White top edge
+       and magenta 2-row body match original arcade masonry shading. */
+    mov bl,3
+    call gun27_pixel
+    inc dl
+    call gun27_pixel
+    inc dl
+    call gun27_pixel
+    sub dl,2
     mov bl,2
-    test byte ptr [title32_rowcolor],1
-    jz title32_color_ready
-    inc bl
-title32_color_ready:
+    inc dh
     call gun27_pixel
     inc dl
     call gun27_pixel
@@ -212,7 +218,7 @@ title32_color_ready:
     inc dl
     call gun27_pixel
     sub dl,2
-    dec dh
+    sub dh,2
     pop ax
 title32_empty_brick:
     add dl,4
@@ -221,7 +227,6 @@ title32_empty_brick:
     add dl,4
     loop title32_font_letter
     add dh,4
-    inc byte ptr [title32_rowcolor]
     dec bp
     jnz title32_font_row
     ret
@@ -247,7 +252,6 @@ title32_x1: .byte 69
 title32_x2: .byte 169
 title32_skip: .byte 0
 title32_frame: .byte 0
-title32_rowcolor: .byte 0
 title32_font:
     .byte 31,14,17,17,15
     .byte 4,17,25,18,16
