@@ -26,10 +26,7 @@ bomber27_limit_ready:
     mov byte ptr [bonus25_flash_ticks],0
     mov byte ptr [paint_bonus25_valid],0
     call bomber26_roll
-    /* First takeoff starts only AFTER 10 enemy tanks have been destroyed.
-       Once the condition is met, wait a separately randomized delay. */
-    mov al,[bomber26_departure]
-    mov [bomber27_wait],al
+    /* First flight waits until ten enemy kills, then random countdown. */
     ret
 
 /* Random 4 entry points (left/right/top/bottom) and launch delay.
@@ -54,7 +51,7 @@ bomber26_roll:
     call random_byte
     and al,127
     add al,48      /* one pass begins after 48..175 ticks */
-    mov [bomber26_departure],al
+    mov [bomber27_wait],al
     pop word ptr [rng_state]
     ret
 
@@ -285,8 +282,6 @@ bomber25_finished:
     cmp al,[bomber27_limit]
     jae bomber27_all_done
     call bomber26_roll
-    mov al,[bomber26_departure]
-    mov [bomber27_wait],al
     mov byte ptr [bomber25_state],0
     ret
 bomber27_all_done:
@@ -530,7 +525,6 @@ bomber27_wait: .byte 0
 bomber25_axis: .byte 0    /* 0 horizontal, 1 vertical */
 bomber26_reverse: .byte 0  /* 0 right/down, 1 left/up */
 bomber26_direction: .byte 0
-bomber26_departure: .byte 90
 bonus26_flash_owner: .byte 0
 bomber25_x: .byte 0
 bomber25_y: .byte 0
