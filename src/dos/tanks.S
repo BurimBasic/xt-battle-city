@@ -1388,10 +1388,15 @@ enemy_fire_now:
     call advance_enemy_shot
     jmp enemy_fire_next
 enemy_fire_smooth_init:
-    mov al, [enemy_px+bx]
-    mov [shot_px+bx], al
-    mov al, [enemy_py+bx]
-    mov [shot_py+bx], al
+    /* v0.30: Enemy projectile has visible center at (+8,+6).
+       Shift its origin to the real 12x12 barrel tip (all four headings),
+       exactly as P1/P2, including weapon-equipped and heavy tanks. */
+    mov dl,[enemy_px+bx]
+    mov dh,[enemy_py+bx]
+    mov al,[enemy_dir+bx]
+    call gun29_muzzle
+    mov [shot_px+bx],dl
+    mov [shot_py+bx],dh
     cmp byte ptr [enemy_weapon_ticks+bx],0
     jne 9f
     jmp enemy_fire_next
