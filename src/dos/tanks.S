@@ -1026,7 +1026,9 @@ sound_play:
     push ax
     push bx
     cmp byte ptr [sound_muted],0
-    jne sound_play_done
+    je sound34_play_allowed
+    jmp sound_play_done    /* 8086 short Jcc + near JMP, not 386 Jcc */
+sound34_play_allowed:
     mov bx,ax
     mov byte ptr [sound33_kind],0  /* shot: FM chirp + noisy hi-hat */
     mov byte ptr [sound_ticks],1
