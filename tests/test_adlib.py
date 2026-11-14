@@ -5,7 +5,7 @@ S=(Path(__file__).resolve().parents[1]/'src/dos/tanks.S').read_text()
 class AudioTests(unittest.TestCase):
     def test_optional_opl2_and_speaker_fallback(self):
         for label in ('adlib_detect:', 'adlib_write:', 'adlib_timer_wait:',
-                      'adlib_setup:', 'sound_speaker_fallback:', 'adlib_present:',
+                      'adlib_setup:', 'sound33_speaker:', 'adlib_present:',
                       'speaker_stopped:'):
             self.assertIn(label,S)
         self.assertIn('call adlib_detect',S)
@@ -16,5 +16,5 @@ class AudioTests(unittest.TestCase):
         self.assertIn('mov dx, 0x0388',S)
         self.assertIn('in al, dx',S)
         self.assertIn('out dx, al',S)
-        self.assertIn('mov ax, 0xb011',S)  # end FM note on exit/mute
+        self.assertIn('mov ax,0xb00d',S)  # end FM note on exit/mute, OPL2 block3
 if __name__=='__main__': unittest.main()
