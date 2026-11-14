@@ -295,7 +295,10 @@ def shield_sprite(art):
     for y in range(1,11):halo.extend([(0,y),(15,y)])
     halo.extend([(0,0),(15,0),(0,11),(15,11),
                  (1,1),(14,1),(1,10),(14,10)])
+    # CGA shield is a ONE-PIXEL-DASHED outline, not a solid enclosure.
+    # Existing tank pixels are never overwritten.
     for x,y in halo:
+        if (x+y)&1:continue
         if g[y][x]=='.':g[y][x]='3'
     return sprite(*(''.join(row) for row in g))
 
@@ -556,7 +559,7 @@ def generate_hud():
         'hud_blank_icon': hud_glyph(('........',)*8),
         'hud_tank_icon': hud_glyph(HUD_TANK),
         'hud_flag_icon': hud_glyph(HUD_FLAG),
-        'hud_star_icon': hud_glyph(('...##...', '#.####.#', '.######.', '########', '########', '.######.', '#.####.#', '...##...')),
+        'hud_star_icon': hud_glyph(('....##..', '.#.####.', '..######', '.#######', '.#######', '..######', '.#.####.', '....##..')),
         'hud_p_char': hud_font_glyph('p'),
         'hud_x_char': hud_font_glyph('x'),
         'hud_s_char': hud_font_glyph('s'),
@@ -643,8 +646,7 @@ def generate(map_path):
     # Keep only the true opaque tile atlas. The legacy sprite table and
     # old tank, bullet and bonus opaque copies were never referenced by
     # the masked smooth renderer; retain one star used by DOS smoke.
-    static_names = ["empty", "steel", "water", "forest", "ice", "base",
-                    "bonus_star"] + [f"brick_mask_{i}" for i in range(16)]
+    static_names = ["empty", "steel", "water", "forest", "ice", "base"] + [f"brick_mask_{i}" for i in range(16)]
     for name in static_names:
         rows=SPRITES[name]
         lines.append('sprite_' + name + ':')

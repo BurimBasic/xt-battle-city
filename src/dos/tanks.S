@@ -176,6 +176,7 @@ reset_campaign:
     mov byte ptr [stage], 1
     mov byte ptr [lives], 3
     mov word ptr [score], 0
+    mov word ptr [score31_progress],0
     mov byte ptr [bonus_sequence], 0
     mov byte ptr [coop_mode],0
     mov byte ptr [coop_lives],0
@@ -328,6 +329,11 @@ init_brick_store:
     call strategy_reset
     call tactical24_reset
     call bomber25_reset
+    /* Reset only transient popup state, KEEP progress to next 15k life. */
+    mov di,offset score31_hud_flash
+    mov cx,29
+    xor al,al
+    rep stosb
     /* 2P uses the existing ally sprite but not its autonomous brain. */
     cmp byte ptr [coop_mode],0
     je load_stage_no_coop
@@ -526,6 +532,7 @@ tick_p1_pickup_done:
     call bonus23_tick
     call gun27_tick
     call bomber25_tick
+    call score31_tick
     call enemy23_tick
     call ally20_pickup
     call slide_player_smooth
@@ -788,7 +795,7 @@ grenade_next:
     inc al
     mov dl, 100
     mul dl
-    add [score], ax
+    call score31_award
     mov dl, [enemy_col+bx]
     mov dh, [enemy_row+bx]
     call draw_cell
@@ -1601,7 +1608,7 @@ bullet_enemy_destroyed:
     inc al
     mov cl, 100
     mul cl
-    add [score], ax
+    call score31_award
     call draw_hud
     jmp bullet_impact
 bullet_out:
@@ -2382,7 +2389,7 @@ smooth_enemy_destroyed:
     inc al
     mov cl, 100
     mul cl
-    add [score], ax
+    call score31_award
     call draw_hud
     cmp byte ptr [super_bullet_active],0
     jne smooth_bullet_enemy_next
@@ -3380,6 +3387,7 @@ mark_rect_next_col:
 
 mark_old_sprites:
     call bomber25_mark_old
+    call score31_mark_old
     cmp byte ptr [paint_player_valid], 0
     je old_player_done
     mov dl, [paint_player_x]
@@ -3673,73 +3681,54 @@ draw_track_dots:
     push bx
     push cx
     push dx
-    mov [track23_mode],ah
-    mov bx,ax            /* BL heading, BH damaged flag */
-    mov cx,dx            /* CL x, CH y */
-    test bl,1
-    jnz track23_horizontal
-    add dl,2
+    mov [track23_mode],ah      /* 0 animated white, 1 black damaged tread */
+    mov cl,dl
+    add cl,dh                 /* phase follows ACTUAL movement, not idle time */
+    test al,1
+    jnz track31_horizontal
+    add dl,3                  /* both vertical tread centerlines */
     add dh,3
+    test cl,4
+    jz track31_v_ready
+    inc dh
+track31_v_ready:
     call track23_pixel
-    add dl,11
+    add dl,9
     call track23_pixel
-    add dh,5
+    add dh,4
     call track23_pixel
-    sub dl,11
+    sub dl,9
     call track23_pixel
-    jmp track23_done
-track23_horizontal:
+    jmp track31_done
+track31_horizontal:
     add dl,3
     add dh,2
+    test cl,4
+    jz track31_h_ready
+    inc dl
+track31_h_ready:
     call track23_pixel
-    add dh,8
+    add dh,9
     call track23_pixel
-    add dl,8
+    add dl,7
     call track23_pixel
-    sub dh,8
+    sub dh,9
     call track23_pixel
-track23_done:
+track31_done:
     pop dx
     pop cx
     pop bx
     pop ax
     ret
 track23_pixel:
-    push ax
     push bx
-    push dx
-    push di
-    push es
-    /* Shift one pixel every other frame, but never outside 16x12. */
-    mov al,[game_tick]
-    and al,1
-    add dl,al
-    xor ax,ax
-    mov al,dh
-    shl ax,1
-    mov di,ax
-    mov di,[cga_scanline_offsets+di]
-    xor ax,ax
-    mov al,dl
-    mov bl,al
-    shr al,1
-    shr al,1
-    xor ah,ah
-    add di,ax
-    and bl,3
-    xor bh,bh
-    mov ax,[frame_seg]
-    mov es,ax
-    mov al,[laser19_masks+bx]
-    not al
-    and al,es:[di]
-    /* No healthy highlights: paint black only on damaged armour. */
-    mov es:[di],al
-    pop es
-    pop di
-    pop dx
+    mov bl,3                  /* bright moving tread links on every tank */
+    cmp byte ptr [track23_mode],0
+    je track31_pixel_ready
+    xor bl,bl                 /* destroyed armor tread stays black */
+track31_pixel_ready:
+    call gun27_pixel
     pop bx
-    pop ax
     ret
 
 /* Called after each simulated tick, and once after switching a stage. */
@@ -3829,16 +3818,12 @@ paint_enemy_selected:
     mov si,[smooth_player_ptrs+si]
 paint_enemy_color_ready:
     call draw_smooth_sprite
-    /* Black wear only on surviving ARMOUR with an actually damaged tread.
-       Healthy enemy tracks and all player tanks retain the original sprite. */
-    cmp byte ptr [enemy_type+bx],3
-    jne paint_enemy_no_tread_damage
-    cmp byte ptr [enemy_track_damage+bx],0
-    je paint_enemy_no_tread_damage
+    /* All enemy classes animate the actual tread links. Damaged ARMOUR
+       continues to show black dead links, preserving its slowdown. */
     mov dl,[enemy_px+bx]
     mov dh,[enemy_py+bx]
     mov al,[enemy_dir+bx]
-    mov ah,1
+    mov ah,[enemy_track_damage+bx]
     call draw_track_dots
 paint_enemy_no_tread_damage:
     pop bx
@@ -3874,6 +3859,11 @@ paint_ally_color_ready:
     mov dl,[ally_px]
     mov dh,[ally_py]
     call gun27_draw
+    mov dl,[ally_px]
+    mov dh,[ally_py]
+    mov al,[ally_dir]
+    xor ah,ah
+    call draw_track_dots
     cmp byte ptr [ally_shield],0
     je paint_ally_no_shield
     test byte ptr [game_tick],4
@@ -3914,6 +3904,11 @@ paint_player_color_ready:
     mov dl,[player_px]
     mov dh,[player_py]
     call gun27_draw
+    mov dl,[player_px]
+    mov dh,[player_py]
+    mov al,[player_dir]
+    xor ah,ah
+    call draw_track_dots
     cmp byte ptr [player_shield],0
     je paint_player_no_shield
     test byte ptr [game_tick],4
@@ -4015,6 +4010,7 @@ paint_explosion_valid_frame:
 paint_explosion_done:
     call grenade17_fx_paint
     call bomber25_paint
+    call score31_paint
     /* Finish the actor/background composition first. The beam is a
        transient VRAM-only overlay, NEVER written into the RAM shadow.
        Next frame's pending tile upload scrubs it even after expiry. */
@@ -4478,6 +4474,28 @@ hud_score_loop:
     inc bx
     cmp bx, 5
     jb hud_score_loop
+    /* Three synchronized on/off flashes of score AND life counters.
+       24 ticks = 3 periods of 8 ticks, each 4 ticks invisible. */
+    cmp byte ptr [score31_hud_flash],0
+    je hud31_blink_done
+    test byte ptr [score31_hud_flash],4
+    jz hud31_blink_done
+    mov si,offset hud_blank_icon
+    mov di,3587
+    mov cx,5
+hud31_blank_score:
+    call draw_hud_glyph
+    add di,2
+    loop hud31_blank_score
+    mov di,2632
+    cmp byte ptr [coop_mode],0
+    je hud31_blank_lives
+    mov di,2630
+    call draw_hud_glyph
+    mov di,2638
+hud31_blank_lives:
+    call draw_hud_glyph
+hud31_blink_done:
     pop si
     pop di
     pop dx
@@ -4502,7 +4520,7 @@ draw_bonus_indicator:
     call draw_hud_glyph
     mov di,3912          /* separator x288 */
     call draw_hud_glyph
-    mov di,3904          /* icon starts at FAR LEFT edge */
+    mov di,3904          /* glyphs have a white 1px left inset (x257) */
     cmp byte ptr [coop_mode],0
     jne bonus25_flash_only
     cmp word ptr [ally_ticks],0
@@ -5900,7 +5918,7 @@ smoke_bonus_replay:
     pop es
     /* Phase 74: right edge moves from x13 to x12 and never covers x13. */
     mov byte ptr [test_phase],74
-    cmp byte ptr [sprite_bonus_star+7],0xc0
+    cmp byte ptr [smooth_bonus_star+13],0xc0
     je 9f
     jmp smoke_extra_fail
 9:
@@ -6557,8 +6575,8 @@ smoke_bonus_replay:
     /* Phase 113: randomized launch deadline and four flight directions. */
     mov byte ptr [test_phase],113
     call reset_campaign
-    mov al,[bomber26_departure]
-    mov [game_tick],al
+    mov byte ptr [enemy_killed],10
+    mov byte ptr [bomber27_wait],0
     call bomber25_tick
     cmp byte ptr [bomber25_state],1
     je 9f
@@ -6721,8 +6739,8 @@ smoke25_flight_loop:
     mov byte ptr [test_phase],121
     mov byte ptr [stage],2
     call load_stage
-    mov al,[bomber26_departure]
-    mov [game_tick],al
+    mov byte ptr [enemy_killed],10
+    mov byte ptr [bomber27_wait],0
     call bomber25_tick
     cmp byte ptr [bomber25_state],1
     je 9f
@@ -6907,11 +6925,11 @@ smoke25_flight_loop:
     jb 9f
     jmp smoke_extra_fail
 9:
-    cmp byte ptr [bomber26_departure],48
+    cmp byte ptr [bomber27_wait],48
     jae 9f
     jmp smoke_extra_fail
 9:
-    cmp byte ptr [bomber26_departure],175
+    cmp byte ptr [bomber27_wait],175
     jbe 9f
     jmp smoke_extra_fail
 9:
@@ -7126,6 +7144,7 @@ trace_record_done:
 .include "src/dos/anti_loop_v24.inc"
 .include "src/dos/bomber_v25.inc"
 .include "src/dos/v027_render.inc"
+.include "src/dos/score_v31.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -7219,31 +7238,31 @@ hud_bonus_ptrs: .word hud_star_icon, hud_bonus_helmet, hud_bonus_grenade, hud_bo
     .word hud_bonus_laser, hud_bonus_ally, hud_bonus_triple, hud_bonus_homing, hud_bonus_frenzy
     .word hud_bonus_pong, hud_bonus_quad, hud_bonus_super
 hud_bonus_pong:
-    .byte 0x3f,0xfc,0xc0,0x03,0x03,0xc0,0x0c,0x30,0x0c,0x30,0x03,0xc0,0xc0,0x03,0x3f,0xfc
+    .byte 0xcf, 0xff, 0xf0, 0x00, 0xc0, 0xf0, 0xc3, 0x0c, 0xc3, 0x0c, 0xc0, 0xf0, 0xf0, 0x00, 0xcf, 0xff
 hud_bonus_quad:
-    .byte 0x0f,0xf0,0x0c,0x30,0xcc,0x33,0xff,0xff,0xff,0xff,0xcc,0x33,0x0c,0x30,0x0f,0xf0
+    .byte 0xc3, 0xfc, 0xc3, 0x0c, 0xf3, 0x0c, 0xff, 0xff, 0xff, 0xff, 0xf3, 0x0c, 0xc3, 0x0c, 0xc3, 0xfc
 hud_bonus_super:
-    .byte 0x03,0xc0,0x0f,0xf0,0x3f,0xfc,0xff,0xff,0xff,0xff,0x3f,0xfc,0x0f,0xf0,0x03,0xc0
+    .byte 0xc0, 0xf0, 0xc3, 0xfc, 0xcf, 0xff, 0xff, 0xff, 0xff, 0xff, 0xcf, 0xff, 0xc3, 0xfc, 0xc0, 0xf0
 hud_bonus_laser:
-    .byte 0xfc, 0x3f, 0xfc, 0x3f, 0xc0, 0x03, 0x00, 0x00, 0xfc, 0x3f, 0xc3, 0xc3, 0x0f, 0xf0, 0xff, 0xff
+    .byte 0xff, 0x0f, 0xff, 0x0f, 0xf0, 0x00, 0xc0, 0x00, 0xff, 0x0f, 0xf0, 0xf0, 0xc3, 0xfc, 0xff, 0xff
 hud_bonus_ally:
-    .byte 0x0f, 0xf0, 0x00, 0x00, 0xf0, 0x0f, 0x00, 0x00, 0x0c, 0x30, 0x0f, 0xf0, 0xc0, 0x03, 0xff, 0xff
+    .byte 0xc3, 0xfc, 0xc0, 0x00, 0xfc, 0x03, 0xc0, 0x00, 0xc3, 0x0c, 0xc3, 0xfc, 0xf0, 0x00, 0xff, 0xff
 hud_bonus_triple:
-    .byte 0x0c, 0x30, 0x0c, 0x30, 0x0c, 0x30, 0x0c, 0x30, 0xcf, 0x3c, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
+    .byte 0xc3, 0x0c, 0xc3, 0x0c, 0xc3, 0x0c, 0xc3, 0x0c, 0xf3, 0xcf, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 hud_bonus_homing:
-    .byte 0xc0, 0x03, 0x0f, 0xf0, 0x0c, 0x30, 0x0c, 0x30, 0x0c, 0x30, 0x0f, 0xf0, 0xc0, 0x03, 0xff, 0xff
+    .byte 0xf0, 0x00, 0xc3, 0xfc, 0xc3, 0x0c, 0xc3, 0x0c, 0xc3, 0x0c, 0xc3, 0xfc, 0xf0, 0x00, 0xff, 0xff
 hud_bonus_frenzy:
-    .byte 0x0c, 0x30, 0xc0, 0x03, 0xf0, 0x0f, 0x00, 0x00, 0xc3, 0xc3, 0x0f, 0xf0, 0x3f, 0xfc, 0xff, 0xff
+    .byte 0xc3, 0x0c, 0xf0, 0x00, 0xfc, 0x03, 0xc0, 0x00, 0xf0, 0xf0, 0xc3, 0xfc, 0xcf, 0xff, 0xff, 0xff
 hud_bonus_helmet:
-    .byte 0xf0, 0x0f, 0xc0, 0x03, 0x0f, 0xf0, 0x0f, 0xf0, 0x00, 0x00, 0xc0, 0x03, 0xf0, 0x0f, 0xff, 0xff
+    .byte 0xfc, 0x03, 0xf0, 0x00, 0xc3, 0xfc, 0xc3, 0xfc, 0xc0, 0x00, 0xf0, 0x00, 0xfc, 0x03, 0xff, 0xff
 hud_bonus_grenade:
-    .byte 0xfc, 0x3f, 0xc0, 0x0f, 0xf0, 0x3f, 0xc0, 0x03, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x03, 0xf0, 0x0f
+    .byte 0xff, 0x0f, 0xf0, 0x03, 0xfc, 0x0f, 0xf0, 0x00, 0xc0, 0x00, 0xc0, 0x00, 0xf0, 0x00, 0xfc, 0x03
 hud_bonus_shovel:
-    .byte 0xff, 0xc3, 0xff, 0x03, 0xfc, 0x3f, 0xc0, 0xff, 0xf3, 0xff, 0xf3, 0xff, 0xc0, 0xff, 0xc0, 0xff
+    .byte 0xff, 0xf0, 0xff, 0xc0, 0xff, 0x0f, 0xf0, 0x3f, 0xfc, 0xff, 0xfc, 0xff, 0xf0, 0x3f, 0xf0, 0x3f
 hud_bonus_clock:
-    .byte 0xf0, 0x0f, 0xcf, 0xf3, 0x3f, 0x3c, 0x3f, 0x3c, 0x3f, 0x0c, 0x3f, 0xfc, 0xcf, 0xf3, 0xf0, 0x0f
+    .byte 0xfc, 0x03, 0xf3, 0xfc, 0xcf, 0xcf, 0xcf, 0xcf, 0xcf, 0xc3, 0xcf, 0xff, 0xf3, 0xfc, 0xfc, 0x03
 hud_bonus_life:
-    .byte 0xc3, 0xc3, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x03, 0xf0, 0x0f, 0xfc, 0x3f, 0xff, 0xff
+    .byte 0xf0, 0xf0, 0xc0, 0x00, 0xc0, 0x00, 0xc0, 0x00, 0xf0, 0x00, 0xfc, 0x03, 0xff, 0x0f, 0xff, 0xff
 tally_ptrs:
     .word tally1, tally2, tally3, tally4
 tally1: .asciz "100 PTS   x00"
@@ -7261,7 +7280,7 @@ tactical_coop_glyphs: .word hud_blank_icon,hud_blank_icon,hud_c_char,hud_o_char,
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_u_char, hud_r_char, hud_i_char, hud_m_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_3, hud_digit_0
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_3, hud_digit_1
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0

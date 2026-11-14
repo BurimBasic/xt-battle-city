@@ -144,7 +144,7 @@ pong23_enemy_scan:
     inc al
     mov dl,100
     mul dl
-    add [score],ax
+    call score31_award
     call draw_hud
 pong23_next_enemy:
     inc bx
