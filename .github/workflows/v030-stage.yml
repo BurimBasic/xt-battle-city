@@ -1,7 +1,7 @@
 name: Stage v0.30 exact user 12x12 tanks, enemy muzzle, bomber propellers
 on:
   push:
-    branches: [feat/v030-approved-cga-art-muzzle]
+    branches: [feat/v030-user-drawn-tanks-enemy-muzzle-props]
     paths: ['.github/workflows/v030-stage.yml']
 permissions:
   contents: write
@@ -51,5 +51,5 @@ jobs:
           git add src/dos/cga_assets.inc dist/TANKS.COM releases/v0.30/TANKS-v0.30-DOS-CGA.zip releases/v0.30/qa/TANKS-TRACE.COM releases/v0.30/qa/TANKS-PERF.COM docs/art/v030-user-six-12x12-native.png docs/art/v030-user-six-12x12-zoom.png
           if ! git diff --cached --quiet; then
             git commit -m 'release(v0.30): tested candidate COM, ZIP and all user-authored 12x12 pixel previews'
-            git push origin HEAD:feat/v030-approved-cga-art-muzzle
+            git push origin HEAD:feat/v030-user-drawn-tanks-enemy-muzzle-props
           fi
