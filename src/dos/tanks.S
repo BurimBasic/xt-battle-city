@@ -5918,7 +5918,7 @@ smoke_bonus_replay:
     pop es
     /* Phase 74: right edge moves from x13 to x12 and never covers x13. */
     mov byte ptr [test_phase],74
-    cmp byte ptr [sprite_bonus_star+7],0xc0
+    cmp byte ptr [smooth_bonus_star+13],0xc0
     je 9f
     jmp smoke_extra_fail
 9:
