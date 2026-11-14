@@ -14,6 +14,12 @@ _start:
     push ds
     pop es
     cld
+    /* .bss occupies address space but no on-disk COM bytes. DOS .COM does
+       not promise zero-filled private paragraphs: initialize explicitly. */
+    mov di,offset bss_start
+    mov cx,offset bss_end-bss_start
+    xor al,al
+    rep stosb
     /* DOS .COM occupies one allocation. Shrink it and reserve 16 KiB
        conventional RAM for the composed CGA bitmap. Keep a 4 KiB stack
        inside our program block. If either DOS call fails, fall back to
@@ -111,8 +117,8 @@ normal_play:
     jne normal_play_doctrine_ready
     mov byte ptr [squad_phase],1
 normal_play_doctrine_ready:
-    call render_frame
-    call transition20_open
+    call title32_intro
+    call refresh_screen
     call install_keyboard
     mov ah, 0
     int 0x1a
@@ -388,7 +394,11 @@ refresh_screen:
     call render_frame
     call draw_mode_indicator
     call draw_bonus_indicator
+    cmp byte ptr [title32_skip],0
+    jne refresh32_skip_transition
     call transition20_open     /* only once per level / restarts */
+refresh32_skip_transition:
+    mov byte ptr [title32_skip],0
     ret
 exit_game:
     call restore_keyboard
@@ -466,29 +476,6 @@ player_check_pickup:
     ret
 
 slide_player:
-    cmp byte ptr [slide_ticks], 0
-    je slide_done
-    test byte ptr [game_tick], 3
-    jnz slide_done
-    mov dl, [player_col]
-    mov dh, [player_row]
-    mov [slide_old_col], dl
-    mov [slide_old_row], dh
-    mov al, [player_dir]
-    call step_position
-    jc slide_end
-    call try_move
-    mov al, [slide_old_col]
-    cmp al, [player_col]
-    jne slide_done
-    mov al, [slide_old_row]
-    cmp al, [player_row]
-    jne slide_done
-    /* The next tile was blocked, so do not repeat futile slide steps. */
-    jmp slide_end
-slide_end:
-    mov byte ptr [slide_ticks], 0
-slide_done:
     ret
 
 /* 18.2 Hz game tick, no busy-wait dependent on CPU MHz. */
@@ -1252,99 +1239,8 @@ enemy_at_continue:
     pop bx
     ret
 
-/* Enemies generally head toward the HQ but change direction at walls. */
+/* Legacy grid-step enemy AI is replaced by move_enemies_smooth. */
 move_enemies:
-    xor bx, bx
-enemy_move_loop:
-    cmp byte ptr [enemy_active+bx], 0
-    jne enemy_move_active
-    jmp enemy_move_next
-enemy_move_active:
-    cmp byte ptr [only_fast], 0
-    je enemy_move_unfiltered
-    cmp byte ptr [enemy_type+bx], 1
-    je enemy_move_unfiltered
-    jmp enemy_move_next
-enemy_move_unfiltered:
-    call random_byte
-    and al, 15
-    cmp al, 11
-    jb enemy_keep_direction
-    cmp al, 16
-    jae enemy_random_dir
-    mov al, 2
-    jmp enemy_direction_chosen
-enemy_keep_direction:
-    mov al, [enemy_dir+bx]
-    jmp enemy_direction_chosen
-enemy_random_dir:
-    and al, 3
-enemy_direction_chosen:
-    mov [enemy_dir+bx], al
-    mov dl, [enemy_col+bx]
-    mov dh, [enemy_row+bx]
-    cmp al, 0
-    jne enemy_not_up
-    test dh, dh
-    jz enemy_move_next
-    dec dh
-    jmp enemy_target
-enemy_not_up:
-    cmp al, 1
-    jne enemy_not_right
-    cmp dl, 15
-    je enemy_move_next
-    inc dl
-    jmp enemy_target
-enemy_not_right:
-    cmp al, 2
-    jne enemy_not_down
-    cmp dh, 15
-    je enemy_move_next
-    inc dh
-    jmp enemy_target
-enemy_not_down:
-    test dl, dl
-    jz enemy_move_next
-    dec dl
-enemy_target:
-    mov [next_col], dl
-    mov [next_row], dh
-    call get_tile
-    cmp al, '.'
-    je enemy_floor_ok
-    cmp al, 'F'
-    je enemy_floor_ok
-    cmp al, 'I'
-    je enemy_floor_ok
-    jmp enemy_move_next
-enemy_floor_ok:
-    mov dl, [next_col]
-    mov dh, [next_row]
-    cmp dl, [player_col]
-    jne enemy_no_player
-    cmp dh, [player_row]
-    je enemy_move_next
-enemy_no_player:
-    call enemy_at
-    cmp al, 0xff
-    jne enemy_move_next
-    mov dl, [enemy_col+bx]
-    mov dh, [enemy_row+bx]
-    mov al, [next_col]
-    mov [enemy_col+bx], al
-    mov al, [next_row]
-    mov [enemy_row+bx], al
-    call draw_cell
-    mov dl, [enemy_col+bx]
-    mov dh, [enemy_row+bx]
-    call draw_cell
-enemy_move_next:
-    inc bx
-    cmp bx, 4
-    jae enemy_move_finished
-    jmp enemy_move_loop
-enemy_move_finished:
     ret
 
 enemy_fire_cycle:
@@ -3672,47 +3568,85 @@ smooth_byte:
     pop bp
     ret
 
-/* One tiny animated highlight on each physical tread. On a disabled
- * enemy track, the same four points are BLACK damage spots. AL=heading,
- * AH=damage flag, DL/DH=top-left. The active hull already marks dirty.
- * This replaces 3,840 bytes of old 4-phase masked tread sprites. */
+/* v0.32: tread highlights are placed STRICTLY on the opaque user-drawn
+ * 12x12 tank pixels (padded by two transparent columns in the 16x12 slot).
+ * AL direction 0..3, DL/DH actor origin, AH=(0=P1/ally; enemy type+1
+ * shifted left 1) OR low-bit damaged. xR=9 for light/assault and xR=10
+ * for player/medium/heavy. Rotate mathematically for all four headings.
+ * Both tread phases use existing opaque cells: never extend a silhouette.
+ * Phase comes from travelled position, so stationary tanks stay still. */
 draw_track_dots:
     push ax
     push bx
     push cx
     push dx
-    mov [track23_mode],ah      /* 0 animated white, 1 black damaged tread */
+    mov [track23_mode],ah
+    mov [track32_heading],al
+    mov byte ptr [track32_span],9
+    and ah,0xfe
+    cmp ah,2                 /* light: inner right tread at x9 */
+    je track32_narrow
+    cmp ah,6                 /* assault: same asymmetric outline */
+    jne track32_span_ready
+track32_narrow:
+    dec byte ptr [track32_span]
+track32_span_ready:
     mov cl,dl
-    add cl,dh                 /* phase follows ACTUAL movement, not idle time */
+    add cl,dh                /* movement only, not animation by idle time */
+    and cl,4
+    shr cl,1
+    shr cl,1                /* phase=0 or 1 */
+    mov al,[track32_heading]
     test al,1
-    jnz track31_horizontal
-    add dl,3                  /* both vertical tread centerlines */
+    jnz track32_horizontal
+    add dl,3
+    cmp al,2
+    jne track32_up
+    cmp byte ptr [track32_span],8
+    jne track32_down
+    inc dl                  /* down: rotated asymmetric right tread */
+track32_down:
     add dh,3
-    test cl,4
-    jz track31_v_ready
-    inc dh
-track31_v_ready:
-    call track23_pixel
-    add dl,9
-    call track23_pixel
+    jmp track32_v_phase
+track32_up:
     add dh,4
+track32_v_phase:
+    add dh,cl
     call track23_pixel
-    sub dl,9
+    add dh,3
+    call track23_pixel
+    sub dh,3
+    mov al,[track32_span]
+    add dl,al
+    call track23_pixel
+    add dh,3
     call track23_pixel
     jmp track31_done
-track31_horizontal:
+track32_horizontal:
+    add dl,6
+    cmp al,3
+    je track32_left
+    add dh,1                /* right: y1 & y9/10 */
+    sub dl,cl
+    jmp track32_h_first
+track32_left:
+    cmp byte ptr [track32_span],8
+    jne track32_left_normal
+    add dh,2                /* left: y2 for the asymmetric tread */
+    jmp track32_left_ready
+track32_left_normal:
+    inc dh                  /* left: y1 for normal tread */
+track32_left_ready:
+    add dl,cl
+track32_h_first:
+    call track23_pixel
     add dl,3
-    add dh,2
-    test cl,4
-    jz track31_h_ready
-    inc dl
-track31_h_ready:
     call track23_pixel
-    add dh,9
+    sub dl,3
+    mov al,[track32_span]
+    add dh,al               /* right y1->y9/10; left y1/2->y10 */
     call track23_pixel
-    add dl,7
-    call track23_pixel
-    sub dh,9
+    add dl,3
     call track23_pixel
 track31_done:
     pop dx
@@ -3722,10 +3656,10 @@ track31_done:
     ret
 track23_pixel:
     push bx
-    mov bl,3                  /* bright moving tread links on every tank */
-    cmp byte ptr [track23_mode],0
-    je track31_pixel_ready
-    xor bl,bl                 /* destroyed armor tread stays black */
+    mov bl,3
+    test byte ptr [track23_mode],1
+    jz track31_pixel_ready
+    xor bl,bl               /* black wear only when damaged */
 track31_pixel_ready:
     call gun27_pixel
     pop bx
@@ -3823,7 +3757,10 @@ paint_enemy_color_ready:
     mov dl,[enemy_px+bx]
     mov dh,[enemy_py+bx]
     mov al,[enemy_dir+bx]
-    mov ah,[enemy_track_damage+bx]
+    mov ah,[enemy_type+bx]
+    inc ah
+    shl ah,1
+    or ah,[enemy_track_damage+bx]
     call draw_track_dots
 paint_enemy_no_tread_damage:
     pop bx
@@ -7145,6 +7082,7 @@ trace_record_done:
 .include "src/dos/bomber_v25.inc"
 .include "src/dos/v027_render.inc"
 .include "src/dos/score_v31.inc"
+.include "src/dos/title_v32.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -7153,6 +7091,8 @@ trace_count: .byte 0
 trace_buffer: .space 2048
 .endif
 track23_mode: .byte 0
+track32_heading: .byte 0
+track32_span: .byte 9
 kills_by_type: .space 4
 stage: .byte 1
 /* Six original effects in a new arrangement; all durations are BIOS ticks. */
@@ -7193,7 +7133,7 @@ paint_explosion_x: .byte 0
 paint_explosion_y: .byte 0
 sound_ticks: .byte 0
 sound_tone: .word 0
-brick_masks: .space 256
+/* brick_masks: .space 256 -> zeroed .bss */
 test_phase: .byte 0
 lives: .byte 3
 score: .word 0
@@ -7280,7 +7220,7 @@ tactical_coop_glyphs: .word hud_blank_icon,hud_blank_icon,hud_c_char,hud_o_char,
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_u_char, hud_r_char, hud_i_char, hud_m_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_3, hud_digit_1
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_3, hud_digit_2
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
@@ -7334,8 +7274,8 @@ cga_scanline_offsets:
     .word ((scan_lookup / 2) * 80 + (scan_lookup & 1) * 8192)
     .set scan_lookup,scan_lookup+1
 .endr
-dirty_tiles: .space 256
-upload_tiles: .space 256
+/* dirty_tiles: .space 256 -> zeroed .bss */
+/* upload_tiles: .space 256 -> zeroed .bss */
 frame_seg: .word 0xb800
 paint_player_valid: .byte 0
 paint_player_x: .byte 0
@@ -7352,8 +7292,18 @@ paint_enemy_y: .space 4
 paint_shot_valid: .space 7
 paint_shot_x: .space 7
 paint_shot_y: .space 7
-level_data: .space 256
+/* level_data: .space 256 -> zeroed .bss */
 .include "src/dos/cga_assets.inc"
 
-/* First free byte of this .COM. DOS stack is positioned 4K above it. */
+/* Boot-zeroed NOBITS: 1024 bytes of scratch, formerly in the COM file.
+ * Keep the 4KiB stack above the END of .bss, never inside the arrays. */
+.section .bss
+.p2align 1
+bss_start:
+brick_masks: .space 256
+dirty_tiles: .space 256
+upload_tiles: .space 256
+level_data: .space 256
+bss_end:
+/* End of reserved memory, INCLUDING .bss, for DOS resize and stack. */
 program_end:
