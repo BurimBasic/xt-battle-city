@@ -69,6 +69,21 @@ class FolkFM34Tests(unittest.TestCase):
   self.assertNotIn("int 0x08",S)    # no IRQ0 samples
   self.assertNotIn("rep ",S)       # no software PCM mixing
 
+ def test_dos_stack_clamps_before_64k_overflow_in_large_trace_build(self):
+  startup=T.split("_start:",1)[1].split("buffer_unavailable:",1)[0]
+  self.assertIn("add ax, 0x0fff",startup)
+  self.assertIn("jnc stack34_within_segment",startup)
+  self.assertIn("mov ax,0xfff0",startup)
+  self.assertIn("stack34_end_position:",startup)
+  self.assertIn("mov sp, ax",startup)
+  # The previous 59,560-byte trace image placed BSS end at F0AEh.
+  # F0AE+FFFh wraps to 00ADh, inside the DOS PSP command line at 0080h.
+  trace_end=0xf0ae
+  self.assertGreater(trace_end+0xfff,0xffff)
+  stack=0xfff0 if trace_end+0xfff>0xffff else (trace_end+0xfff)&0xfff0
+  self.assertGreaterEqual(stack-trace_end,0xf00)
+  self.assertGreaterEqual(stack,0xf000)
+
  def test_very_short_speaker_and_adlib_patches_are_event_driven(self):
   for marker in ("sound33_speaker:","sound33_opl_pitch:","sound34_play_drum:",
                  "sound33_sweep_pit:","sound_stop:"):
