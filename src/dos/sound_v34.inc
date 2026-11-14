@@ -63,7 +63,9 @@ music33_start_done:
 
 music33_tick:
     cmp byte ptr [music33_active],0
-    je music33_tick_done
+    jne music34_tick_active
+    ret                     /* 8086: avoid extended conditional branch */
+music34_tick_active:
     push ax
     push bx
     dec byte ptr [music33_div]

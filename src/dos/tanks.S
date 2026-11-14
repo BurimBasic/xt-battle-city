@@ -16,9 +16,33 @@ _start:
     cld
     /* .bss occupies address space but no on-disk COM bytes. DOS .COM does
        not promise zero-filled private paragraphs: initialize explicitly. */
+    push cs
+    pop es
     mov di,offset bss_start
     mov cx,offset bss_end-bss_start
     xor al,al
+    rep stosb
+    /* Build the same 256-byte 12px row lookup ONCE at boot rather than
+       store zero-cost CPU data in the .COM. No per-frame division or shifts:
+       paint code still reads the precomputed O(1) array from RAM. */
+    mov di,offset pixel_y_tile_lookup
+    xor dx,dx               /* DH=tile row, DL=pixel within tile */
+    mov cx,192
+lookup34_next:
+    mov al,dh
+    mov ah,16
+    mul ah                  /* row<<4, 0..15 */
+    or al,dl
+    stosb
+    inc dl
+    cmp dl,12
+    jne lookup34_no_row
+    xor dl,dl
+    inc dh
+lookup34_no_row:
+    loop lookup34_next
+    mov al,0xf0             /* y192..255 clamped to last row */
+    mov cx,64
     rep stosb
     /* DOS .COM occupies one allocation. Shrink it and reserve 16 KiB
        conventional RAM for the composed CGA bitmap. Keep a 4 KiB stack
@@ -26,7 +50,16 @@ _start:
        the original direct-VRAM drawing path. No extra adapter is required. */
     mov ax, offset program_end
     add ax, 0x0fff
+    jnc stack34_within_segment
+    /* 8086 .COM has ONE 64 KiB segment. Large TRACE builds may place
+       BSS > F000h, causing 4KiB stack addition to WRAP and overwrite
+       the PSP command tail, silently defeating /TRACE. Clamp top to
+       FFF0h rather than wrapping below 0100h. Still ~3.9KiB stack. */
+    mov ax,0xfff0
+    jmp stack34_end_position
+stack34_within_segment:
     and ax, 0xfff0
+stack34_end_position:
     mov sp, ax
     mov bx, ax
     shr bx, 1
@@ -943,6 +976,7 @@ adlib_timer_wait:
     jne adlib_detect_done
     mov byte ptr [adlib_present], 1
     call adlib_setup
+    call sound34_rhythm_setup
 adlib_detect_done:
     pop dx
     pop cx
@@ -1001,10 +1035,16 @@ sound_play:
     push ax
     push bx
     cmp byte ptr [sound_muted],0
-    jne sound_play_done
+    je sound34_play_allowed
+    jmp sound_play_done    /* 8086 short Jcc + near JMP, not 386 Jcc */
+sound34_play_allowed:
     mov bx,ax
-    mov byte ptr [sound33_kind],0  /* brief soft fire click */
+    mov byte ptr [sound33_kind],0  /* shot: FM chirp + noisy hi-hat */
     mov byte ptr [sound_ticks],1
+    cmp bx,1100
+    jae sound34_not_pickup
+    mov byte ptr [sound33_kind],2  /* melodic bonus pickup */
+sound34_not_pickup:
     cmp bx,1800
     jb sound33_classified
     mov byte ptr [sound33_kind],1  /* low, short explosion */
@@ -1014,13 +1054,33 @@ sound33_classified:
     je sound33_speaker
     mov ax,0xb010             /* key off before re-trigger */
     call adlib_write
-    mov ax,0xa08c             /* dry fire click, mid range */
+    mov ax,0xa0c0             /* fast hard shot: brighter attack */
     cmp byte ptr [sound33_kind],0
     je sound33_opl_pitch
-    mov ax,0xa044             /* explosion begins low */
+    mov ax,0xa0a8             /* punchy lower burst: descending pitch */
+    /* Low-volume bonus gliss: distinguish pickup from a shot. */
 sound33_opl_pitch:
+    cmp byte ptr [sound33_kind],2
+    jne sound34_note_ready
+    mov ax,0xa078
+sound34_note_ready:
     call adlib_write
-    mov ax,0xb02d             /* OPL BLOCK3, FNUM1, key on */
+    mov ax,0xb02d
+    call adlib_write
+    /* Yamaha rhythm mode: hardware noise, no PCM or ISR.
+       Each strike must clear the previous latch before retriggering. */
+    mov ax,0xbd20
+    call adlib_write
+    cmp byte ptr [sound33_kind],1
+    jne sound34_not_explosion
+    mov ax,0xbd38             /* bass drum + noisy snare */
+    jmp sound34_play_drum
+sound34_not_explosion:
+    mov ax,0xbd21             /* very short airy hi-hat shot */
+    cmp byte ptr [sound33_kind],2
+    jne sound34_play_drum
+    mov ax,0xbd20             /* pickup: melody but no metallic noise */
+sound34_play_drum:
     call adlib_write
     jmp sound_play_done
 sound33_speaker:
@@ -1058,7 +1118,7 @@ sound_tick:
     push ax
     cmp byte ptr [adlib_present],0
     je sound33_sweep_pit
-    mov ax,0xa018
+    mov ax,0xa040            /* rapidly falling explosion transient */
     call adlib_write
     jmp sound33_sweep_done
 sound33_sweep_pit:
@@ -1086,6 +1146,8 @@ sound_stop:
     je speaker_stopped
     mov ax,0xb00d          /* OPL channel 0: KEY OFF */
     call adlib_write
+    mov ax,0xbd20          /* clear all noisy drum triggers */
+    call adlib_write
 speaker_stopped:
     mov byte ptr [sound_ticks],0
     pop ax
@@ -1096,8 +1158,8 @@ sound33_kind: .byte 0
 /* 2-op bass/percussion patch. Modulator TL and rapid ADSR form short,
    band-limited ticks instead of the v0.32 pure sine piercing beep. */
 sound33_opl0:
-    .word 0x2011,0x2302,0x4026,0x431a,0x60f5
-    .word 0x63f5,0x8047,0x8316,0xc006
+    .word 0x2007,0x2301,0x4014,0x4329,0x60f7
+    .word 0x63f9,0x8055,0x8326,0xc00c
 .section .text
 
 /* A full brick starts with four 8x6 quarters. Shots chip the nearest
@@ -7116,7 +7178,7 @@ trace_record_done:
 .include "src/dos/v027_render.inc"
 .include "src/dos/score_v31.inc"
 .include "src/dos/title_v32.inc"
-.include "src/dos/sound_v33.inc"
+.include "src/dos/sound_v34.inc"
 
 .section .data
 .ifdef TRACE_BUILD
@@ -7139,7 +7201,6 @@ bonus_timer: .byte 0
 bonus_sequence: .byte 0
 bonus_flash_type: .byte 0
 bonus_flash_ticks: .byte 0
-bonus_columns: .byte 2, 10, 4, 8, 1, 11, 6, 12, 5, 9, 3
 bonus_drop_order: .byte 0, 6, 5, 8, 7, 9, 11, 12, 13, 1, 3, 4, 2, 10
 /* Heart at second pickup, ally third; no more fixed center-row spawn. */
 ally_stock: .byte 1        /* reserve V calls: max nine */
@@ -7153,8 +7214,6 @@ hq_shield: .byte 0
 hq_originals: .space 4
 hq_original_masks: .space 4
 slide_ticks: .byte 0
-slide_old_col: .byte 0
-slide_old_row: .byte 0
 sound_muted: .byte 0
 adlib_present: .byte 0
 palette_index: .byte 0
@@ -7166,7 +7225,6 @@ paint_explosion_valid: .byte 0
 paint_explosion_x: .byte 0
 paint_explosion_y: .byte 0
 sound_ticks: .byte 0
-sound_tone: .word 0
 /* brick_masks: .space 256 -> zeroed .bss */
 test_phase: .byte 0
 lives: .byte 3
@@ -7183,7 +7241,6 @@ bullet_delay: .byte 0
 game_state: .byte 0
 game_tick: .byte 0
 enemy_ai_phase: .byte 0
-only_fast: .byte 0
 enemy_spawned: .byte 0
 enemy_killed: .byte 0
 rng_state: .word 0x51ab
@@ -7254,7 +7311,7 @@ tactical_coop_glyphs: .word hud_blank_icon,hud_blank_icon,hud_c_char,hud_o_char,
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_u_char, hud_r_char, hud_i_char, hud_m_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_3, hud_digit_2
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_3, hud_digit_4
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
@@ -7287,20 +7344,9 @@ rect_y0: .byte 0
 rect_y1: .byte 0
 scan_x: .byte 0
 scan_y: .byte 0
-scan_bank: .word 0
 /* y in 0..191; byte: high nibble tile row, low nibble y%12.
    Out-of-range y in 192..255 is clamped to row 15 for sprite restores. */
-.p2align 1
-pixel_y_tile_lookup:
-.set y_lookup,0
-.rept 256
-    .if y_lookup < 192
-        .byte (((y_lookup / 12) << 4) | (y_lookup % 12))
-    .else
-        .byte 0xf0
-    .endif
-    .set y_lookup,y_lookup+1
-.endr
+/* pixel_y_tile_lookup moved to boot-filled .bss, exact y/12 mapping */
 .p2align 1
 cga_scanline_offsets:
 .set scan_lookup,0
@@ -7334,6 +7380,7 @@ paint_shot_y: .space 7
 .section .bss
 .p2align 1
 bss_start:
+pixel_y_tile_lookup: .space 256
 brick_masks: .space 256
 dirty_tiles: .space 256
 upload_tiles: .space 256

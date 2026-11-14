@@ -21,8 +21,14 @@ class XT19(unittest.TestCase):
         block=fragment(T,'pixel_is_blocked:','rect_passable:')
         self.assertNotIn('div',block)
         self.assertIn('pixel_y_tile_lookup+bx',block)
-        self.assertIn('.rept 256',T)
-        self.assertIn('pixel_y_tile_lookup:',T)
+        # v0.34: same 256-entry RAM lookup, built once during DOS boot
+        # instead of carrying a 256-byte initialised table in the COM.
+        self.assertIn('pixel_y_tile_lookup: .space 256',T)
+        self.assertIn('mov di,offset pixel_y_tile_lookup',T)
+        self.assertIn('mov cx,192',T)
+        self.assertIn('mov cx,64',T)
+        self.assertIn('lookup34_next:',T)
+        self.assertIn('rep stosb',T)
         for y in range(192):
             packed=((y//12)<<4)|(y%12)
             self.assertLessEqual(packed,255)
@@ -68,7 +74,7 @@ class XT19(unittest.TestCase):
         brand=fragment(T,'draw_branding:','draw_brand_row:')
         self.assertIn('mov di,6147',brand)
         self.assertIn('mov di,6787',brand)
-        self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_3, hud_digit_2',T)
+        self.assertIn('brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_3, hud_digit_4',T)
         # 6147 is x268/y152; 6787 x268/y168. 8px empty gap.
         self.assertEqual((6787-6147)//80,8)
     def test_real_dos_regressions(self):
