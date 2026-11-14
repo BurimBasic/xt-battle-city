@@ -1,4 +1,4 @@
-name: Stage v0.31 CGA DOS candidate - tracks scores lives bomber
+name: Stage v0.31 CGA DOS candidate - final branded HUD and score visuals
 on:
   push:
     branches: [feat/v031-tracks-score-popups-extra-lives-bomber]
