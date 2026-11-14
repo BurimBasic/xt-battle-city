@@ -329,7 +329,11 @@ init_brick_store:
     call strategy_reset
     call tactical24_reset
     call bomber25_reset
-    call score31_reset_stage
+    /* Reset only transient popup state, KEEP progress to next 15k life. */
+    mov di,offset score31_hud_flash
+    mov cx,29
+    xor al,al
+    rep stosb
     /* 2P uses the existing ally sprite but not its autonomous brain. */
     cmp byte ptr [coop_mode],0
     je load_stage_no_coop
