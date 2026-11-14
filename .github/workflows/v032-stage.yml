@@ -1,4 +1,4 @@
-name: Stage v0.32 XT CGA final - heavy intro and silhouette treads
+name: Stage v0.32 XT CGA final2 - complete keys and heavy intro
 on:
   push:
     branches: [feat/v032-intro-contained-treads]
