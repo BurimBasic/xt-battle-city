@@ -978,94 +978,127 @@ adlib_data_delay:
     pop ax
     ret
 
-/* Basic original one-channel percussive tone, not an existing soundtrack. */
+/* v0.33: one short FM percussive voice, quiet speaker fallback.
+ * OPL2 YM3812 channel 0: modulator 0, carrier 3, feedback + ADSR.
+ * Game events pass an old PIT divider in AX; classify instead of merely
+ * playing that tone as a long, shrill beep. Intro uses FM channels 1 & 2. */
 adlib_setup:
     push ax
-    mov ax, 0x2001       /* channel 0 modulator and carrier */
+    push cx
+    push si
+    mov si,offset sound33_opl0
+    mov cx,9
+adlib_setup_loop:
+    lodsw
     call adlib_write
-    mov ax, 0x2301
-    call adlib_write
-    mov ax, 0x403f       /* suppress modulator for simple sine-like tone */
-    call adlib_write
-    mov ax, 0x4308
-    call adlib_write
-    mov ax, 0x60f0
-    call adlib_write
-    mov ax, 0x63f0
-    call adlib_write
-    mov ax, 0x8077
-    call adlib_write
-    mov ax, 0x8377
-    call adlib_write
-    mov ax, 0xc000
-    call adlib_write
-    mov ax, 0xb011
-    call adlib_write
+    loop adlib_setup_loop
+    pop si
+    pop cx
     pop ax
     ret
 
-/* Game sound API: AX=PC speaker divider. Prefer OPL2 when detected. */
 sound_play:
     push ax
     push bx
-    push dx
-    cmp byte ptr [sound_muted], 0
+    cmp byte ptr [sound_muted],0
     jne sound_play_done
-    mov bx, ax
-    cmp byte ptr [adlib_present], 0
-    je sound_speaker_fallback
-    mov ax, 0xb011      /* key off before new tone */
+    mov bx,ax
+    mov byte ptr [sound33_kind],0  /* brief soft fire click */
+    mov byte ptr [sound_ticks],1
+    cmp bx,1800
+    jb sound33_classified
+    mov byte ptr [sound33_kind],1  /* low, short explosion */
+    mov byte ptr [sound_ticks],2
+sound33_classified:
+    cmp byte ptr [adlib_present],0
+    je sound33_speaker
+    mov ax,0xb010             /* key off before re-trigger */
     call adlib_write
-    mov ax, 0xa0c0
-    cmp bx, 1100
-    jb adlib_fx_ready
-    mov ax, 0xa080
-    cmp bx, 2000
-    jb adlib_fx_ready
-    mov ax, 0xa030
-adlib_fx_ready:
+    mov ax,0xa08c             /* dry fire click, mid range */
+    cmp byte ptr [sound33_kind],0
+    je sound33_opl_pitch
+    mov ax,0xa044             /* explosion begins low */
+sound33_opl_pitch:
     call adlib_write
-    mov ax, 0xb031      /* octave 4, key on */
+    mov ax,0xb02d             /* OPL BLOCK3, FNUM1, key on */
     call adlib_write
-    mov byte ptr [sound_ticks], 2
     jmp sound_play_done
-sound_speaker_fallback:
-    mov al, 0xb6
-    out 0x43, al
-    mov ax, bx
-    out 0x42, al
-    mov al, ah
-    out 0x42, al
-    in al, 0x61
-    or al, 3
-    out 0x61, al
-    mov byte ptr [sound_ticks], 2
+sound33_speaker:
+    /* PC speaker has only a 1-bit gate; keep it LOW and BRIEF.
+     * No busy loops, PWM or speaker melody, and no IRQ work. */
+    mov ax,1500
+    cmp byte ptr [sound33_kind],0
+    je sound33_pit_pitch
+    mov ax,3050
+sound33_pit_pitch:
+    mov bx,ax
+    mov al,0xb6
+    out 0x43,al
+    mov ax,bx
+    out 0x42,al
+    mov al,ah
+    out 0x42,al
+    in al,0x61
+    or al,3
+    out 0x61,al
 sound_play_done:
-    pop dx
     pop bx
     pop ax
     ret
+
 sound_tick:
-    cmp byte ptr [sound_ticks], 0
+    cmp byte ptr [sound_ticks],0
     je sound_tick_done
     dec byte ptr [sound_ticks]
-    jnz sound_tick_done
+    jz sound33_tick_stop
+    /* Second explosion step: falling pitch. Two AdLib writes max, or
+     * one PIT divisor update; effects never extend past 2 BIOS ticks. */
+    cmp byte ptr [sound33_kind],1
+    jne sound_tick_done
+    push ax
+    cmp byte ptr [adlib_present],0
+    je sound33_sweep_pit
+    mov ax,0xa018
+    call adlib_write
+    jmp sound33_sweep_done
+sound33_sweep_pit:
+    mov ax,3900
+    mov al,0xb6
+    out 0x43,al
+    mov ax,3900
+    out 0x42,al
+    mov al,ah
+    out 0x42,al
+sound33_sweep_done:
+    pop ax
+    ret
+sound33_tick_stop:
     call sound_stop
 sound_tick_done:
     ret
+
 sound_stop:
     push ax
-    in al, 0x61
-    and al, 0xfc
-    out 0x61, al
-    cmp byte ptr [adlib_present], 0
+    in al,0x61
+    and al,0xfc
+    out 0x61,al
+    cmp byte ptr [adlib_present],0
     je speaker_stopped
-    mov ax, 0xb011
+    mov ax,0xb00d          /* OPL channel 0: KEY OFF */
     call adlib_write
 speaker_stopped:
-    mov byte ptr [sound_ticks], 0
+    mov byte ptr [sound_ticks],0
     pop ax
     ret
+
+.section .data
+sound33_kind: .byte 0
+/* 2-op bass/percussion patch. Modulator TL and rapid ADSR form short,
+   band-limited ticks instead of the v0.32 pure sine piercing beep. */
+sound33_opl0:
+    .word 0x2011,0x2302,0x4026,0x431a,0x60f5
+    .word 0x63f5,0x8047,0x8316,0xc006
+.section .text
 
 /* A full brick starts with four 8x6 quarters. Shots chip the nearest
  * half first. This grid-based prototype does not yet model pixel-accurate
@@ -7083,6 +7116,7 @@ trace_record_done:
 .include "src/dos/v027_render.inc"
 .include "src/dos/score_v31.inc"
 .include "src/dos/title_v32.inc"
+.include "src/dos/sound_v33.inc"
 
 .section .data
 .ifdef TRACE_BUILD
