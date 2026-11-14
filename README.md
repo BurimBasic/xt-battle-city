@@ -8,7 +8,7 @@
 
 **[Скачать v0.32 — ZIP из GitHub Releases](https://github.com/BurimBasic/xt-battle-city/releases/download/v0.32/TANKS-v0.32-DOS-CGA.zip)** · **[Отдельный TANKS.COM](https://github.com/BurimBasic/xt-battle-city/releases/download/v0.32/TANKS.COM)** · [Все релизы](https://github.com/BurimBasic/xt-battle-city/releases) · [История](CHANGELOG.md) · [Изменения v0.32](releases/v0.32/RELEASE-NOTES.md)
 
-**Проверенный бинарник v0.32:** 56 934 байта (менее 56 КиБ), SHA-256 `DAFC93B1B8FF550D5B822A9891A9CFB97FE6A3438BB9E9DC04A587FD2ACB4B25`. **191 тест PASS**, 35 карт и аудит 8086 PASS, DOS `/TEST` PASS и 2048-тактовый AUTO-бой 20/20 PASS. Контроль скорости/отката — в [заметках к релизу](releases/v0.32/RELEASE-NOTES.md). Не путай эту DOS/CGA-сборку с ещё не существующими нативными EGA/VGA/Hercules/«Поиск-1» версиями.
+**Проверенный бинарник v0.32:** 56 940 байт (менее 56 КиБ), SHA-256 `4A4F36F2A0B2DACB17E2D1E4256C27B6BAD73E7A5A88950152F3952B50A1B786`. **192 теста PASS**, 35 карт и аудит 8086 PASS, DOS `/TEST` PASS и 2048-тактовый AUTO-бой 20/20 PASS. Контроль скорости/отката — в [заметках к релизу](releases/v0.32/RELEASE-NOTES.md). Не путай эту DOS/CGA-сборку с ещё не существующими нативными EGA/VGA/Hercules/«Поиск-1» версиями.
 
 На SLOW1 запуск: `C:\XT-Battle-City\RUN-CGA.cmd`. На другой системе с DOSBox-X: выбери эмуляцию **8086**, **CGA**, смонтируй каталог с `TANKS.COM` как диск `C:` и введи `TANKS.COM`. После переустановки исполняемого файла уже открытое окно игры нужно перезапустить.
 
