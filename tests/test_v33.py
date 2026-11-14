@@ -39,9 +39,9 @@ class Sound33Tests(unittest.TestCase):
   self.assertIn("cmp byte ptr [adlib_present],0",T)
   # YM3812 register writer must retain mandatory IO settling reads.
   writer=T.split("adlib_write:",1)[1].split("/* v0.33:",1)[0]
-  self.assertIn("mov dx,0x0388",writer)
-  self.assertIn("in al,dx",writer)
-  self.assertIn("out dx,al",writer)
+  self.assertIn("mov dx, 0x0388",writer)
+  self.assertIn("in al, dx",writer)
+  self.assertIn("out dx, al",writer)
 
  def test_opl_intro_ch1_ch2_only_and_original_notes(self):
   m=F.split("music33_patch:",1)[1].split("music33_lead:",1)[0]
@@ -53,8 +53,10 @@ class Sound33Tests(unittest.TestCase):
   bass=[(v>>8)&0xff for v in pairs[9:]]
   self.assertEqual(lead,[0x21,0x24,0x41,0x44,0x61,0x64,0x81,0x84,0xc1])
   self.assertEqual(bass,[0x22,0x25,0x42,0x45,0x62,0x65,0x82,0x85,0xc2])
-  notes=[int(v,16) for v in re.findall(r"0x([0-9a-f]{1,2})",
-      F.split("music33_lead:",1)[1].split("music33_bass:",1)[0])]
+  lead_lines=F.split("music33_lead:",1)[1].split("music33_bass:",1)[0]
+  notes=[int(v.strip(),16) if v.strip().startswith("0x") else int(v.strip())
+         for v in ",".join(l.split(".byte",1)[1] for l in lead_lines.splitlines()
+             if ".byte" in l).split(",")]
   self.assertEqual(len(notes),16)
   self.assertGreaterEqual(notes.count(0),3)
   self.assertIn("cmp byte ptr [adlib_present],0",F)
