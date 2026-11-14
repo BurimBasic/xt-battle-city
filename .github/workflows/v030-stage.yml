@@ -1,4 +1,4 @@
-name: Stage v0.30 SLOW1 candidate: six user sprites and physical muzzle origins
+name: Stage v0.30 SLOW1 candidate - six user sprites and physical muzzle origins
 on:
   push:
     branches: [feat/v030-user-drawn-tanks-enemy-muzzle-props]
