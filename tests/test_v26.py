@@ -29,7 +29,8 @@ class V26Regression(unittest.TestCase):
   self.assertIn('call bomber26_roll',T.split('normal_play:',1)[1].split('normal_play_doctrine_ready:',1)[0])
   for step in ('sub byte ptr [bomber25_x],2','sub byte ptr [bomber25_y],2','add byte ptr [bomber25_x],2','add byte ptr [bomber25_y],2'):
    self.assertIn(step,B)
-  self.assertIn('cmp al,[bomber26_departure]',B)
+  self.assertIn('cmp byte ptr [enemy_killed],10',B)
+  self.assertIn('cmp byte ptr [bomber27_wait],0',B)
  def test_bombs_alternate_a_single_left_right_cell_behind_axis(self):
   wave=B.split('bomber25_wave:',1)[1].split('bomber25_wave_done:',1)[0]
   self.assertEqual(wave.count('call bomber25_impact'),1)
