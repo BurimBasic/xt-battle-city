@@ -34,6 +34,12 @@
 - Физическое звучание на настоящем OPL2/AdLib и PC Speaker, а также скорость реального PC/XT 4,77 МГц пока отдельно не подтверждены. Нативные EGA/VGA/Hercules и «Поиск-1» ещё не реализованы. Этот релиз — DOS/CGA.
 - **Реальный кадр заставки v0.33**: [CGA-DOSBox-X-v0.33-title-real.png](../../docs/screenshots/CGA-DOSBox-X-v0.33-title-real.png), снят с DOSBox-X 2026.10.01 на SLOW1 (8086/CGA, 1000 cycles/ms). Экран показывает встречный подход танков; звук подтверждается отдельной аппаратной проверкой `/AUDIO`, а не снимком.
 
+### Переносной комплект Windows x64 с DOSBox-X
+
+На SLOW1 дополнительно создан `C:\\XT-Battle-City\\TANKS-v0.33-PORTABLE-WIN64.zip` (**12 000 309 байт**, SHA-256 `91a40681b33bf5f18afd63fbb6cdcea00cccce7f701f030e53616080f56bd743`). Содержит ту же SHA-проверенную игру v0.33 и DOSBox-X 2026.10.01, лицензию эмулятора, русскую инструкцию и три сценария запуска: `START-TANKS.cmd` (FM/AdLib), `START-SPEAKER.cmd` (только PC Speaker), `START-XT-240.cmd` (FM/AdLib, медленная 240 cycles/ms).
+
+**Проверка переносимости на SLOW1:** ZIP распакован в отдельную папку с пробелами и кириллицей. Упакованный DOSBox-X из этой папки запустил игру и выполнил `/TEST` — **PASS (9,92 с)**; `/AUDIO` — **ADLIB (1,69 с)**; через Speaker-launcher `/AUDIO` — **SPEAKER (1,66 с)**. В обоих случаях код завершения командного файла 0. Установленный DOSBox извне не используется. Это **локальный архив на SLOW1**, а не asset стандартного GitHub Releases.
+
 ## Управление и получение
 
 - [ZIP v0.33](https://github.com/BurimBasic/xt-battle-city/releases/download/v0.33/TANKS-v0.33-DOS-CGA.zip) · [Отдельный TANKS.COM v0.33](https://github.com/BurimBasic/xt-battle-city/releases/download/v0.33/TANKS.COM) · [Полная инструкция](../../README.md).
