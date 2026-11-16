@@ -2861,7 +2861,18 @@ manual_key_event:
     push ax
     test bl, 0x80
     jnz manual_key_released
-    or byte ptr [manual_keys], ah
+    /* One cardinal axis at a time. Retain FIRE (bit 4); latest arrow
+       make replaces the previous direction, including ghosted keys. */
+    cmp ah,16
+    je manual_key_fire_make
+    mov al,[manual_keys]
+    and al,16
+    or al,ah
+    mov [manual_keys],al
+    jmp manual_key_make_ready
+manual_key_fire_make:
+    or byte ptr [manual_keys],ah
+manual_key_make_ready:
     mov byte ptr [auto_mode], 0
     mov al, [manual_keys]
     mov [held_keys], al
