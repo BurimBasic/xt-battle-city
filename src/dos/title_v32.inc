@@ -2,7 +2,7 @@
  * Brick letters are rendered from 5x7 bitmap rows as 3x3 CGA pixel bricks,
  * with 1px black grout. Real approved 12x12 tanks move slowly toward
  * one another. Two barrel-tip shots collide and both tanks burst.
- * BIOS keyboard polling happens before IRQ1 installation: ANY key skips.
+ * Meeting axis is CGA x=160 (screen center). Any key skips before IRQ1.
  * No new frame-sized bitmap or runtime file; unchanged 18.2 Hz gameplay.
  */
 .section .text
@@ -20,8 +20,8 @@ title32_intro:
     mov word ptr [frame_seg],0xb800
     mov byte ptr [title32_skip],0
     mov byte ptr [title32_frame],0
-    mov byte ptr [title32_x1],69
-    mov byte ptr [title32_x2],169
+    mov byte ptr [title32_x1],105
+    mov byte ptr [title32_x2],205
     mov ax,0x0004
     int 0x10
     mov ax,0x0b00
@@ -253,8 +253,8 @@ title32_text_next:
 .section .data
 title32_oldseg: .word 0
 title32_clock: .word 0
-title32_x1: .byte 69
-title32_x2: .byte 169
+title32_x1: .byte 105
+title32_x2: .byte 205
 title32_skip: .byte 0
 title32_frame: .byte 0
 title32_font:

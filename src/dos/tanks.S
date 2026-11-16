@@ -2861,7 +2861,18 @@ manual_key_event:
     push ax
     test bl, 0x80
     jnz manual_key_released
-    or byte ptr [manual_keys], ah
+    /* One cardinal axis at a time. Retain FIRE (bit 4); latest arrow
+       make replaces the previous direction, including ghosted keys. */
+    cmp ah,16
+    je manual_key_fire_make
+    mov al,[manual_keys]
+    and al,16
+    or al,ah
+    mov [manual_keys],al
+    jmp manual_key_make_ready
+manual_key_fire_make:
+    or byte ptr [manual_keys],ah
+manual_key_make_ready:
     mov byte ptr [auto_mode], 0
     mov al, [manual_keys]
     mov [held_keys], al
@@ -5927,7 +5938,7 @@ smoke_bonus_replay:
 9:
     pop es
     /* Phase 73: title now has a blank glyph-height before ©1982; the
-       release version is V0.19. */
+       release version follows brand_version_glyphs. */
     mov byte ptr [test_phase],73
     call draw_branding
     push es
@@ -7311,7 +7322,7 @@ tactical_coop_glyphs: .word hud_blank_icon,hud_blank_icon,hud_c_char,hud_o_char,
 brand_tanks_glyphs: .word hud_t_char, hud_a_char, hud_n_char, hud_k_char, hud_s_char
 brand_copyright_glyphs: .word hud_copyright_icon, hud_digit_1, hud_digit_9, hud_digit_8, hud_digit_2
 brand_basic_glyphs: .word hud_b_char, hud_u_char, hud_r_char, hud_i_char, hud_m_char
-brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_3, hud_digit_4
+brand_version_glyphs: .word hud_v_char, hud_digit_0, hud_dot_char, hud_digit_3, hud_digit_5
 tactical_manual_glyphs: .word hud_t_char, hud_a_char, hud_b_char, hud_dash_char, hud_a_char, hud_u_char, hud_t_char, hud_o_char
 /* Pixel world coordinates, retained alongside coarse tile positions. */
 bullet_substeps: .byte 0
