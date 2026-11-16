@@ -1,4 +1,4 @@
-name: Stage v0.35 centered title and cardinal controls (HUD V0.35)
+name: Stage v0.35 centered title and cardinal controls (final QA)
 on:
   push:
     branches: [feat/v035-centered-title-cardinal-input]
