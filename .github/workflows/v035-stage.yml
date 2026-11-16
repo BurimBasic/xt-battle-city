@@ -1,0 +1,53 @@
+name: Stage v0.35 centered title and cardinal controls
+on:
+  push:
+    branches: [feat/v035-centered-title-cardinal-input]
+    paths: ['.github/workflows/v035-stage.yml']
+permissions:
+  contents: write
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build, test 8086 ISA and validate 35 maps
+        run: |
+          make assets
+          make clean all test
+          make build/TANKS-TRACE.COM build/TANKS-PERF.COM
+      - name: Stage exact candidate and 8086 diagnostic builds
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          from zipfile import ZipFile,ZIP_DEFLATED
+          exe=Path('build/TANKS.COM').read_bytes()
+          digest=sha256(exe).hexdigest().upper()
+          assert len(exe)<57344,(len(exe),digest)
+          Path('dist').mkdir(exist_ok=True)
+          Path('dist/TANKS.COM').write_bytes(exe)
+          qa=Path('releases/v0.35/qa')
+          qa.mkdir(parents=True,exist_ok=True)
+          for name in ('TANKS-TRACE.COM','TANKS-PERF.COM'):
+              (qa/name).write_bytes((Path('build')/name).read_bytes())
+          path=Path('releases/v0.35/TANKS-v0.35-DOS-CGA.zip')
+          with ZipFile(path,'w',compression=ZIP_DEFLATED,compresslevel=9) as z:
+              z.writestr('TANKS.COM',exe)
+          with ZipFile(path) as z:
+              assert z.read('TANKS.COM')==exe
+          print('CANDIDATE_BUILD_PASS',len(exe),digest)
+          PY
+      - name: Commit exact tested build payload to staging branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/dos/cga_assets.inc dist/TANKS.COM releases/v0.35/
+          if ! git diff --cached --quiet; then
+            git commit -m 'build(v0.35): stage 8086 binary and QA artifacts'
+            git push origin HEAD:feat/v035-centered-title-cardinal-input
+          fi
