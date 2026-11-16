@@ -48,7 +48,18 @@ coop24_key_event:
     push ax
     test bl,0x80
     jnz coop24_key_released
+    /* WASD is mutually exclusive; Ctrl remains independent. This
+       also protects against stuck/ghosted matrix keys on XT clones. */
+    cmp ah,16
+    je coop24_fire_make
+    mov al,[coop_keys]
+    and al,16
+    or al,ah
+    mov [coop_keys],al
+    jmp coop24_make_ready
+coop24_fire_make:
     or byte ptr [coop_keys],ah
+coop24_make_ready:
     mov byte ptr [coop_join_pending],1
     jmp coop24_key_done
 coop24_key_released:
