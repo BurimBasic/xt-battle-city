@@ -1,0 +1,46 @@
+name: Publish GitHub Release v0.35
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'releases/v0.35/TANKS-v0.35-DOS-CGA.zip'
+      - 'releases/v0.35/RELEASE-NOTES.md'
+      - '.github/workflows/release-v035.yml'
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify immutable release file, zip, checksums and 8086 size
+        run: |
+          test -s dist/TANKS.COM
+          test -s releases/v0.35/TANKS-v0.35-DOS-CGA.zip
+          test -s releases/v0.35/RELEASE-NOTES.md
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,zipfile
+          exe=Path('dist/TANKS.COM').read_bytes()
+          sha=hashlib.sha256(exe).hexdigest().upper()
+          notes=Path('releases/v0.35/RELEASE-NOTES.md').read_text()
+          assert sha in notes,(sha,'missing SHA in release notes')
+          assert len(exe)<57344,len(exe)
+          with zipfile.ZipFile('releases/v0.35/TANKS-v0.35-DOS-CGA.zip') as z:
+              assert z.read('TANKS.COM')==exe
+          print('RELEASE_PAYLOAD_PASS',len(exe),sha)
+          PY
+      - name: Publish versioned GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=v0.35
+          zip=releases/v0.35/TANKS-v0.35-DOS-CGA.zip
+          notes=releases/v0.35/RELEASE-NOTES.md
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$zip" dist/TANKS.COM --clobber
+            gh release edit "$tag" --notes-file "$notes"
+          else
+            gh release create "$tag" "$zip" dist/TANKS.COM --title 'XT Battle City / Танчики v0.35 — centered title and cardinal input' --notes-file "$notes" --target "$GITHUB_SHA"
+          fi
+          gh release view "$tag" --json tagName,url,assets
